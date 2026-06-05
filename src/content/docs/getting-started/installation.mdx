@@ -1,0 +1,113 @@
+---
+title: Installation
+description: Clone the repository, run Setup.bat, and build the editor.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This page builds the engine itself. Once it is running you will create a game
+project from inside the editor, covered in
+[Your First Project](/getting-started/first-project/).
+
+<Steps>
+
+1. **Clone the repository**
+
+   ```sh
+   git clone https://github.com/MrDrElliot/LuminaEngine
+   cd LuminaEngine
+   ```
+
+2. **Run setup**
+
+   From the repository root, run:
+
+   ```bat
+   Setup.bat
+   ```
+
+   This is a one-shot setup for a fresh clone. It:
+   - Downloads `premake5.exe` into `Tools/` if it is missing.
+   - Downloads and extracts all external dependencies (`External.zip`).
+   - Persists the `LUMINA_DIR` environment variable to your user profile.
+   - Configures the git hooks.
+   - Generates `Lumina.sln`.
+
+   <Aside type="tip">
+   No Python is required. Setup uses the `curl.exe` and `tar.exe` that ship
+   with Windows 10 1803 and newer.
+   </Aside>
+
+   <Aside type="caution">
+   If the dependency download fails, grab
+   [External.zip](https://www.dropbox.com/scl/fi/mzad6ruqibzsmam30npju/External.zip?rlkey=egj0adfoytpjydnhbs53qd3lh&st=pw81jqsw&dl=0)
+   manually, extract it into the `LuminaEngine/` folder, then run
+   `GenerateProjectFiles.bat`.
+   </Aside>
+
+3. **Open the solution**
+
+   Open `Lumina.sln` in Visual Studio 2022.
+
+4. **Set the startup project**
+
+   In the Solution Explorer, right-click **Lumina** and choose
+   **Set as Startup Project**.
+
+5. **Choose a configuration and platform**
+
+   Pick a configuration:
+
+   - **Development**, for day-to-day work. Fast, with Tracy and logging enabled.
+   - **Debug**, for full debugger support. Significantly slower to compile and run.
+   - **Shipping**, for packaging. Strips profiling, verbose logging, and the editor.
+
+   Then pick a platform: **Editor** (the default) includes all editor tooling,
+   and **Game** is a runtime-only build with no editor.
+
+   Start with **Development | Editor**.
+
+6. **Build and run**
+
+   Press **F5**. Visual Studio builds every module and launches the editor.
+
+   On first launch the editor has no project loaded, so it opens its project
+   browser. Continue to [Your First Project](/getting-started/first-project/).
+
+</Steps>
+
+## After pulling
+
+After pulling or merging, regenerate the solution so new and removed source
+files are picked up:
+
+```bat
+GenerateProjectFiles.bat
+```
+
+If you still see unexpected errors, delete `Binaries/` and `Intermediates/`,
+then run `GenerateProjectFiles.bat` again.
+
+## Build features
+
+Optional engine features (the Tracy profiler, Vulkan validation, NVIDIA
+Aftermath, verbose logging) are configured in
+`BuildScripts/BuildConfig.lua` and baked in when you regenerate the solution.
+You can override any of them for a single regeneration from the command line,
+for example:
+
+```bat
+GenerateProjectFiles.bat --tracy=off --validation=on --verbose-logging=off
+```
+
+## Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| *Missing v143 toolset* | Visual Studio Installer, Individual Components, **MSVC v143 Build Tools** |
+| *"Cannot find .generated.h"* | Build again. Visual Studio sometimes needs a second pass to pick up generated files. |
+| *C1076 compiler limit* | Retry the build. This is an intermittent issue with a font file. |
+| *"Application control policy blocked this file"* | Disable **Windows 11 Smart App Control**. |
+
+Still stuck? [Open an issue](https://github.com/MrDrElliot/LuminaEngine/issues)
+or ask on [Discord](https://discord.gg/xQSB7CRzQE).

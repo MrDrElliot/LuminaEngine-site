@@ -1,0 +1,56 @@
+---
+title: Lumina Engine
+description: A modern C++ game engine with a data-driven editor, Luau scripting, and a Vulkan renderer.
+template: splash
+hero:
+  tagline: A modern C++ game engine with a data-driven editor, Luau scripting, and a Vulkan renderer.
+  image:
+    dark: ../../assets/logo-dark.png
+    light: ../../assets/logo-light.png
+  actions:
+    - text: Get Started
+      link: /getting-started/introduction/
+      icon: right-arrow
+    - text: GitHub
+      link: https://github.com/MrDrElliot/LuminaEngine
+      icon: github
+      variant: minimal
+    - text: Discord
+      link: https://discord.gg/xQSB7CRzQE
+      icon: discord
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Why Lumina
+
+<CardGrid>
+  <Card title="Vulkan renderer" icon="rocket">
+    A bindless, clustered forward renderer with cascaded shadows, image-based
+    lighting, volumetric fog, and a Slang shader pipeline.
+  </Card>
+  <Card title="Data-driven world" icon="puzzle">
+    An EnTT entity-component world with a reflection system that powers the
+    editor, serialization, and networking.
+  </Card>
+  <Card title="Luau scripting" icon="open-book">
+    Gameplay in typed Luau, with hot reload, an event bus, and editor tooling
+    built around it.
+  </Card>
+  <Card title="Editor first" icon="laptop">
+    A full editor, the scene outliner, inspector, asset browser, and live tools,
+    on the same runtime as the game.
+  </Card>
+</CardGrid>
+
+## Start here
+
+<CardGrid>
+  <LinkCard title="Installation" description="Clone, run Setup.bat, and build the editor." href="/getting-started/installation/" />
+  <LinkCard title="Your First Project" description="Create a project from the editor and run it." href="/getting-started/first-project/" />
+  <LinkCard title="The Editor" description="The viewport, panels, and asset editors." href="/manual/editor/" />
+  <LinkCard title="Entities & Components" description="Build scenes from entities and components." href="/manual/ecs/" />
+  <LinkCard title="Lua Scripting" description="Write gameplay against a typed API." href="/manual/scripting/" />
+  <LinkCard title="Physics" description="Rigid bodies, collisions, and raycasts." href="/manual/physics/" />
+</CardGrid>

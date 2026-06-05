@@ -1,0 +1,159 @@
+---
+title: Your First Project
+description: Create a project from the editor's project browser and launch it.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+A Lumina project is separate from the engine source. Each project is a small
+C++ module that links against the pre-built engine and loads at runtime. You do
+not copy template files by hand. The editor scaffolds the project, fills in its
+name and identifiers, and generates its Visual Studio solution for you.
+
+## The project browser
+
+When the editor starts without a project, it opens the **Open Project** browser.
+This is what you see the first time you run the engine from
+[Installation](/getting-started/installation/). From here you can create a new
+project, reopen a recent one, or open the bundled **Sandbox** sample.
+
+<Aside type="tip">
+Just want to look around first? Click **Sandbox** under Examples. It is the
+engine's sample project and loads immediately, with no project creation
+needed.
+</Aside>
+
+## Create a project
+
+<Steps>
+
+1. **Click "Create New Project"**
+
+   This opens the New Project dialog.
+
+2. **Pick the template and name the project**
+
+   The only template is **Blank Project (C++)**: an empty C++ module with Lua
+   scripting wired up.
+
+   Enter a **project name**. It becomes your module name and a C++ identifier,
+   so it must start with a letter or underscore and contain only letters,
+   digits, underscores, or hyphens (64 characters max). For example, `MyGame`.
+
+3. **Choose a location**
+
+   Set the folder the project will be created in, then click **Create
+   Project**.
+
+   The editor copies the Blank template into `<Location>/<Name>`, fills in the
+   project name, a new GUID, and your engine path, then runs premake to
+   generate `<Name>.sln`. Watch the editor's output log for progress.
+
+4. **Open the solution**
+
+   When the **Project Created** dialog reports the solution is ready, click
+   **Open Solution**. The engine editor closes and `<Name>.sln` opens in
+   Visual Studio.
+
+</Steps>
+
+## Build and run your project
+
+<Steps>
+
+1. **Press F5 in your project's solution**
+
+   The configuration defaults to **Development** and the platform to
+   **Editor**.
+
+   <Aside type="note">
+   The first build of a project also builds the matching engine libraries if
+   they are missing. That is a one-time cost handled automatically by a
+   prebuild step; later builds reuse the cached libraries.
+   </Aside>
+
+2. **The editor launches with your project loaded**
+
+   F5 compiles your game module into a DLL and starts the editor with your
+   project open. Breakpoints in your game module hit as soon as it loads.
+
+</Steps>
+
+From now on, **F5 in your project's solution is your full build-and-run loop.**
+The engine's own `Lumina.sln` is only needed to work on the engine itself.
+
+<Aside type="tip">
+Rider users: the template ships `.run/Launch Editor.run.xml` and
+`.run/Launch Editor (Debug).run.xml`. Pick one from the configuration dropdown
+next to the Run button.
+</Aside>
+
+## Project layout
+
+```
+MyGame/
+├── MyGame.lproject          Project descriptor (name, GUID, version, plugins)
+├── premake5.lua             Build script, calls LuminaGameProject()
+├── GenerateProject.bat      Regenerate the .sln after adding or removing source files
+├── .run/                    Rider run configurations
+├── Config/
+│   └── GameSettings.json    Per-project settings (startup maps, Lua module)
+├── Source/                  Your C++ module (MyGameModule.cpp/.h, MyGameAPI.h)
+├── Game/
+│   ├── Content/             Assets, mounted as /Game in the editor
+│   └── Scripts/             Lua / Luau scripts
+└── Tools/
+    └── ReflectionRunner.bat Reflection prebuild step, runs automatically
+```
+
+A generated `Intermediates/Reflection/` folder appears after the first build.
+It holds generated reflection code and should not be edited.
+
+## The editor
+
+When the editor opens with your project, the main panels are:
+
+- **Scene Outliner** lists every entity in the active world.
+- **Viewport** is the 3D view of the world.
+- **Details** shows the components on the selected entity. Every field is
+  generated from the reflection system.
+- **Content Browser** shows your project's assets from `Game/Content/`. Toggle
+  it with **Ctrl+Space**.
+- **Output Log** shows engine and script logging. Toggle it with **Ctrl+J**.
+
+### Viewport controls
+
+| Action | Control |
+| --- | --- |
+| Fly the camera | Hold **right mouse**, then **WASD** |
+| Adjust fly speed | **Mouse wheel** while flying |
+| Frame the selection | **F** |
+| Select an entity | Click it in the viewport or outliner |
+| Add / range select | **Ctrl-click** / **Shift-click** |
+| Move / rotate / scale gizmo | **W** / **E** / **R** (Spacebar cycles) |
+| Toggle world / local space | **X** |
+| Undo / redo | **Ctrl+Z** / **Ctrl+Y** |
+
+Use the toolbar's **Play** or **Simulate** buttons to run the world. Simulate
+runs physics and scripts in place; Play duplicates the world and switches to
+it. **Stop** returns to the editor world.
+
+## Iterating
+
+| Change | What to do |
+| --- | --- |
+| Edit a `.cpp` or `.h` | Press **F5**. Visual Studio rebuilds the DLL and relaunches the editor. |
+| Add a new `.cpp` or `.h` | Run `GenerateProject.bat`, then F5. Premake globs sources at generate time. |
+| Edit a Lua script | Save the file. Scripts hot-reload in the running editor. |
+| Import an asset | Drop the file into `Game/Content/`. It appears in the Content Browser. |
+
+<Aside type="note">
+Prefer the command line? You can also scaffold a project by copying
+`Templates/Blank/` yourself and running its `GenerateProject.bat`. The editor's
+**Create New Project** does exactly this, so it is the recommended path.
+</Aside>
+
+---
+
+You have a project building and the editor running. Continue to the
+[Manual](/manual/overview/) to learn about entities, components, and scripting.
