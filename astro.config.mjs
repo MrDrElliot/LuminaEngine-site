@@ -59,6 +59,7 @@ export default defineConfig({
           items: [
             { label: 'Overview', slug: 'manual/rendering' },
             { label: 'Cameras', slug: 'manual/cameras' },
+            { label: 'Water', slug: 'manual/water' },
             {
               label: 'Materials',
               items: [
