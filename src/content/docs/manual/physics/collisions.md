@@ -28,17 +28,19 @@ same thing at the whole-body level.
 
 ## Reacting in a script
 
-Define callbacks on a script to respond. **Contacts** come from solid colliders,
-**overlaps** from triggers:
+Override callbacks on a script to respond. **Contacts** come from solid
+colliders, **overlaps** from triggers:
 
-```lua
-function Script:OnContactBegin(Event: SCollisionEvent)
-    print("hit", Event.Other, "at", Event.ImpactSpeed, "m/s")
-end
+```csharp
+public override void OnContactBegin(SCollisionEvent Event)
+{
+    Debug.Log($"hit {Event.Other} at {Event.ImpactSpeed} m/s");
+}
 
-function Script:OnOverlapBegin(Event: SCollisionEvent)
-    print("entered trigger of", Event.Other)
-end
+public override void OnOverlapBegin(SCollisionEvent Event)
+{
+    Debug.Log($"entered trigger of {Event.Other}");
+}
 ```
 
 The full callback set (`OnContactBegin/End`, `OnOverlapBegin/End`) and every

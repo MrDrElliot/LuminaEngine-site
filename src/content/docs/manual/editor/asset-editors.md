@@ -20,8 +20,7 @@ to open it. Each asset type has its own editor.
 | **Physics Material** | Friction, restitution, and density, see [Physics](/manual/physics/materials-destruction/). |
 | **Blackboard** | Named, typed keys for AI and animation. |
 | **Data Asset** / **Schema** | Author a data asset and the schema that defines its fields. |
-| **Entity Component Type** | Define a new component type from the editor, no C++. |
 | **Prefab** | Edit a saved entity hierarchy. |
-| **Script** (`.luau`) | A code editor with highlighting and autocomplete, see [Scripting](/manual/scripting/). |
+| **Script** (`.cs`) | C# entity scripts — edit them in your IDE; they compile and hot-reload on save. See [Scripting](/manual/scripting/). |
 | **UI** (`.rml` / `.rcss`) | A markup and stylesheet editor with a live preview. |
 | **Texture** / **Font** | Preview images and typefaces. |

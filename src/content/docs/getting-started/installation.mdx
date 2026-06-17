@@ -9,6 +9,12 @@ This page builds the engine itself. Once it is running you will create a game
 project from inside the editor, covered in
 [Your First Project](/getting-started/first-project/).
 
+<Aside type="caution">
+You need **Visual Studio 2026 (18.0+)** and the **.NET 10 SDK** (x64). The C#
+scripting layer targets .NET 10, which older Visual Studio versions cannot build
+(`NETSDK1209`). `Setup.bat` verifies both up front and tells you what is missing.
+</Aside>
+
 <Steps>
 
 1. **Clone the repository**
@@ -47,7 +53,7 @@ project from inside the editor, covered in
 
 3. **Open the solution**
 
-   Open `Lumina.sln` in Visual Studio 2022.
+   Open `Lumina.sln` in Visual Studio 2026.
 
 4. **Set the startup project**
 

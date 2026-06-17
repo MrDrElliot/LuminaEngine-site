@@ -9,121 +9,110 @@ the whole picture. Read it before you write much script code.
 
 ## An entity and its script
 
-An entity on its own is just an id with components. Adding a **Script** component
-with a `.luau` path is what gives it behavior. That component holds the running
-script and a slot for each lifecycle function:
+An entity on its own is just an id with components. Adding a **C# Script**
+component, with a **Script Class**, is what gives it behavior. That component
+holds the running instance and the editor-set property values:
 
 ```cpp
-struct SScriptComponent
+struct SCSharpScriptComponent
 {
-    FAssetRef ScriptPath;                         // the .luau to run
-    FScriptPropertyOverrides PropertyOverrides;   // --@export values set in the editor
+    FString ScriptClass;                          // e.g. "Game.Player" — the class to run
+    FScriptPropertyOverrides PropertyOverrides;   // [Property] values set in the editor
 
-    TSharedPtr<Lua::FScript> Script;              // this entity's running instance
-    Lua::FRef AttachFunc, ReadyFunc, UpdateFunc, DetachFunc;   // cached lifecycle hooks
-    // also: FixedUpdateFunc, EditorUpdateFunc, InputFunc, and the contact hooks
+    void* Instance;                               // this entity's managed instance (a GCHandle)
+    ECSharpBindState BindState;                    // Unbound -> Attached -> Ready
+    // ...
 };
 ```
 
-## A script is a module, run once per entity
+## One instance per entity
 
-A `.luau` file is a **module**: it builds a `Script` table, defines functions on
-it, and returns it.
+Your script is a class. When it attaches to an entity, the engine creates **one
+instance of that class for that entity**. That instance is what you write code
+against — `this`. Two consequences, and both trip people up:
 
-```lua
-local Script: EntityScript = EntityScript.new()   -- top level
-
-Script.Speed = 5.0                                -- top level
-
-function Script:OnReady() end                     -- top level: defines, does not run
-
-return Script                                     -- top level
-```
-
-When the script attaches to an entity, the engine runs the file's **top-level
-code, once, for that entity**, on its own sandboxed Lua thread, and keeps the
-table you `return`. That table is the `self` you see inside every function. Two
-things follow, and both trip people up:
-
-:::caution[Top-level code is per-entity, and `self` is not set yet]
-- **Each entity gets its own run and its own `self`.** Two entities using the
-  same script share nothing. A `local Counter = 0` (or `Script.Counter = 0`) at
-  the top level is **per entity**, not shared, each entity reran the file and got
-  its own. For state shared across *every* entity of a script, put it in a module
-  you `require`, those are loaded once and shared.
-- **`self` is not populated yet at the top level.** The engine fills in
-  `self.Entity`, `self.World`, `self.Transform`, and `self.Name` *just after* the
-  file runs, so at the top level they are `nil`. Anything that needs the entity
-  goes in `OnReady`, never at the top level.
+:::caution[Instance fields are per-entity; `static` is shared]
+- **Each entity gets its own instance.** Two entities using the same script share
+  nothing through ordinary (instance) fields — each has its own copy. To share
+  state across *every* entity of a script, use a `static` field; statics live on
+  the type, not the instance.
+- **`Entity`, `World`, and `Transform` are not set in the constructor.** The
+  engine injects them *after* constructing the instance, just before `OnAttach`.
+  A field initializer or constructor runs too early to use them — do per-entity
+  setup that needs the entity in `OnReady`.
 :::
 
-Under the hood, each entity's script lives on its own Lua thread with its own
-global environment, which is what keeps one entity's script fully isolated from
-another's.
+```csharp
+public sealed class Turret : EntityScript
+{
+    private static int Count;          // shared across every Turret in the world
+
+    private FVector3 _Start;           // per-entity
+
+    public override void OnReady()
+    {
+        Count++;                       // safe here: the instance is fully set up
+        _Start = Transform.GetWorldLocation();
+    }
+}
+```
 
 ## The order things run
 
 For a single entity, top to bottom:
 
-1. **Top-level code** runs, building the `Script` table. The engine then fills in `self.Entity`, `self.World`, `self.Transform`, `self.Name`.
-2. **`OnAttach`** fires, **top-down** (a parent before its children). The earliest hook.
-3. **`OnReady`** fires, **bottom-up** (a child before its parent, so it runs up the tree with the root last), once the scene graph is set up. By now every child is ready, so it is safe to look up children and other entities here.
-4. **`OnUpdate`** and **`OnFixedUpdate`** run every frame while playing.
-5. **`OnDetach`** fires once, when the entity is destroyed.
-
-`OnAttach`, `OnReady`, and the event hooks can **pause and resume** — call `Wait`
-or an awaitable load right inside them. `OnUpdate`/`OnFixedUpdate`/`OnDetach`
-can't; spawn a task from them instead. See [Tasks & Yielding](/manual/scripting/tasks/).
+1. The engine **constructs the instance** and fills in `Entity`, `World`, and the
+   cached `Transform`. Editor `[Property]` values are applied here too.
+2. **`OnAttach`** runs, **top-down** (a parent before its children). The earliest hook.
+3. **`OnReady`** runs, **bottom-up** (a child before its parent, so it runs up the
+   tree with the root last), once the scene graph is set up. By now every child
+   is ready, so it is safe to look up children and other entities here.
+4. **`OnUpdate`** runs every frame while playing.
+5. **`OnDetach`** runs once, when the entity is destroyed.
 
 ### At map load vs at runtime
 
 - When a **map loads**, all of its entities run this together: every script's
-  top-level code and `OnAttach` first, then every `OnReady`.
-- When you **spawn an entity or attach a script while the game is running**,
-  `OnAttach` fires immediately and `OnReady` fires right after. Either way,
-  `OnReady` always runs once the entity is fully set up.
+  `OnAttach` first, then every `OnReady`.
+- When you **spawn an entity (or prefab) while the game is running**, its
+  `OnAttach` runs immediately and `OnReady` right after. Either way, `OnReady`
+  always runs once the entity is fully set up.
 
 ### In the editor
 
-In the plain editor (not playing), scripts stay dormant, their hooks do not run
-unless the script defines `OnEditorUpdate`. Press **Play** or **Simulate** to run
-gameplay scripts.
+Scripts run only in **play mode** (a Game or Simulation world). In the plain
+editor they stay dormant — press **Play** or **Simulate** to run gameplay.
 
 ## Where to put what
 
 | Put it here | For |
 | --- | --- |
-| **Top level** | Constants, tuning values, `--@export` fields, and function definitions. Runs once per entity, before `self` exists. |
+| **Fields + `[Property]`** | Constants, tuning values, and editor-exposed values. Initialized before the entity exists. |
 | **`OnReady`** | Per-entity setup that needs the entity: caching components, reading the world, finding other entities. |
 | **`OnUpdate`** | Per-frame behavior. |
-| **`OnDetach`** | Cleanup. (Event subscriptions and timers are released for you.) |
-| **A `require`d module** | Helpers or state shared across every entity of the script. |
+| **`OnDetach`** | Cleanup — disposing subscriptions and timers you created (see [Events](/manual/scripting/events/)). |
+| **A `static` member** | State or helpers shared across every entity of the script. |
 
-```lua
--- top level: per-entity, runs once, no self yet
-local TurnRate = 90.0
+```csharp
+public sealed class Spinner : EntityScript
+{
+    [Property(Units = "deg/s")]
+    public float TurnRate = 90.0f;     // editor-exposed, applied before OnReady
 
-function Script:OnReady()
-    -- self is ready here, cache and initialize
-    self.StartLocation = self.Transform:GetLocation()
-end
-
-function Script:OnUpdate(DeltaTime: number)
-    self.Transform:AddYaw(TurnRate * DeltaTime)
-end
-
-function Script:OnDetach()
-    -- release anything you grabbed that the engine does not clean up
-end
-
-return Script
+    public override void OnUpdate(float DeltaTime)
+    {
+        Transform.AddYaw(TurnRate * DeltaTime);
+    }
+}
 ```
 
 ## Hot reload
 
-When you save a script while the game is running, the engine reloads it live: it
-calls `OnDetach` on the old version, discards the old per-entity state, runs the
-new file, and fires `OnAttach` and `OnReady` again. Your `--@export` values set in
-the editor survive, but ordinary runtime state held in `self` is reset. Hot
-reload is ideal for tuning, it just does not preserve a script's accumulated
-state.
+When you save a script while the editor is running, it **recompiles in place**.
+The script system tears down the old managed instances, loads the new assembly,
+and rebinds each entity (running `OnAttach` and `OnReady` again on the new
+version). Your `[Property]` values set in the editor survive — they are stored on
+the component and reconciled against the script's current fields, so they hold up
+even as you add, remove, or rename fields. Ordinary runtime state held in instance
+fields is reset. Hot reload is ideal for tuning; it just does not preserve a
+script's accumulated state.

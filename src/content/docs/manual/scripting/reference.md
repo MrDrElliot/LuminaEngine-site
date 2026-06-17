@@ -1,129 +1,124 @@
 ---
 title: Reference
-description: Types, math, global tables, and the standard library.
+description: Types, math, attributes, and the global API available to every script.
 ---
 
-This page lists the types and global helpers available to every script. Luau's
-own standard library (`math`, `string`, `table`, and so on) is also available,
-see the [Luau library reference](https://luau.org/library).
+This page lists the types and global helpers a script reaches for most often.
+The full .NET base class library (`System.*`, `System.Math`, `MathF`, LINQ,
+collections) is also available — see the
+[C# documentation](https://learn.microsoft.com/dotnet/csharp/).
 
-## Vectors
+Two namespaces cover almost everything:
 
-Lumina uses Luau's built-in **`vector`** type for every position, direction, and
-color, there is no separate vector class. Build one with `Vec3(x, y, z)`:
-
-```lua
-local p: vector = Vec3(0, 2, 0)
-print(p.x, p.y, p.z)                          -- component access
-
-local sum    = Vec3(1, 0, 0) + Vec3(0, 1, 0)  -- vectors add and subtract,
-local scaled = sum * 2.0                        -- and scale by a number
+```csharp
+using LuminaSharp;   // EntityScript, Entity, Registry, attributes, Physics, Net, Asset, Task, Debug
+using Lumina;        // FVector3, FQuat, component types (S*), InputEvent, SCollisionEvent
 ```
 
-Colors are also `vector`s, with the fourth component as alpha.
+## Vectors and quaternions
 
-## Quaternions
+The math value types live in `Lumina` and are blittable mirrors of the engine's
+own (`FVector3` ↔ C++ `FVector3`).
 
-Rotations are `Quat` values, with `.X`, `.Y`, `.Z`, `.W` fields. They support
-`*` (compose), comparison, and methods including `:Normalize()`, `:Inverse()`,
-`:Conjugate()`, `:Dot(other)`, `:Lerp(other, t)`, `:SLerp(other, t)`,
-`:RotateVector(v)`, `:EulerAngles()`, and `:FromAngleAxis(angle, axis)`.
-
-## Math
-
-The `Math` table has engine math helpers beyond Luau's `math` library:
-
-- Constants: `Math.Pi`, `Math.TwoPi`, `Math.HalfPi`, `Math.Epsilon`.
-- Scalars: `Clamp`, `Lerp`, `SmoothStep`, `Sign`, `Radians`, `Degrees`, and the trig functions.
-- Vectors: `Dot3`, `Cross`, `Length3`, `Normalize3`, `Distance3`, `Lerp3`, `Reflect3`.
-- Rotations: `QuatSlerp`, `QuatFromEuler`, `QuatAngleAxis`, `FindLookAtRotation(target, from)`.
-
-## Global tables
-
-### Time
-
-| Call | Returns |
-| --- | --- |
-| `Time.DeltaTime()` | Seconds since last frame |
-| `Time.Now()` | Seconds since start |
-| `Time.FrameNumber()` | Frame counter |
-| `Time.FPS()` | Current frames per second |
-
-### Engine
-
-| Call | Returns |
-| --- | --- |
-| `Engine.GetCubeMesh()` | The built-in cube mesh (also `Sphere`, `Cylinder`, `Cone`, `Capsule`) |
-| `Engine.GetProjectName()` / `GetProjectPath()` | Project info |
-| `Engine.IsGame()` / `IsEditor()` | Which context this is |
-| `Engine.Travel(map)` | Open a different map |
-
-### Camera
-
-| Call | Effect |
-| --- | --- |
-| `Camera.SetActive(entity [, blendTime [, ease]])` | Make an entity's camera active |
-| `Camera.GetActive()` | The active camera entity |
-
-Ease values: `Camera.Ease.Linear`, `EaseIn`, `EaseOut`, `EaseInOut`.
-
-### Tasks
-
-Pause-and-resume helpers. See [Tasks & Yielding](/manual/scripting/tasks/).
-
-| Call | Does |
-| --- | --- |
-| `Wait(seconds)` / `Task.Wait(seconds)` | Pause the current thread, then resume. |
-| `Task.Spawn(fn, ...)` | Run `fn` now on a new thread (forwarding args). |
-| `Task.Delay(seconds, fn)` | Run `fn` on a new thread after a delay. |
-| `Task.Defer(fn)` | Run `fn` on a new thread next frame. |
-
-### Audio
-
-| Call | Returns |
-| --- | --- |
-| `Audio.PlaySound2D(file)` | A non-positional sound, returns an `AudioHandle` |
-| `Audio.PlaySoundAtLocation(file, location)` | A positional sound |
-| `Audio.StopAllSounds()` | Stops everything |
-
-An `AudioHandle` has `:Stop()`, `:FadeOut(seconds)`, `:SetVolume(v)`,
-`:SetPitch(p)`, `:SetLooping(b)`, and `:IsValid()`.
-
-### Other globals
-
-- `print(...)` writes to the Output Log.
-- `Console.Log(...)`, `Console.Warn(...)`, `Console.Error(...)` for leveled logging.
-- `Asset.Hard(path)`, `Asset.Soft(path)`, `Asset.LoadAsync(path, callback)`, and `Asset.LoadAwait(path)` (pauses, returns the asset) for asset references.
-- `RenderTarget.Paint(target, u, v, radius [, r, g, b, a])` paints into a render-target texture.
-
-## Standard library modules
-
-Like `EntityScript`, these are provided globally, no `require` needed:
-
-- **`Color`**, color constructors and constants: `Color.RGB(r, g, b)`, `Color.RGBA`, `Color.FromBytes`, `Color.HSV`, `Color.Lerp`, and constants like `Color.White`, `Color.Red`.
-- **`Random`**, `Random.Range(a, b)`, `Random.RangeInt(a, b)`, `Random.Chance(p)`, `Random.Pick(list)`, and more.
-- **`Tween`**, easing functions for the tween scheduler.
-
-## Per-entity helpers
-
-These facets hang off `self` and are scoped to your entity.
-
-### Timers
-
-```lua
-self.Timers:After(1.5, function() Explode() end)   -- once, after a delay
-local h = self.Timers:Every(0.5, function() Tick() end)  -- repeating
-self.Timers:Cancel(h)
+```csharp
+FVector3 P = new FVector3(0, 2, 0);
+float Y = P.Y;                              // X, Y, Z fields
+FVector3 Sum = FVector3.UnitX + P;          // operators: + - * /
+float D = FVector3.Distance(P, Sum);
+FVector3 Dir = (Sum - P).Normalized();
 ```
 
-### Debug drawing
+| Type | Highlights |
+| --- | --- |
+| `FVector2` | `X, Y`; `Zero`, `One`; `Length`, `Normalized()`; `Dot`, `Distance`, `Lerp` |
+| `FVector3` | `X, Y, Z`; `Zero`, `One`, `UnitX/Y/Z`; `Length`, `Normalized()`; `Dot`, `Cross`, `Distance`, `Lerp` |
+| `FVector4` | `X, Y, Z, W`; `Zero`, `One` — also used for RGBA colors |
+| `FQuat` | `X, Y, Z, W`; `Identity`; `AngleAxis(radians, axis)`; `Rotate(v)`; `*` composes |
 
-`self.Draw` mirrors `World.Debug` but scoped to this entity (Development and
-Debug builds): `self.Draw:Line(a, b, color)`, `:Sphere(center, radius, color)`,
-`:Box`, `:Capsule`, `:Cone`, `:Arrow`.
+Colors are `FVector4` (RGBA, components 0–1). Scalar helpers (`Sin`, `Clamp`,
+`Lerp`, `Tau`) come from `System.MathF`.
 
-### Tweens
+## `Entity`
 
-```lua
-self.Tween:To("Yaw", 90, 0.5)   -- tween a field on this script over 0.5s
+A lightweight handle to an entity (the C# mirror of `entt::entity`):
+
+```csharp
+Entity E = World.GetEntityByName("Player");
+if (!E.IsNull) { /* ... */ }
+uint Raw = E.Id;
 ```
+
+`Entity.Null` is the empty handle; `==` / `!=` compare by id.
+
+## Global API
+
+These static classes are usable from anywhere:
+
+| Class | Members |
+| --- | --- |
+| `Debug` | `Log(msg)`, `LogWarning(msg)`, `LogError(msg)` — writes to the engine log |
+| `Asset` | `Load<T>(path)`, `LoadAsync<T>(path, callback)`, `Exists(path)` |
+| `Task` | `ParallelFor`, `Run`, `WaitForAll`, `WorkerCount` — see [Parallel Work](/manual/scripting/tasks/) |
+| `Profiler` | `Sample(name)` (a `using` scope), `Begin`/`End`, `Enabled` |
+
+```csharp
+Debug.Log($"spawned {E}");
+
+CStaticMesh? Mesh = Asset.Load<CStaticMesh>("/Game/Content/Meshes/Crate");
+
+using (Profiler.Sample("Perception"))
+{
+    RunPerception();
+}
+```
+
+Entity-script and system `OnUpdate` are auto-profiled by type name, so per-script
+timings show up in the editor's **Gameplay Profiler** with no extra code;
+`Profiler.Sample` is for breaking a hot method into sub-scopes.
+
+## Asset references
+
+Use these as `[Property]` field types to get an asset picker in the editor, then
+resolve them in code. They live in `Lumina`.
+
+| Type | Use |
+| --- | --- |
+| `FSoftObjectPath` | An untyped reference by path; `Exists()`, `Load<T>()`, `LoadAsync<T>(cb)` |
+| `TSoftObjectPtr<T>` | A typed soft reference; `Get()`, `LoadAsync(cb)` |
+| `TObjectPtr<T>` | A typed strong reference holding the resolved object; `Value` |
+
+```csharp
+[Property(Tooltip = "Played on pickup", AssetType = "CAudioStream")]
+public FSoftObjectPath PickupSound;
+
+public override void OnReady()
+{
+    CAudioStream? Sound = PickupSound.Load<CAudioStream>();
+}
+```
+
+## The `World` API
+
+`World` (and a system's `World`) exposes the world beyond your entity. Full
+detail is in [The World API](/manual/scripting/world/); the surface in brief:
+
+- **Subsystems**: `World.Registry`, `World.Physics`, `World.Navigation`,
+  `World.Messages`, `World.Net`, `World.Draw`.
+- **Entities**: `SpawnPrefab`, `DuplicateEntity`, `DestroyEntity`,
+  `GetEntityByName`, `GetEntityByTag`, `EntityHasTag`, `GetNumEntities`.
+- **Transform**: `GetEntityLocation` / `SetEntityLocation`, `SetEntityRotation`,
+  `TranslateEntity`.
+- **Hierarchy**: `SetParent`, `DetachFromParent`, `GetParent`, `GetRootEntity`.
+- **Time**: `DeltaTime`, `ElapsedTime`.
+
+## Attributes
+
+Declared in `LuminaSharp`, applied to script members or classes:
+
+| Attribute | On | Effect |
+| --- | --- | --- |
+| `[Property]` | field/property | Exposes it in the editor and serializes it. Keys: `Category`, `Tooltip`, `Name`, `Min`, `Max`, `Units`, `Color`, `Slider`, `AssetType`. |
+| `[Serialize]` | field/property | Persists it without showing it in the inspector. |
+| `[Hide]` | field/property | Never serialized or shown. |
+| `[RequireComponent]` | component-typed field | Resolves and caches the component before `OnReady` (adding it if missing). |
+| `[EntitySystem]` | class (on `EntitySystem`) | Declares a [script system](/manual/scripting/systems/)'s `Stage` and `Priority`. |

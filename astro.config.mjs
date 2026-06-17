@@ -15,7 +15,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Lumina Engine',
-      description: 'A modern C++ game engine with a data-driven editor, Lua scripting, and a Vulkan renderer.',
+      description: 'A modern C++ game engine with a data-driven editor, C# scripting, and a Vulkan renderer.',
       favicon: '/favicon.png',
       plugins: [starlightThemeRapide()],
       logo: {
@@ -96,7 +96,7 @@ export default defineConfig({
             { label: 'Entities & Components', slug: 'manual/scripting/entities-components' },
             { label: 'The World API', slug: 'manual/scripting/world' },
             { label: 'Script Systems', slug: 'manual/scripting/systems' },
-            { label: 'Tasks & Yielding', slug: 'manual/scripting/tasks' },
+            { label: 'Parallel Work', slug: 'manual/scripting/tasks' },
             { label: 'Physics & Collisions', slug: 'manual/scripting/physics' },
             { label: 'Input', slug: 'manual/scripting/input' },
             { label: 'Events', slug: 'manual/scripting/events' },

@@ -31,11 +31,11 @@ automatically).
 Talk to the **Character Controller**, not the transform. Feed it intent each
 frame and the movement system resolves it on the physics step:
 
-```lua
-local Controller: SCharacterControllerComponent = self:GetComponent(SCharacterControllerComponent)
-Controller:AddMovementInput(Direction)   -- accumulate a world-space move direction
-Controller:AddYaw(Turn)                  -- look left and right
-Controller:Jump()                        -- jump this frame
+```csharp
+SCharacterControllerComponent Controller = Registry.Get<SCharacterControllerComponent>(Entity);
+Controller.AddMovementInput(Direction);   // accumulate a world-space move direction
+Controller.AddYaw(Turn);                   // look left and right
+Controller.Jump();                         // jump this frame
 ```
 
 Other methods: `AddLookInput`, `AddPitch`, `GetLookForward`, `GetLookRight`,

@@ -24,22 +24,23 @@ picker only accepts assets of the right type, a mesh slot will not take a sound.
 
 ## In scripts
 
-Reference and load assets from Lua by content path:
+Reference and load assets from C# by content path:
 
-```lua
-local hard = Asset.Hard("/Game/Meshes/Crate")          -- load now, typed
-local soft = Asset.Soft("/Game/FX/Explosion")          -- a path, not loaded yet
+```csharp
+// Load now, typed.
+CStaticMesh? Mesh = Asset.Load<CStaticMesh>("/Game/Content/Meshes/Crate");
 
-Asset.LoadAsync("/Game/FX/Explosion", function(asset)  -- load in the background
-    -- use asset here
-end)
+// Load in the background; the callback runs on the game thread once.
+Asset.LoadAsync<CStaticMesh>("/Game/Content/Meshes/Crate", Loaded =>
+{
+    // use Loaded here
+});
 ```
 
-All script asset loading goes through the `Asset.*` library, it is the single,
-cook-aware entry point (the cooker scans `Asset.Hard`/`Soft`/`LoadAsync` call
-sites to pull their targets into the build).
-
-See [Scripting › Reference](/manual/scripting/reference/).
+For an editor-pickable, serializable reference, use a `FSoftObjectPath` or
+`TSoftObjectPtr<T>` `[Property]` field and resolve it on demand — a path that
+isn't loaded until you ask for it. See
+[Scripting › Reference](/manual/scripting/reference/#asset-references).
 
 ## Renaming and moving
 

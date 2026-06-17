@@ -16,9 +16,9 @@ that describes it. That metadata powers three things you use every day:
   properties, so there is no hand-written UI per component.
 - **Serialization**, reflected properties are what gets saved into worlds,
   prefabs, and assets.
-- **Scripting**, every reflected component type is exposed to Luau by its name,
-  so you can write `self:AddComponent(SRigidBodyComponent)` with no glue code.
-  See [Lua Scripting](/manual/scripting/).
+- **Scripting**, every reflected component type is exposed to C# by its name,
+  so you can write `Registry.Emplace<SRigidBodyComponent>(Entity)` with no glue
+  code. See [C# Scripting](/manual/scripting/).
 
 ## Naming prefixes
 
@@ -31,4 +31,4 @@ Reflection is also why Lumina's type names carry a one-letter prefix:
 | `F` | A plain (non-reflected) engine type | `FVector3`, `FName` |
 
 When you see an `S`-prefixed name in the editor or in a script, it is a reflected
-type, and the same name works in Luau.
+type, and the same name works in C#.

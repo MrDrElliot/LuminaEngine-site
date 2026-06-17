@@ -1,101 +1,88 @@
 ---
-title: Tasks & Yielding
-description: Pause a script and resume it later — waits, task scheduling, and awaitable loads.
+title: Parallel Work
+description: Running heavy compute across worker threads, and timing sequences without coroutines.
 ---
 
-A script can **pause and resume later** without blocking the game. This is called
-*yielding*: the script hands control back to the engine, and the engine resumes
-it when the thing it's waiting on is ready. It's what lets you write a sequence
-top-to-bottom instead of scattering it across callbacks:
+When a script has expensive, parallelizable compute — generating a heightfield,
+processing a large array, baking data — the `Task` library spreads it across the
+engine's worker threads. This is the C# mirror of the native `Lumina::Task`
+system.
 
-```lua
-function Script:OnReady()
-    Wait(1)                                            -- pause for a second
-    local door = Asset.LoadAwait("/Game/Props/Door")   -- pause until it loads
-    self:Spawn(door)
-    print("ready")
-end
+:::caution[Compute only — task bodies must not block]
+Task bodies run on the engine's fiber-based worker threads. A body **must be
+self-contained compute**: it must not block, await, sleep, perform I/O, take a
+long-held lock, or call engine APIs that are game-thread only (the world,
+registry, physics). Parallel number-crunching into preallocated buffers is the
+supported use; anything that yields its thread will corrupt the runtime.
+:::
+
+## Parallel-for
+
+`Task.ParallelFor(count, body)` splits `[0, count)` across the worker pool and
+runs `body(i)` for each index. It **blocks** until every index is done, so the
+results are ready when it returns:
+
+```csharp
+FVector3[] Points = ...;
+float[] Heights = new float[Points.Length];
+
+Task.ParallelFor(Points.Length, i =>
+{
+    Heights[i] = SampleNoise(Points[i]);   // pure compute, no engine calls
+});
+
+// Heights is fully populated here.
 ```
 
-While this script is paused, every other script keeps running — only *this* one
-is suspended.
+Have each index write to its own slot (as above) so the workers never touch the
+same memory.
 
-## `Wait`
+## One-shot background work
 
-`Wait(seconds)` pauses the current script for `seconds`, then resumes it. `Wait()`
-with no argument resumes on the next frame.
+`Task.Run(body)` schedules `body` to run once on a worker thread and returns a
+`TaskHandle` to wait on. You own the handle — `Wait()` for completion, then
+dispose it (a `using` block is the safe pattern):
 
-```lua
-Wait(0.5)        -- half a second
-Task.Wait(0.5)   -- identical; the Task.* spelling
+```csharp
+using TaskHandle Handle = Task.Run(() => BakeLightingData());
+// ... do unrelated work on the game thread ...
+Handle.Wait();   // block until the bake finishes
 ```
-
-## Where you can yield
-
-Yielding only works from a script thread that is allowed to pause. The
-once/per-event hooks run on such a thread, so you can `Wait` (and await) directly
-inside them. The per-frame and teardown hooks do not — a hook that ran every
-frame can't pause mid-frame.
-
-| Hook | Can yield directly? |
-| --- | --- |
-| `OnAttach`, `OnReady` | Yes |
-| `OnInput`, `OnContactBegin`/`End`, `OnOverlapBegin`/`End` | Yes |
-| `OnUpdate`, `OnFixedUpdate`, `OnEditorUpdate` | No — use `Task.Spawn` |
-| `OnDetach` | No (the entity is going away) |
-
-From a hook that can't yield, start a **task**: a separate script thread that
-*can*.
-
-```lua
-function Script:OnUpdate(dt)
-    if self.ShouldOpen and not self.Opening then
-        self.Opening = true
-        Task.Spawn(function()
-            Wait(0.25)
-            self:Open()        -- OnUpdate already returned; this runs on its own thread
-        end)
-    end
-end
-```
-
-## The `Task` library
 
 | Call | Does |
 | --- | --- |
-| `Task.Wait(seconds)` | Pause the current thread, then resume. Same as `Wait`. |
-| `Task.Spawn(fn, ...)` | Run `fn` now on a new thread (passing any extra args), up to its first pause. |
-| `Task.Delay(seconds, fn)` | Run `fn` on a new thread after `seconds`. |
-| `Task.Defer(fn)` | Run `fn` on a new thread next frame. |
+| `Task.ParallelFor(count, body)` | Run `body(i)` for each index across workers; blocks until done. |
+| `Task.Run(body)` | Run `body` once on a worker; returns a `TaskHandle`. |
+| `Task.WaitForAll()` | Block until every submitted task has completed. |
+| `Task.WorkerCount` | Number of background worker threads. |
 
-`Task.Delay` and `Task.Defer` take a function of no arguments — capture what it
-needs with a closure (`Task.Delay(2, function() self:Explode() end)`).
+## Timing and sequences
 
-## Awaitable loading
+C# scripts don't have coroutines that pause mid-hook. To run something after a
+delay, or to step through a sequence, **drive it from `OnUpdate`** with a small
+amount of state — accumulate `DeltaTime` and act when a timer elapses:
 
-`Asset.LoadAwait(path)` pauses until the asset finishes loading in the
-background, then resumes with it (or `nil` if the path doesn't resolve). It's the
-pausing form of [`Asset.LoadAsync`](/manual/assets/references/) — no callback,
-just a return value:
+```csharp
+private float _OpenIn = -1.0f;   // < 0 means "not opening"
 
-```lua
-Task.Spawn(function()
-    local fx = Asset.LoadAwait("/Game/FX/Explosion")
-    if fx then
-        self:Spawn(fx)
-    end
-end)
+public void BeginOpen()
+{
+    _OpenIn = 0.25f;             // open a quarter-second from now
+}
+
+public override void OnUpdate(float DeltaTime)
+{
+    if (_OpenIn >= 0.0f)
+    {
+        _OpenIn -= DeltaTime;
+        if (_OpenIn < 0.0f)
+        {
+            Open();
+        }
+    }
+}
 ```
 
-## Cancellation
-
-Waits are tied to your entity. If the entity is **destroyed while a script is
-paused**, the pending wait is dropped — the thread is simply never resumed, so it
-can't run code against a dead entity. You don't need to clean these up by hand.
-
-:::note[Keep waits out of `OnUpdate`]
-Don't `Wait` *directly* in `OnUpdate`/`OnFixedUpdate` — those can't pause, and
-you'd get an error. Spawn a task instead, and guard against starting it twice (a
-flag like `self.Opening` above), since `OnUpdate` keeps running while the task is
-paused.
-:::
+For multi-step sequences, a small `enum` state machine advanced in `OnUpdate`
+keeps the logic readable without blocking the frame. State held in instance
+fields is naturally cleaned up when the entity is destroyed.

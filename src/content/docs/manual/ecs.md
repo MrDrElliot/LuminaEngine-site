@@ -89,18 +89,18 @@ Component menu.
 
 | Component | Does |
 | --- | --- |
-| Script | Attaches a Luau script. |
+| C# Script | Attaches a C# script. |
 | Input | Per-entity gameplay input (see [Scripting](/manual/scripting/)). |
 | Audio Source / Listener | A positional sound, and the listener. |
 | Rigid Body, characters, AI, particles | Movement, navigation, effects, and more. |
 
-## Custom components without C++
+## Data-driven assets
 
-You can define a brand-new component type from the editor. Create an **Entity
-Component Type** asset, open it, and add typed fields (bool, number, vector,
-string, asset reference, enum, and so on). The new type then shows up in the Add
-Component menu under the **Data** category and works like any built-in
-component, editable in Details and readable from scripts.
+To author structured data without writing C++, use a **Data Asset**: define its
+fields with a **Schema**, then create assets against that schema and reference
+them from components or scripts. See the
+[Data Asset editor](/manual/editor/asset-editors/). For per-entity behavior and
+state, write a [C# script](/manual/scripting/).
 
 ## Prefabs
 

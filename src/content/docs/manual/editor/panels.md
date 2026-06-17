@@ -21,13 +21,12 @@ grouped into the categories each component declares.
 
 ## Systems
 
-The systems that run in the active world, in two groups. **Native Systems** are
-the engine's built-in C++ systems; the checkbox enables or disables one for this
-world (turn one off to replace it with your own). **Script Systems** are
-[Luau systems](/manual/scripting/systems/) you assign, use **Add script
-system…** to pick a `.luau` file and the trash icon to remove one. Both are saved
-with the world. For per-frame timing, use the profilers under
-[Tools](/manual/editor/tools/).
+The systems that run in the active world. **Native Systems** are the engine's
+built-in C++ systems; the checkbox enables or disables one for this world (turn
+one off to replace it with your own). **C# systems** are discovered automatically
+from their `[EntitySystem]` attribute and run in every world — there's no
+per-world file to assign. See [Script Systems](/manual/scripting/systems/). For
+per-frame timing, use the profilers under [Tools](/manual/editor/tools/).
 
 ## World Settings
 

@@ -1,82 +1,64 @@
 ---
 title: Networking
-description: Authority, ownership, replicated state, and RPCs.
+description: Network role and replication state from a script.
 ---
 
 :::caution[Experimental]
-The networking API is implemented but not yet broadly runtime-tested. Treat this
-page as a preview of the intended workflow.
+Lumina's networking is server-authoritative and largely native-side today. The
+C# surface is currently the **role queries** below; the script-facing replication
+and RPC API is still being built out. Treat this page as the current state, not a
+stable contract.
 :::
 
-Lumina uses a server-authoritative model. The **server** owns the simulation;
-**clients** receive replicated state and send input to the entities they own.
-`World.Net` tells a script which side it is on and who owns what.
+Lumina uses a server-authoritative model: the **server** owns the simulation and
+**clients** receive replicated state. `World.Net` tells a script which side it is
+running on.
 
-## Roles and ownership
+## Role and mode
 
-```lua
-if World.Net:IsServer() then
-    -- authoritative logic
-end
+```csharp
+if (World.Net.IsServer)
+{
+    // authoritative-only logic
+}
 
--- Only the peer that controls this entity should run input and camera code:
-if World.Net:IsLocallyOwned(self.Entity) then
-    self:EnableInput()
-end
+if (World.Net.IsClient)
+{
+    // client-only logic (prediction, presentation)
+}
 ```
 
-| Method | Returns |
+| Member | Returns |
 | --- | --- |
-| `World.Net:IsServer()` / `IsClient()` / `IsStandalone()` | Which side this is |
-| `World.Net:IsNetworked()` / `IsConnected()` | Connection state |
-| `World.Net:HasAuthority(e)` | This peer is the authority for `e` |
-| `World.Net:IsLocallyOwned(e)` | This peer controls `e` |
-| `World.Net:GetOwner(e)` / `SetOwner(e, conn)` | Owning connection (`SetOwner` is server-only) |
-| `World.Net:GetLocalRole(e)` / `GetRemoteRole(e)` | The `ENetRole` for `e` |
-| `World.Net:GetUniqueId()` | This peer's id (0 on the server) |
-| `World.Net:GetLocallyOwnedEntity()` | The entity this client controls, or null |
-| `World.Net:GetConnectionCount()` / `GetConnectionAt(i)` | Iterate clients (server) |
-| `World.Net:MarkDirty(e)` | Server-only: force a replicated resend |
+| `World.Net.Mode` | The `ENetMode`: `Standalone`, `Client`, `ListenServer`, or `DedicatedServer` |
+| `World.Net.IsServer` | `true` on a listen or dedicated server (the authority) |
+| `World.Net.IsClient` | `true` on a connected client |
+| `World.Net.IsStandalone` | `true` when the world isn't networked |
+| `World.Net.IsNetworked` | `true` when running as a client or server |
+| `World.Net.ConnectedClients` | Server-side count of connected clients (0 elsewhere) |
 
-## Hosting and joining
+A common pattern is to gate authoritative logic behind `IsServer` and run
+presentation everywhere:
 
-```lua
-World.Net:Host("/Game/Maps/Arena", 7777)   -- listen server; the server picks the level
-World.Net:Connect("127.0.0.1", 7777)        -- join a server
+```csharp
+public override void OnUpdate(float DeltaTime)
+{
+    if (World.Net.IsServer)
+    {
+        StepSimulation(DeltaTime);
+    }
+
+    UpdateVisuals();   // runs on server and clients
+}
 ```
 
-## Replicated properties
+## Replicating state
 
-Mark a script field with `--@replicated` and the server's value is sent to
-clients. Define an `OnRep_<Field>` function to react on the client:
-
-```lua
---@replicated
-Script.Health = 100
-
---@replicated(OwnerOnly)
-Script.Ammo = 30
-
-function Script:OnRep_Health(old: number)   -- runs on clients when Health changes
-    print("health is now", self.Health)
-end
-```
-
-The server changes the value, then calls `World.Net:MarkDirty(self.Entity)` to
-have it collected and sent. Conditions refine who receives it: `OwnerOnly`,
-`SkipOwner`, `InitialOnly`, or the default `Always`.
-
-## Remote procedure calls
-
-Mark a function with `--@rpc` and calling it dispatches over the network instead
-of running locally:
-
-```lua
---@rpc(multicast, reliable)
-function Script:SetLabel(text: string)
-    self.LabelText = text
-end
-```
-
-The direction is `server` (client to server), `client` (server to a client), or
-`multicast` (server to everyone). Reliability is `reliable` or `unreliable`.
+State replication is configured on the **native** side: a C++ component property
+marked `PROPERTY(Replicated)` is collected on the server and applied on clients,
+where the change drives the registry's `on_update` signal. From a script you can
+observe those applied changes with
+[`Registry.OnUpdate<T>`](/manual/scripting/events/#component-signals) on the
+replicated component type. Authoring replicated state and RPCs directly in C# is
+not yet exposed — see the engine's networking documentation for the native
+workflow.

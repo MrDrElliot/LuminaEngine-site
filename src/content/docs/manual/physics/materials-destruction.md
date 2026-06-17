@@ -26,14 +26,18 @@ Create one from the **Content Browser** and edit it in the
 ## Destruction
 
 Make an object shatter by adding a **Destructible** component next to its static
-mesh. At runtime, break it from a script:
+mesh. When it breaks, the entity splits into physics-driven chunks.
 
-```lua
-World.Fracture(self.Entity)                  -- shatter in place
-World.FractureAt(self.Entity, x, y, z, 12)   -- shatter from a point, with force
+The break parameters below are exposed to script, so a C# script can tune them at
+runtime — for example raising the outward speed of the pieces:
+
+```csharp
+SDestructibleComponent Destruct = Registry.Get<SDestructibleComponent>(Entity);
+Destruct.ExplosionStrength = 12.0f;
 ```
 
-The entity breaks into physics-driven chunks. Tune the break on the component:
+Triggering the fracture itself is driven natively today; a script-facing
+fracture call is not yet exposed in C#. Tune the break on the component:
 
 | Property | What it does |
 | --- | --- |

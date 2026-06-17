@@ -9,7 +9,6 @@ The **Tools** menu opens standalone utility windows. The everyday ones:
 | --- | --- |
 | **Asset Registry** | Every known asset, its load state, size, and dependencies. |
 | **Input Actions** | Define named input actions and their key or pad bindings, see [Scripting › Input](/manual/scripting/input/). |
-| **Scripts Info** | A live reference for the Lua API your scripts can call. |
 | **Console Variables** | Browse and set engine CVars, and run console commands. |
 | **Object Browser** | Inspect every live engine object in memory. |
 | **Plugin Browser** | Enable or disable plugins for the project. |
@@ -20,14 +19,17 @@ For performance work:
 
 - **CPU Profiler**, frame time and a hierarchical scope tree.
 - **GPU Profiler**, GPU timings, pipeline stats, and a barrier inspector.
+- **Gameplay Profiler**, per-script and per-system `OnUpdate` timings, see [Scripting › Reference](/manual/scripting/reference/#global-api).
 - **Memory**, CPU and GPU memory broken down by category.
 - **Task System**, the fiber job scheduler, live.
 - **Network**, per-world transport and replication stats.
 - **Shadow Atlas**, shadow-map allocation.
-- **Lua Debugger**, breakpoints and stepping for scripts.
 
 For deep captures, **Tracy Profiler** (**Ctrl+P**) launches the external Tracy
 app, and **RenderDoc Capture** (**F11**) grabs a GPU frame.
+
+To debug C# scripts, attach your IDE's managed debugger (Visual Studio or Rider)
+to the running editor process and set breakpoints in your script `.cs` files.
 
 ## Packaging
 

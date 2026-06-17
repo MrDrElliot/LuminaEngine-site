@@ -25,27 +25,24 @@ struct SCameraComponent
 ## The active camera
 
 A world can hold many cameras, but exactly **one is active** and provides the
-view. Make a camera active in any of these ways:
+view. The usual ways to make a camera active:
 
 - Tick **Auto Activate** on the component, so it becomes the view when it spawns.
-- Call `Camera.SetActive(entity)` from a script.
-- Call `self:SetActiveCamera()` from the camera entity's own script.
+- Use a **Camera Follow** or **Spring Arm** rig (below) to drive a gameplay camera.
 
-```lua
-Camera.SetActive(self.Entity)       -- snap to this entity's camera
-Camera.SetActive(self.Entity, 1.0)  -- blend over one second
-local Active = Camera.GetActive()   -- the active camera entity
+From a script, `World.GetActiveCamera()` returns the active camera component, so
+you can read or tune the live view:
+
+```csharp
+SCameraComponent Active = World.GetActiveCamera();
+Active.SetFOV(70.0f);
 ```
 
-Blending eases the view from the old camera to the new one over `BlendTime`
-seconds, with an optional easing curve:
+When the engine switches cameras it can ease the view from the old one to the new
+over a blend time, with an easing curve:
 
 ```cpp
 enum class ECameraBlendFunction : uint8 { Linear, EaseIn, EaseOut, EaseInOut };
-```
-
-```lua
-Camera.SetActive(self.Entity, 0.5, Camera.Ease.EaseInOut)
 ```
 
 Use blends for cutscenes, security-camera switches, or a death cam.
@@ -58,10 +55,10 @@ entity's transform. See the
 [First-Person Tutorial](/getting-started/first-person-tutorial/) for the complete
 walkthrough; the heart of it is:
 
-```lua
-self.Yaw   = self.Yaw + self.Input:GetMouseDeltaX() * Sensitivity
-self.Pitch = math.clamp(self.Pitch + self.Input:GetMouseDeltaY() * Sensitivity, -89, 89)
-self.Transform:SetLocalRotationFromEuler(Vec3(self.Pitch, self.Yaw, 0))
+```csharp
+_Yaw += (float)_Input.GetMouseDeltaX() * Sensitivity;
+_Pitch = Math.Clamp(_Pitch + (float)_Input.GetMouseDeltaY() * Sensitivity, -89.0f, 89.0f);
+Transform.SetLocalRotationFromEuler(new FVector3(_Pitch, _Yaw, 0.0f));
 ```
 
 ## Third-person: follow camera
@@ -85,9 +82,9 @@ struct SCameraFollowComponent
 };
 ```
 
-```lua
-local Follow = self:GetComponent(SCameraFollowComponent)
-Follow:SetTarget(World.FindByName("Player"))
+```csharp
+SCameraFollowComponent Follow = Registry.Get<SCameraFollowComponent>(Entity);
+Follow.SetTarget(World.GetEntityByName("Player"));
 ```
 
 ## Third-person: spring-arm boom
@@ -123,8 +120,8 @@ does the rest.
 `FOV` is the vertical field of view in degrees (90 by default). Change it for
 zoom or aim-down-sights:
 
-```lua
-self:GetComponent(SCameraComponent):SetFOV(60)
+```csharp
+Registry.Get<SCameraComponent>(Entity).SetFOV(60.0f);
 ```
 
 ## Per-camera post-processing

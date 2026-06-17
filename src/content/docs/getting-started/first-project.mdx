@@ -33,7 +33,7 @@ needed.
 
 2. **Pick the template and name the project**
 
-   The only template is **Blank Project (C++)**: an empty C++ module with Lua
+   The only template is **Blank Project (C++)**: an empty C++ module with C#
    scripting wired up.
 
    Enter a **project name**. It becomes your module name and a C++ identifier,
@@ -97,11 +97,11 @@ MyGame/
 ├── GenerateProject.bat      Regenerate the .sln after adding or removing source files
 ├── .run/                    Rider run configurations
 ├── Config/
-│   └── GameSettings.json    Per-project settings (startup maps, Lua module)
+│   └── GameSettings.json    Per-project settings (startup maps and project settings)
 ├── Source/                  Your C++ module (MyGameModule.cpp/.h, MyGameAPI.h)
 ├── Game/
-│   ├── Content/             Assets, mounted as /Game in the editor
-│   └── Scripts/             Lua / Luau scripts
+│   ├── Content/             Assets, mounted as /Game/Content in the editor
+│   └── Scripts/             C# scripts (.cs) + the project's script .csproj
 └── Tools/
     └── ReflectionRunner.bat Reflection prebuild step, runs automatically
 ```
@@ -144,7 +144,7 @@ it. **Stop** returns to the editor world.
 | --- | --- |
 | Edit a `.cpp` or `.h` | Press **F5**. Visual Studio rebuilds the DLL and relaunches the editor. |
 | Add a new `.cpp` or `.h` | Run `GenerateProject.bat`, then F5. Premake globs sources at generate time. |
-| Edit a Lua script | Save the file. Scripts hot-reload in the running editor. |
+| Edit a C# script | Save the file. Scripts recompile and hot-reload in the running editor. |
 | Import an asset | Drop the file into `Game/Content/`. It appears in the Content Browser. |
 
 <Aside type="note">

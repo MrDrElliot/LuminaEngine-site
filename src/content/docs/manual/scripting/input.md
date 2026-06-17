@@ -11,84 +11,81 @@ There are two ways to read input in a script:
   or action is currently held. Best for continuous input: movement, holding to
   aim.
 
-Both work only in play mode (a Game or Simulation world), for the viewport that
-has input focus.
+Both require an enabled `SInputComponent` on the entity, and both work only in
+play mode, for the viewport that has input focus.
 
 ## React to events: `OnInput`
 
-Define `OnInput` and the engine calls it once per keyboard or mouse event. The
-event is an `SInputEvent`, and no Input component is required:
+Override `OnInput` and the engine calls it once per keyboard or mouse event. The
+event is an `InputEvent`. For a keyboard key, `IsKey('W')` is the easy test;
+letters and digits compare against their character:
 
-```lua
-function Script:OnInput(Event: SInputEvent)
-    if Event.Type == "KeyDown" and Event.Key == "Space" then
-        self:Jump()
-    elseif Event.Type == "MouseScroll" then
-        self:Zoom(Event.Scroll)
-    end
-end
+```csharp
+public override void OnInput(InputEvent Event)
+{
+    if (Event.Type == EInputEventType.KeyDown && Event.IsKey(' '))   // space
+    {
+        Jump();
+    }
+    else if (Event.Type == EInputEventType.MouseScroll)
+    {
+        Zoom((float)Event.Scroll);
+    }
+}
 ```
 
-The `SInputEvent` fields, all read-only:
+The `InputEvent` fields, all read-only:
 
 | Field | Meaning |
 | --- | --- |
-| `Event.Type` | The event: `"KeyDown"`, `"KeyUp"`, `"MouseDown"`, `"MouseUp"`, `"MouseMove"`, or `"MouseScroll"`. |
-| `Event.Key` | The key or button, for example `"Space"`, `"A"`, `"Left"`. Empty for move and scroll. |
-| `Event.Ctrl` / `Event.Shift` / `Event.Alt` | Modifier keys held with the event. |
-| `Event.Repeat` | On `KeyDown`, true when it is an OS auto-repeat (a held key firing again). |
-| `Event.X` / `Event.Y` | The cursor position. |
-| `Event.DeltaX` / `Event.DeltaY` | Cursor movement, on `MouseMove`. |
-| `Event.Scroll` | The signed wheel amount, on `MouseScroll`. |
+| `Type` | `KeyDown`, `KeyUp`, `MouseDown`, `MouseUp`, `MouseMove`, or `MouseScroll` (`EInputEventType`). |
+| `KeyCode` | The key or mouse-button code; letters/digits use their ASCII-upper value. |
+| `IsMouse` | `true` when `KeyCode` is a mouse button rather than a keyboard key. |
+| `IsKey(char)` | `true` if this is a keyboard event for the given letter/digit. |
+| `Ctrl` / `Shift` / `Alt` | Modifier keys held with the event. |
+| `Repeat` | On `KeyDown`, `true` when it is an OS auto-repeat. |
+| `MouseX` / `MouseY` | The cursor position. |
+| `DeltaX` / `DeltaY` | Cursor movement, on `MouseMove`. |
+| `Scroll` | The signed wheel amount, on `MouseScroll`. |
 
-The engine type behind the event:
-
-```cpp
-enum class EInputEventType : uint8
-{
-    KeyDown, KeyUp, MouseDown, MouseUp, MouseMove, MouseScroll
-};
-
-struct SInputEvent
-{
-    EInputEventType Type;
-    SKey   Key;              // key or button, plus Ctrl / Shift / Alt modifiers
-    bool   bRepeat;          // OS auto-repeat (KeyDown only)
-    double MouseX, MouseY;   // cursor position
-    double DeltaX, DeltaY;   // mouse-move delta
-    double Scroll;           // wheel delta
-};
-```
+`OnInput` only fires while the entity has an enabled `SInputComponent` — call
+`EnableInput()` in `OnReady` (below).
 
 ## Poll state: the Input component
 
-Polling asks "is this down right now?" each frame. It goes through the entity's
-**Input** component, so it is scoped to the entity that owns it (the player's
-pawn, usually). Opt in with `self:EnableInput()`, then query `self.Input`:
+Polling asks "is this down right now?" each frame, through the entity's
+`SInputComponent`. Opt in with `EnableInput()` — it adds the component (if
+missing) and returns it, so cache it and query each frame:
 
-```lua
-function Script:OnReady()
-    self:EnableInput()
-end
+```csharp
+public sealed class Player : EntityScript
+{
+    private SInputComponent _Input = null!;
 
-function Script:OnUpdate(DeltaTime: number)
-    if self.Input:IsKeyDown("W") then
-        self.Transform:Translate(self.Transform:GetForward() * (5 * DeltaTime))
-    end
+    public override void OnReady()
+    {
+        _Input = EnableInput();
+    }
 
-    self.Transform:AddYaw(self.Input:GetMouseDeltaX() * 0.1)
-end
+    public override void OnUpdate(float DeltaTime)
+    {
+        if (_Input.IsKeyDown("W"))
+        {
+            Transform.Translate(Transform.GetForward() * (5.0f * DeltaTime));
+        }
+
+        Transform.AddYaw((float)_Input.GetMouseDeltaX() * 0.1f);
+    }
+}
 ```
 
-`self:DisableInput()` removes the component again.
-
-These are colon-called on `self.Input`:
+`DisableInput()` removes the component again.
 
 | Method | Returns |
 | --- | --- |
-| `IsKeyDown(Key)` / `IsKeyPressed(Key)` / `IsKeyReleased(Key)` | `boolean` |
-| `IsActionDown(Name)` / `IsActionPressed(Name)` / `IsActionReleased(Name)` | `boolean` |
-| `GetActionAxis(Name)` | `number` |
+| `IsKeyDown(key)` / `IsKeyPressed(key)` / `IsKeyReleased(key)` | `bool` |
+| `IsActionDown(name)` / `IsActionPressed(name)` / `IsActionReleased(name)` | `bool` |
+| `GetActionAxis(name)` | `float` |
 | `GetMouseDeltaX()` / `GetMouseDeltaY()` | Mouse movement this frame |
 | `GetMouseX()` / `GetMouseY()` | Cursor position |
 | `IsInputActive()` | `true` only when this world has input focus |
@@ -96,33 +93,16 @@ These are colon-called on `self.Input`:
 Key names are single letters like `"W"`, names like `"Space"`, `"Shift"`,
 `"Ctrl"`, and mouse buttons `"Left"`, `"Right"`, `"Middle"`.
 
-You can also bind a callback to an action instead of polling it:
-
-```lua
-local Id = self.Input:BindAction("Fire", function() self:Shoot() end)
-self.Input:UnbindAction(Id)
-```
-
 ## Input actions
 
 An **action** is a named binding like `"Jump"`, `"Fire"`, or `"MoveX"`, defined in
 **Tools > Input Actions**. Reading an action by name
-(`self.Input:IsActionPressed("Jump")`) instead of a raw key lets players rebind
-controls and supports gamepads, so prefer actions for anything a player
-triggers.
-
-## Mouse mode
-
-The global `Input` table is separate from everything above and only controls the
-window's mouse mode, capture it for mouse-look, release it for menus:
-
-```lua
-Input.SetMouseMode("Captured")   -- "Captured", "Hidden", or "Normal"
-```
+(`_Input.IsActionPressed("Jump")`) instead of a raw key lets players rebind
+controls and supports gamepads, so prefer actions for anything a player triggers.
 
 ## Which to use
 
-- **Discrete actions** (jump, shoot, interact, toggle a menu): use `OnInput`, or
-  a bound action callback. You react exactly once per press.
-- **Continuous state** (movement, holding aim, charging): poll `self.Input` each
-  frame in `OnUpdate`.
+- **Discrete actions** (jump, shoot, interact, toggle a menu): use `OnInput`. You
+  react exactly once per press.
+- **Continuous state** (movement, holding aim, charging): poll the Input
+  component each frame in `OnUpdate`.

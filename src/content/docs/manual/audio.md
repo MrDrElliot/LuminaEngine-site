@@ -22,13 +22,14 @@ panning.
 | Looping | Restart automatically when it finishes. |
 | Play On Ready | Start playing as soon as the entity is set up. |
 
-From a script, the source's fields are settable, and it exposes `Play()` and
-`Stop()`:
+From a script, the source's exposed fields are settable — `Sound`, `Volume`,
+`Pitch`, `bLooping`, and the distance falloff. Set `bPlayOnReady` so the sound
+starts when the entity is set up:
 
-```lua
-local source = self:GetComponent(SAudioSourceComponent)
-source.Volume = 0.5
-source:Play()
+```csharp
+SAudioSourceComponent Source = Registry.Get<SAudioSourceComponent>(Entity);
+Source.Volume = 0.5f;
+Source.bLooping = true;
 ```
 
 ## Audio Listener
@@ -39,24 +40,15 @@ Without a listener, audio plays unattenuated.
 
 ## Playing sounds from script
 
-For fire-and-forget sounds you don't want to author as components, use the
-`Audio` table:
+Today the script-facing audio path is the **Audio Source** component. To play a
+sound from a script, give an entity a source, point its `Sound` at an audio
+asset, and set `bPlayOnReady` (or configure it in the editor):
 
-| Call | Returns |
-| --- | --- |
-| `Audio.PlaySound2D(file)` | A non-positional (UI/music) sound, returns an `AudioHandle`. |
-| `Audio.PlaySoundAtLocation(file, location)` | A positional one-shot. |
-| `Audio.StopAllSounds()` | Stops everything. |
-
-An `AudioHandle` has `:Stop()`, `:FadeOut(seconds)`, `:SetVolume(v)`,
-`:SetPitch(p)`, `:SetLooping(b)`, and `:IsValid()`.
-
-```lua
-local music = Audio.PlaySound2D("/Game/Audio/Theme")
-music:SetLooping(true)
--- later
-music:FadeOut(2.0)
+```csharp
+SAudioSourceComponent Source = Registry.Emplace<SAudioSourceComponent>(Entity)!;
+Source.Sound = Asset.Load<CAudioStream>("/Game/Content/Audio/Theme");
+Source.bLooping = true;
+Source.bPlayOnReady = true;
 ```
 
-See [Scripting › Reference](/manual/scripting/reference/) for the full `Audio`
-table.
+A standalone, fire-and-forget one-shot API is not yet exposed to C#.

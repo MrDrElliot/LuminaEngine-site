@@ -3,67 +3,102 @@ title: Entities & Components
 description: Working with this entity, its components, and its transform from a script.
 ---
 
-`self` is the entity the script is attached to. This page covers what you can do
-with it. To work with *other* entities, see [The World API](/manual/scripting/world/).
+`Entity` is the entity the script is attached to, and `Registry` is the world's
+component store. This page covers working with this entity. To work with *other*
+entities, see [The World API](/manual/scripting/world/).
 
 ## Components
 
 Component types come from C++ through [reflection](/manual/reflection/), so you
-refer to them by name (`STextComponent`, `SRigidBodyComponent`, and so on). Pass
-the type itself, not a string, and annotate the result to get its members:
+refer to them by name (`STransformComponent`, `SRigidBodyComponent`, and so on)
+as a generic type argument. You reach a component through `Registry`, passing the
+entity it lives on:
 
-```lua
-local text: STextComponent = self:GetComponent(STextComponent)
-if self:HasComponent(SRigidBodyComponent) then ... end
-local mesh: SStaticMeshComponent = self:AddComponent(SStaticMeshComponent)
-self:RemoveComponent(SBillboardComponent)
+```csharp
+// Read this entity's rigid body, if it has one.
+SRigidBodyComponent? Body = Registry.TryGet<SRigidBodyComponent>(Entity);
+if (Body != null)
+{
+    Body.Mass = 5.0f;
+}
+
+// Add a mesh component and configure it in place.
+SStaticMeshComponent Mesh = Registry.Emplace<SStaticMeshComponent>(Entity)!;
+
+Registry.Remove<SBillboardComponent>(Entity);
 ```
 
 | Method | Returns |
 | --- | --- |
-| `self:GetComponent(Type)` | The component, or `nil` |
-| `self:HasComponent(Type)` | `boolean` |
-| `self:AddComponent(Type)` | The new component |
-| `self:RemoveComponent(Type)` | nothing |
+| `Registry.Get<T>(Entity)` | The component; throws if absent |
+| `Registry.TryGet<T>(Entity)` | The component, or `null` |
+| `Registry.Has<T>(Entity)` | `bool` |
+| `Registry.Emplace<T>(Entity)` | Adds the component if missing and returns it (idempotent) |
+| `Registry.Remove<T>(Entity)` | `bool` (whether one was removed) |
 
-A component's own methods and fields depend on its type. See
-[Entities & Components](/manual/ecs/) for the catalog of component types.
+The returned wrapper points at the **live** component — writing its fields writes
+through to the entity's data. A component's own methods and fields depend on its
+type; see [Entities & Components](/manual/ecs/) for the catalog.
+
+### Caching a component with `[RequireComponent]`
+
+`Registry.Get` crosses into native code each call, so for a component you touch
+every frame, cache it. Mark a component-typed field `[RequireComponent]` and the
+engine resolves it once (adding the component if missing) and assigns it before
+`OnReady`:
+
+```csharp
+public sealed class Mover : EntityScript
+{
+    [RequireComponent] private SRigidBodyComponent _Body = null!;
+
+    public override void OnUpdate(float DeltaTime)
+    {
+        _Body.LinearDamping = 0.1f;     // no per-frame lookup
+    }
+}
+```
+
+`Transform` is already cached for you this way — it's every entity's
+`STransformComponent`, resolved once.
 
 ## Identity
 
 | Member | What it is |
 | --- | --- |
-| `self.Entity` | This entity's id (a `number`) |
-| `self.Name` | This entity's name |
-| `self:IsValid()` | `false` once the entity is destroyed |
-| `self:Destroy()` | Removes this entity |
-| `self:Clone()` | Duplicates this entity, returns the new id |
+| `Entity.Id` | This entity's raw id (a `uint`) |
+| `Entity.IsNull` | `true` for the null handle |
+| `World.GetEntityName(Entity)` | This entity's name |
+| `World.DestroyEntity(Entity)` | Removes this entity |
+| `World.DuplicateEntity(Entity)` | Deep-copies it, returns the new entity |
 
 ## Transform
 
-`self.Transform` is the live `STransformComponent`. Its getters return `vector`s.
-Most methods work in **local** space (relative to the parent); use the `World`
-variants to resolve through the parent chain.
+`Transform` is the live `STransformComponent`. Most methods work in **local**
+space (relative to the parent); the `World` variants resolve through the parent
+chain. Getters return `FVector3` / `FQuat`.
 
-```lua
-local here: vector = self.Transform:GetLocation()   -- local-space position
-self.Transform:SetLocation(Vec3(0, 2, 0))           -- local-space
-self.Transform:GetWorldLocation()                   -- resolved world position
-self.Transform:Translate(Vec3(0, 0, 1))
-self.Transform:AddYaw(90)                            -- degrees; also AddPitch, AddRoll
-self.Transform:SetLocalRotationFromEuler(Vec3(0, 90, 0))
+```csharp
+FVector3 Here = Transform.GetLocalLocation();        // local-space position
+Transform.SetLocalLocation(new FVector3(0, 2, 0));   // local-space
+FVector3 World = Transform.GetWorldLocation();       // resolved world position
+Transform.Translate(new FVector3(0, 0, 1));
+Transform.AddYaw(90.0f);                             // degrees; also AddPitch, AddRoll
+Transform.SetLocalRotationFromEuler(new FVector3(0, 90, 0));
 ```
 
 | Method | Space | Returns |
 | --- | --- | --- |
-| `GetLocation()` / `SetLocation(v)` | local | `vector` |
-| `GetRotation()` / `SetRotation(q)` | local | quat |
-| `GetScale()` / `SetScale(v)` | local | `vector` |
+| `GetLocalLocation()` / `SetLocalLocation(v)` | local | `FVector3` |
+| `GetLocalRotation()` / `SetLocalRotation(q)` | local | `FQuat` |
+| `GetLocalScale()` / `SetLocalScale(v)` | local | `FVector3` |
 | `GetWorldLocation()` / `GetWorldRotation()` / `GetWorldScale()` | world | |
 | `GetLocalRotationAsEuler()` / `SetLocalRotationFromEuler(e)` | local | degrees |
-| `Translate(delta)` | local | `vector` |
+| `AddLocalRotationFromEuler(e)` | local | degrees |
+| `Translate(delta)` | local | `FVector3` |
 | `AddYaw(deg)` / `AddPitch(deg)` / `AddRoll(deg)` | local | |
-| `GetForward()` / `GetRight()` / `GetUp()` | | `vector` |
+| `GetForward()` / `GetRight()` / `GetUp()` | world | `FVector3` |
+| `SetWorldTransform(t)` | world | |
 
 :::note
 Lumina is left-handed and Y-up (`+Z` is forward), in meters, and rotations are
@@ -72,47 +107,50 @@ in degrees. See [Worlds & Coordinates](/manual/worlds-and-coordinates/).
 
 ## Hierarchy
 
-`self.Tree` walks the parent and child graph. Single-entity getters return `nil`
-when there is no result, so they read cleanly in `if` chains; list getters return
-arrays of entity ids.
+Parent and child links live on `World`, keyed by entity:
 
-```lua
-local parent = self.Tree:GetParent()        -- id or nil
-for _, child in self.Tree:GetChildren() do ... end
-self.Tree:SetParent(otherEntity)            -- nil detaches to the root
+```csharp
+Entity Parent = World.GetParent(Entity);     // Entity.Null if none
+World.SetParent(Child, Entity);               // reparent, preserving world transform
+World.DetachFromParent(Entity);               // detach to the world root
+Entity Root = World.GetRootEntity(Entity);    // top of this entity's tree
 ```
-
-Common methods: `GetParent`, `GetChildren`, `GetRoot`, `GetAncestors`,
-`GetDescendants`, `SetParent`, `AddChild`, `FindChild`, `FindDescendant`,
-`IsChildOf`, `GetSiblings`.
 
 ## Camera
 
-If this entity has a camera, make it the active view:
+If this entity has a camera, you can read and tune it through its component:
 
-```lua
-self:SetActiveCamera()           -- snap to this camera
-self:SetActiveCamera(0.5)        -- blend over half a second
+```csharp
+SCameraComponent Camera = Registry.Get<SCameraComponent>(Entity);
+Camera.SetFOV(70.0f);
 ```
 
-`self:SetCameraTarget(target)` points an attached follow or spring-arm rig at
-another entity.
+`World.GetActiveCamera()` returns the world's current view camera. To make a
+camera follow another entity, add an `SCameraFollowComponent` and set its target
+(see [Cameras](/manual/cameras/)).
 
 ## Editable properties
 
-Expose a value to the editor with an `--@export` comment on the line above a
-top-level field. It appears in the entity's Script section in the Details panel,
-and you read or write it as `self.<Name>`:
+Expose a field to the editor with the `[Property]` attribute. It appears in the
+entity's **C# Script** section in the Details panel, and you read or write it
+like any field:
 
-```lua
---@export(ClampMin = 0, Units = "m/s", Category = "Movement")
-Script.Speed = 5.0
+```csharp
+[Property(Min = 0, Units = "m/s", Category = "Movement")]
+public float Speed = 5.0f;
 
---@export(Tooltip = "Mesh to spawn", AssetType = "StaticMesh")
-Script.Mesh = ""
+[Property(Tooltip = "Mesh to spawn", AssetType = "CStaticMesh")]
+public FSoftObjectPath Mesh;
 ```
 
-The default value's type picks the widget. Supported keys include `ClampMin`,
-`ClampMax`, `Delta`, `Units`, `Category`, `Tooltip`, `Color`, `ReadOnly`, and
-`AssetType` (a loose-asset kind like `"luau"`, or a reflected class like
-`"StaticMesh"` for an asset picker).
+The field's type picks the widget. Supported keys include `Category`, `Tooltip`,
+`Name` (label override), `Min`, `Max`, `Units`, `Color` (a color picker for a
+vector), `Slider` (with `Min`/`Max`), and `AssetType` (a reflected asset class
+like `"CStaticMesh"` or `"CMaterial"`, which shows an asset picker — load it with
+`Asset.Load<T>(path)`).
+
+Two related attributes:
+
+- `[Serialize]` persists a field with the entity **without** showing it in the
+  inspector.
+- `[Hide]` keeps a field from ever being serialized or shown.
