@@ -9,13 +9,14 @@ on save, so changing a file updates the running editor with no rebuild and no
 restart.
 
 This page covers how a script is shaped and how it runs. The rest of the section
-documents the API surface:
+documents the API surface.
 
 - **[Entities & Components](/manual/scripting/entities-components/)**, working with this entity and its components.
 - **[The World API](/manual/scripting/world/)**, spawning, finding, and moving entities.
 - **[Script Systems](/manual/scripting/systems/)**, world-level systems that run a rule across many entities.
 - **[Physics & Collisions](/manual/scripting/physics/)**, forces, velocities, queries, and contact callbacks.
 - **[Input](/manual/scripting/input/)**, actions, keys, and the mouse.
+- **[User Interface](/manual/scripting/ui/)**, screen-space RmlUi documents driven from C#.
 - **[Events](/manual/scripting/events/)**, the gameplay message bus and component signals.
 - **[Parallel Work](/manual/scripting/tasks/)**, running heavy compute across worker threads.
 - **[Networking](/manual/scripting/networking/)**, roles and replication.
@@ -27,7 +28,7 @@ These docs cover Lumina's API, not the language itself. For C# syntax, the type
 system, and the standard library, see the official
 [C# documentation](https://learn.microsoft.com/dotnet/csharp/). Lumina hosts
 .NET 10 / CoreCLR, so the full base class library (`System.*`, LINQ, collections,
-`MathF`) is available to a script — though for hot per-frame code you'll lean on
+`MathF`) is available to a script, though for hot per-frame code you'll lean on
 the engine's value types and avoid per-frame allocation.
 
 ## Where scripts live
@@ -39,7 +40,7 @@ entity by its **class name** (for example `Game.Player`), not by file path.
 ## Anatomy of a script
 
 A script is a class that derives from `EntityScript` and overrides the lifecycle
-hooks it needs. This complete script orbits its entity around its starting point:
+hooks it needs. This complete script orbits its entity around its starting point.
 
 ```csharp
 using System;
@@ -75,7 +76,7 @@ public sealed class Orbit : EntityScript
 ```
 
 `EntityScript` gives every script a few members, ready to use before the first
-hook runs:
+hook runs.
 
 | Member | What it is |
 | --- | --- |
@@ -88,9 +89,9 @@ hook runs:
 
 Through the [reflection system](/manual/reflection/), **every component type you
 define in C++ is exposed to C# by its name**, with no binding code to write. You
-refer to a component by its C++ name — `STransformComponent`,
-`SRigidBodyComponent`, `SStaticMeshComponent` — as a generic type argument, and
-read or write its members directly:
+refer to a component by its C++ name (`STransformComponent`,
+`SRigidBodyComponent`, `SStaticMeshComponent`) as a generic type argument, and
+read or write its members directly.
 
 ```csharp
 SRigidBodyComponent Body = Registry.Get<SRigidBodyComponent>(Entity);
@@ -100,7 +101,7 @@ Body.Mass = 5.0f;
 The component types, the math types (`FVector3`, `FQuat`), and the event types
 (`SCollisionEvent`, `InputEvent`) all live in the `Lumina` namespace; the
 scripting surface (`EntityScript`, `Entity`, `Registry`, attributes, `Physics`,
-`Net`) lives in `LuminaSharp`. Most scripts open both:
+`Net`) lives in `LuminaSharp`. Most scripts open both.
 
 ```csharp
 using LuminaSharp;
@@ -109,20 +110,20 @@ using Lumina;
 
 ## `Entity` is this entity, `World` is everything else
 
-The API has one rule that keeps it clean:
+The API has one rule that keeps it clean.
 
 - **`Entity` / `Transform`** are *this* entity. Use them for this entity's
   transform, components, and identity.
-- **`World`** is everything else: other entities, physics, navigation,
+- **`World`** is everything else, including other entities, physics, navigation,
   networking, and global helpers.
 
-`World` exposes its subsystems as properties — `World.Physics`, `World.Draw`,
-`World.Net`, `World.Navigation`, `World.Messages` — covered on the pages that
+`World` exposes its subsystems as properties (`World.Physics`, `World.Draw`,
+`World.Net`, `World.Navigation`, `World.Messages`) covered on the pages that
 follow.
 
 ## Lifecycle hooks
 
-Override only the ones you need. A hook you don't override costs nothing — an
+Override only the ones you need. A hook you don't override costs nothing. An
 entity with no `OnUpdate` is never ticked.
 
 | Method | When it runs |
@@ -134,8 +135,8 @@ entity with no `OnUpdate` is never ticked.
 | `OnContactBegin/End(SCollisionEvent)`, `OnOverlapBegin/End(SCollisionEvent)` | A physics contact or trigger overlap. See [Physics & Collisions](/manual/scripting/physics/). |
 | `OnDetach()` | Once, when the entity is destroyed or the script is removed. |
 
-For the full picture — when each runs, what is per-entity, and how hot reload
-behaves — see **[Script Lifecycle](/manual/scripting/lifecycle/)**.
+For the full picture (when each runs, what is per-entity, and how hot reload
+behaves) see **[Script Lifecycle](/manual/scripting/lifecycle/)**.
 
 ## Attaching a script
 

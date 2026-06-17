@@ -16,7 +16,7 @@ you create and edit assets through the editor.
 ## Content paths
 
 Assets are addressed by **content path**, not by where they sit on your drive.
-The first segment of a path is a **mount**:
+The first segment of a path is a **mount**.
 
 | Mount | Points at |
 | --- | --- |
@@ -30,7 +30,7 @@ by mount, paths keep working no matter where the project lives on disk.
 
 ## Asset types
 
-The asset types you will work with:
+The asset types you will work with.
 
 | Asset | What it is |
 | --- | --- |
@@ -58,7 +58,7 @@ You create most of these from the [Content Browser](/manual/editor/content-brows
 Select an asset in the [Content Browser](/manual/editor/content-browser/) and press
 **Delete** (or right-click, Delete). Deletion is immediate and cannot be undone.
 
-When you delete an asset:
+When you delete an asset, the following happens.
 
 - It is removed from disk and from memory right away.
 - Every reference to it is cleared. Components, other assets, and open worlds that
@@ -68,7 +68,7 @@ When you delete an asset:
   Detached copies survive. See [Prefabs](/manual/prefabs/).
 - It does not show up in the unsaved-changes prompt when you close the editor.
 
-Two things you cannot delete:
+Two things you cannot delete.
 
 - A **World** that is currently open. Close it first.
 - Anything while the game is **playing or simulating**. Stop play first.

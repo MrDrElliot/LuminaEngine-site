@@ -3,7 +3,7 @@ title: Materials
 description: How surfaces look, and why instances matter for performance.
 ---
 
-A **material** defines how a surface looks: its color, how shiny or rough it is,
+A **material** defines how a surface looks, its color, how shiny or rough it is,
 whether it glows, and more. You author materials in a visual node graph, no
 shader code required.
 

@@ -14,11 +14,11 @@ the editor is running with a project open, see
 Before adding a player, give yourself a lit world to look at.
 
 **Add some geometry.** In the **Scene Outliner**, click **+** and add a few
-**Cube** primitives: flatten one into a floor (set its Scale to about
+**Cube** primitives. Flatten one into a floor (set its Scale to about
 `20, 0.2, 20` in the Details panel), and scatter a couple more as boxes.
 
 **Add lighting.** A fresh scene has no light, so it would render dark. Create an
-entity, name it `Lighting`, and in the **Details** panel add three components:
+entity, name it `Lighting`, and in the **Details** panel add three components.
 
 - **Environment**, the sky and image-based lighting.
 - **Directional Light**, the sun that lights the scene and casts shadows.
@@ -36,7 +36,7 @@ eyes, so a body mesh would just fill the screen.
 2. With `Player` selected, click **+** in the **Details** panel and add a **Camera** component.
 3. In the Camera component, tick **Auto Activate** so it becomes the active view when you press Play.
 
-A camera defines the view. Here is the component you just added:
+A camera defines the view. Here is the component you just added.
 
 ```cpp
 struct SCameraComponent
@@ -59,7 +59,7 @@ A scene can have many cameras; exactly one is **active** at a time. Ticking
 ## 3. Write the player script
 
 Create a `Player.cs` script in your project's `Game/Scripts` folder and open it.
-Replace the contents with this:
+Replace the contents with this.
 
 ```csharp
 using System;
@@ -118,7 +118,7 @@ public sealed class Player : EntityScript
 ## 4. Attach the script
 
 Select the `Player` entity, add a **C# Script** component in the Details panel,
-and set its **Script Class** to your script's type name — `Game.Player` for the
+and set its **Script Class** to your script's type name, `Game.Player` for the
 script above (the namespace plus the class name).
 
 ## 5. Play
@@ -127,7 +127,7 @@ Press **Play** on the viewport toolbar, then click the viewport to give it focus
 Moving the mouse looks around, and WASD moves you through the scene. Press
 **Stop** to return to the editor.
 
-That is a complete gameplay loop: an entity, a camera, input, and a script moving
+That is a complete gameplay loop, an entity, a camera, input, and a script moving
 it every frame.
 
 ## Where to go next

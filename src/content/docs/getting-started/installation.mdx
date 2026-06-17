@@ -26,13 +26,13 @@ scripting layer targets .NET 10, which older Visual Studio versions cannot build
 
 2. **Run setup**
 
-   From the repository root, run:
+   Run this from the repository root.
 
    ```bat
    Setup.bat
    ```
 
-   This is a one-shot setup for a fresh clone. It:
+   This is a one-shot setup for a fresh clone. It does the following.
    - Downloads `premake5.exe` into `Tools/` if it is missing.
    - Downloads and extracts all external dependencies (`External.zip`).
    - Persists the `LUMINA_DIR` environment variable to your user profile.
@@ -62,13 +62,13 @@ scripting layer targets .NET 10, which older Visual Studio versions cannot build
 
 5. **Choose a configuration and platform**
 
-   Pick a configuration:
+   Pick a configuration.
 
    - **Development**, for day-to-day work. Fast, with Tracy and logging enabled.
    - **Debug**, for full debugger support. Significantly slower to compile and run.
    - **Shipping**, for packaging. Strips profiling, verbose logging, and the editor.
 
-   Then pick a platform: **Editor** (the default) includes all editor tooling,
+   Then pick a platform. **Editor** (the default) includes all editor tooling,
    and **Game** is a runtime-only build with no editor.
 
    Start with **Development | Editor**.
@@ -85,7 +85,7 @@ scripting layer targets .NET 10, which older Visual Studio versions cannot build
 ## After pulling
 
 After pulling or merging, regenerate the solution so new and removed source
-files are picked up:
+files are picked up.
 
 ```bat
 GenerateProjectFiles.bat
@@ -100,7 +100,7 @@ Optional engine features (the Tracy profiler, Vulkan validation, NVIDIA
 Aftermath, verbose logging) are configured in
 `BuildScripts/BuildConfig.lua` and baked in when you regenerate the solution.
 You can override any of them for a single regeneration from the command line,
-for example:
+like this.
 
 ```bat
 GenerateProjectFiles.bat --tracy=off --validation=on --verbose-logging=off

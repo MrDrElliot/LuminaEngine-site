@@ -3,12 +3,12 @@ title: Input
 description: Reading keyboard, mouse, and actions from a script.
 ---
 
-There are two ways to read input in a script:
+There are two ways to read input in a script.
 
 - **React to events** with `OnInput`. The engine hands you each key and mouse
-  event as it happens. Best for discrete actions: jump, fire, open a menu.
+  event as it happens. Best for discrete actions like jump, fire, open a menu.
 - **Poll state** with the **Input** component. You ask each frame whether a key
-  or action is currently held. Best for continuous input: movement, holding to
+  or action is currently held. Best for continuous input like movement, holding to
   aim.
 
 Both require an enabled `SInputComponent` on the entity, and both work only in
@@ -18,7 +18,7 @@ play mode, for the viewport that has input focus.
 
 Override `OnInput` and the engine calls it once per keyboard or mouse event. The
 event is an `InputEvent`. For a keyboard key, `IsKey('W')` is the easy test;
-letters and digits compare against their character:
+letters and digits compare against their character.
 
 ```csharp
 public override void OnInput(InputEvent Event)
@@ -34,7 +34,7 @@ public override void OnInput(InputEvent Event)
 }
 ```
 
-The `InputEvent` fields, all read-only:
+The `InputEvent` fields, all read-only.
 
 | Field | Meaning |
 | --- | --- |
@@ -48,14 +48,14 @@ The `InputEvent` fields, all read-only:
 | `DeltaX` / `DeltaY` | Cursor movement, on `MouseMove`. |
 | `Scroll` | The signed wheel amount, on `MouseScroll`. |
 
-`OnInput` only fires while the entity has an enabled `SInputComponent` — call
+`OnInput` only fires while the entity has an enabled `SInputComponent`. Call
 `EnableInput()` in `OnReady` (below).
 
 ## Poll state: the Input component
 
 Polling asks "is this down right now?" each frame, through the entity's
-`SInputComponent`. Opt in with `EnableInput()` — it adds the component (if
-missing) and returns it, so cache it and query each frame:
+`SInputComponent`. Opt in with `EnableInput()`, which adds the component (if
+missing) and returns it, so cache it and query each frame.
 
 ```csharp
 public sealed class Player : EntityScript
@@ -102,7 +102,7 @@ controls and supports gamepads, so prefer actions for anything a player triggers
 
 ## Which to use
 
-- **Discrete actions** (jump, shoot, interact, toggle a menu): use `OnInput`. You
+- **Discrete actions** (jump, shoot, interact, toggle a menu), use `OnInput`. You
   react exactly once per press.
-- **Continuous state** (movement, holding aim, charging): poll the Input
+- **Continuous state** (movement, holding aim, charging), poll the Input
   component each frame in `OnUpdate`.

@@ -25,7 +25,7 @@ struct SCameraComponent
 ## The active camera
 
 A world can hold many cameras, but exactly **one is active** and provides the
-view. The usual ways to make a camera active:
+view. The usual ways to make a camera active are below.
 
 - Tick **Auto Activate** on the component, so it becomes the view when it spawns.
 - Use a **Camera Follow** or **Spring Arm** rig (below) to drive a gameplay camera.
@@ -49,11 +49,11 @@ Use blends for cutscenes, security-camera switches, or a death cam.
 
 ## First-person
 
-The simplest setup: one entity with a camera that you rotate directly. A
+The simplest setup is one entity with a camera that you rotate directly. A
 mouse-look script reads the mouse and writes yaw and pitch onto the camera
 entity's transform. See the
 [First-Person Tutorial](/getting-started/first-person-tutorial/) for the complete
-walkthrough; the heart of it is:
+walkthrough; the heart of it follows.
 
 ```csharp
 _Yaw += (float)_Input.GetMouseDeltaX() * Sensitivity;
@@ -110,7 +110,7 @@ struct SSpringArmComponent
 };
 ```
 
-A typical third-person rig is two entities: a **player** moved by your input, and
+A typical third-person rig is two entities, a **player** moved by your input, and
 a separate **camera** entity with `SCameraComponent` + `SSpringArmComponent`
 targeting the player. Your script yaws and pitches the camera entity; the arm
 does the rest.
@@ -118,7 +118,7 @@ does the rest.
 ## Field of view
 
 `FOV` is the vertical field of view in degrees (90 by default). Change it for
-zoom or aim-down-sights:
+zoom or aim-down-sights.
 
 ```csharp
 Registry.Get<SCameraComponent>(Entity).SetFOV(60.0f);

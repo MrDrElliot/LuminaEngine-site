@@ -3,7 +3,7 @@ title: Water
 description: The Water component, a high quality water surface with waves, refraction, reflection, foam, and an underwater view.
 ---
 
-The **Water** component turns an entity into a high quality water surface: a
+The **Water** component turns an entity into a high quality water surface, a
 plane with animated waves, refraction, reflection, depth based coloring, foam,
 and an underwater look when the camera goes below the surface. You drive it
 entirely from the Details panel, there is no shader to write.
@@ -88,7 +88,7 @@ toward the sun through them) both ride this value.
 
 ## Foam
 
-Foam has two parts: **shoreline foam** where the water is shallow (near where it
+Foam has two parts, **shoreline foam** where the water is shallow (near where it
 meets geometry) and **crest foam** on tall wave peaks. Foam is off until you
 raise **Foam Intensity**.
 

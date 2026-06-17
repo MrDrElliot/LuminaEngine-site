@@ -11,14 +11,14 @@ choice gives washed-out color or broken normals. Set it on the Texture asset.
 
 | Color space | Use for | Stored as |
 | --- | --- | --- |
-| **sRGB** | Color maps: albedo, emissive, UI. The default. | BC7 (sRGB) |
-| **Linear** | Non-color data: masks, single channels. | BC7 |
+| **sRGB** | Color maps, such as albedo, emissive, UI. The default. | BC7 (sRGB) |
+| **Linear** | Non-color data, such as masks, single channels. | BC7 |
 | **Normal Map** | Tangent-space normal maps. | BC5 (XY, with Z rebuilt in the shader) |
 | **Packed Data** | Packed PBR maps, for example occlusion / roughness / metallic in one image. | BC7 |
 | **Environment** | HDR panoramas for sky and image-based lighting. | RGBA16F, uncompressed |
 | **Auto** | Chosen automatically from the filename. | (resolved on import) |
 
-The rules that matter:
+The rules that matter.
 
 - **Color images are sRGB, everything else is Linear.** Tagging a mask or a
   roughness map as sRGB shifts its values; tagging albedo as Linear washes out
@@ -32,7 +32,7 @@ Mip levels are always generated.
 
 ## Auto detection
 
-When color space is **Auto**, the engine guesses from the filename on import:
+When color space is **Auto**, the engine guesses from the filename on import.
 
 - `.hdr` files become **Environment**.
 - `_n`, `_normal`, `_nrm` become **Normal Map**.

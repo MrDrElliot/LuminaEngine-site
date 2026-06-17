@@ -4,7 +4,7 @@ description: A map of the engine's major systems.
 ---
 
 The manual covers the systems you actually use to build a game. Each page is
-practical: what the system is, how you drive it from the editor or a script,
+practical, covering what the system is, how you drive it from the editor or a script,
 and where its edges are. It does not try to explain the whole engine.
 
 Lumina is editor-first and data-driven. You build scenes from entities and
@@ -15,7 +15,7 @@ is what ships.
 ## Systems
 
 - **[Editor](/manual/editor/)**, the workspace, panels, and asset editors you author with.
-- **[Entities & Components](/manual/ecs/)**, the world model: entities, components, and prefabs.
+- **[Entities & Components](/manual/ecs/)**, the world model of entities, components, and prefabs.
 - **[C# Scripting](/manual/scripting/)**, gameplay in C# against a typed API.
 - **[Rendering](/manual/rendering/)**, materials, lights, environment, and post-processing.
 

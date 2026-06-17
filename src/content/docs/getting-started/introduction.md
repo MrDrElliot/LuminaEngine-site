@@ -26,13 +26,13 @@ planned. Everything below assumes a 64-bit Windows machine.
 | --- | --- |
 | OS | Windows 10 (1803 or newer) or Windows 11, 64-bit |
 | IDE | Visual Studio 2026 (18.0 or newer) with the MSVC v143 toolset |
-| .NET | The .NET 10 SDK (x64) — required to build the C# scripting layer |
+| .NET | The .NET 10 SDK (x64), required to build the C# scripting layer |
 | GPU | A GPU and driver supporting Vulkan 1.4 |
 | Git | Any recent version |
 
 :::caution[Visual Studio 2026 is required]
 The C# scripting layer targets **.NET 10**, which only Visual Studio 2026
-(MSBuild 18.0+) can build — VS 2022 fails with `NETSDK1209`. `Setup.bat` checks
+(MSBuild 18.0+) can build. VS 2022 fails with `NETSDK1209`. `Setup.bat` checks
 for both the .NET 10 SDK and a new-enough Visual Studio and tells you what is
 missing.
 :::

@@ -20,7 +20,7 @@ The result is a self-contained build you can distribute.
 
 ## Options
 
-The Package Project dialog lets you set:
+The Package Project dialog lets you set the following.
 
 - **Output Directory**, where the build is written. Defaults to a `Build/` folder in your project.
 - **Configuration**, the build configuration, Shipping by default.

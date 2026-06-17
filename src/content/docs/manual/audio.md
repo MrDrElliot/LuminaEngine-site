@@ -3,8 +3,8 @@ title: Audio
 description: Positional sound sources, the listener, and playing audio from scripts.
 ---
 
-Lumina plays sound through two components — a **source** that emits and a
-**listener** that hears — plus a small scripting API for one-off sounds.
+Lumina plays sound through two components, a **source** that emits and a
+**listener** that hears, plus a small scripting API for one-off sounds.
 
 ## Audio Source
 
@@ -22,9 +22,9 @@ panning.
 | Looping | Restart automatically when it finishes. |
 | Play On Ready | Start playing as soon as the entity is set up. |
 
-From a script, the source's exposed fields are settable — `Sound`, `Volume`,
+From a script, the source's exposed fields are settable, `Sound`, `Volume`,
 `Pitch`, `bLooping`, and the distance falloff. Set `bPlayOnReady` so the sound
-starts when the entity is set up:
+starts when the entity is set up.
 
 ```csharp
 SAudioSourceComponent Source = Registry.Get<SAudioSourceComponent>(Entity);
@@ -34,7 +34,7 @@ Source.bLooping = true;
 
 ## Audio Listener
 
-The **Audio Listener** component marks the "ears" — sound is panned and
+The **Audio Listener** component marks the "ears". Sound is panned and
 attenuated relative to its world position. Put one on your camera or player.
 Without a listener, audio plays unattenuated.
 
@@ -42,7 +42,7 @@ Without a listener, audio plays unattenuated.
 
 Today the script-facing audio path is the **Audio Source** component. To play a
 sound from a script, give an entity a source, point its `Sound` at an audio
-asset, and set `bPlayOnReady` (or configure it in the editor):
+asset, and set `bPlayOnReady` (or configure it in the editor).
 
 ```csharp
 SAudioSourceComponent Source = Registry.Emplace<SAudioSourceComponent>(Entity)!;

@@ -24,7 +24,7 @@ picker only accepts assets of the right type, a mesh slot will not take a sound.
 
 ## In scripts
 
-Reference and load assets from C# by content path:
+Reference and load assets from C# by content path.
 
 ```csharp
 // Load now, typed.
@@ -38,7 +38,7 @@ Asset.LoadAsync<CStaticMesh>("/Game/Content/Meshes/Crate", Loaded =>
 ```
 
 For an editor-pickable, serializable reference, use a `FSoftObjectPath` or
-`TSoftObjectPtr<T>` `[Property]` field and resolve it on demand — a path that
+`TSoftObjectPtr<T>` `[Property]` field and resolve it on demand, a path that
 isn't loaded until you ask for it. See
 [Scripting › Reference](/manual/scripting/reference/#asset-references).
 

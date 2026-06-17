@@ -24,7 +24,7 @@ Importing audio files is not available yet.
 
 Models open an **import dialog** so you can choose what to pull in. It previews
 the meshes, materials, textures, skeleton, and animations found in the file, and
-lets you set:
+lets you set the following.
 
 | Option | What it does |
 | --- | --- |

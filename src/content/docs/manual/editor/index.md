@@ -11,7 +11,7 @@ land in the **World Editor**.
 ## Layout
 
 The editor is a docked workspace. Drag any panel by its tab to rearrange it or
-tear it off into its own window. The default layout is:
+tear it off into its own window. The default layout has these pieces.
 
 - The **Viewport** in the center, your 3D view, see [Viewport](/manual/editor/viewport/).
 - The **Scene Outliner**, **Details**, and other [panels](/manual/editor/panels/) around it.
@@ -22,7 +22,7 @@ tear it off into its own window. The default layout is:
 | Menu | Holds |
 | --- | --- |
 | **File** | **Settings** (below), New Project, Reload Project Module, Package Project. |
-| **Tools** | Every utility window: profilers, the asset registry, input actions, the plugin browser, and more, see [Tools & Profilers](/manual/editor/tools/). |
+| **Tools** | Every utility window, including profilers, the asset registry, input actions, the plugin browser, and more, see [Tools & Profilers](/manual/editor/tools/). |
 | **Help** | Links to Discord and the docs. |
 
 ## Settings
@@ -44,7 +44,7 @@ separate, they live in the [World Settings](/manual/editor/panels/) panel.
 
 ## Running the world
 
-The viewport toolbar runs your game without leaving the editor:
+The viewport toolbar runs your game without leaving the editor.
 
 - **Play** duplicates the world and runs it like the game, with input and scripts.
 - **Simulate** runs physics and scripts in place.

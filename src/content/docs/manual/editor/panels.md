@@ -11,7 +11,7 @@ to reparent, and right-click to rename, delete, group, or create a prefab. The
 
 ## Details
 
-The **inspector** for the selected entity: every component and its properties.
+The **inspector** for the selected entity, showing every component and its properties.
 The panel is generated from the [reflection system](/manual/reflection/), so a
 component's fields show up automatically with the right widget for each type,
 color pickers, sliders with units, asset pickers, and entity pickers.
@@ -24,7 +24,7 @@ grouped into the categories each component declares.
 The systems that run in the active world. **Native Systems** are the engine's
 built-in C++ systems; the checkbox enables or disables one for this world (turn
 one off to replace it with your own). **C# systems** are discovered automatically
-from their `[EntitySystem]` attribute and run in every world — there's no
+from their `[EntitySystem]` attribute and run in every world. There's no
 per-world file to assign. See [Script Systems](/manual/scripting/systems/). For
 per-frame timing, use the profilers under [Tools](/manual/editor/tools/).
 

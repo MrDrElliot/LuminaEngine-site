@@ -7,17 +7,17 @@ A **script system** runs over the *whole world*, not a single entity. Where an
 [entity script](/manual/scripting/) is attached to one entity and runs that
 entity's behavior, a system is created once per world and iterates entities
 itself, once per frame, just like an engine (C++) system. The two are different
-tools:
+tools.
 
 | | Entity script | Script system |
 | --- | --- | --- |
 | Instance | one per entity (C# Script component) | one per world |
 | `this` is | that entity's script | the system (no entity) |
-| Iterates | nothing — it *is* the entity | entities you query through the context |
+| Iterates | nothing (it *is* the entity) | entities you query through the context |
 | Good for | one actor's behavior | a rule applied across many entities |
 
-Reach for a system when a behavior is really a *rule over a set of entities* —
-spin everything tagged a certain way, drain every `Health` below zero — rather
+Reach for a system when a behavior is really a *rule over a set of entities*
+(spin everything tagged a certain way, drain every `Health` below zero) rather
 than logic that belongs to one actor.
 
 ## Anatomy of a system
@@ -74,7 +74,7 @@ A system runs in one **update stage**, and systems within a stage run in
 | `FrameEnd` | End of frame. |
 | `Paused` | The stage that ticks while the editor is idle (not playing). |
 
-`Priority` is an `int`: **lower runs first**, and `128` is the default (medium).
+`Priority` is an `int`, **lower runs first**, and `128` is the default (medium).
 
 ```csharp
 [EntitySystem(Stage = EUpdateStage.PostPhysics, Priority = 0)]   // runs early in PostPhysics
@@ -82,23 +82,23 @@ A system runs in one **update stage**, and systems within a stage run in
 
 ## The system context
 
-`SystemContext` mirrors the C++ system context: time, entity creation, and access
+`SystemContext` mirrors the C++ system context, exposing time, entity creation, and access
 to the live world's component store.
 
 | Member | Does |
 | --- | --- |
 | `Context.DeltaTime` / `Context.Time` | Seconds this frame / total world time. |
-| `Context.Registry` | The component store — author views with `Registry.View<...>()`. |
+| `Context.Registry` | The component store. Author views with `Registry.View<...>()`. |
 | `Context.Create()` / `Context.Destroy(entity)` | Make or destroy an entity. |
 | `Context.SetEntityLocation(entity, v)` | Set an entity's world-space location. |
 | `Context.DrawDebugLine(start, end, color)` | One-frame debug line (Dev/Debug only). |
 
 ### Iterating entities with views
 
-`Registry.View<...>()` is an entt-style typed view — every entity that has *all*
+`Registry.View<...>()` is an entt-style typed view, every entity that has *all*
 of the listed components. Iterate it with `.Each(...)` or `foreach`, and pass an
 `Exclude<...>()` filter as the argument to skip entities that also have a
-component:
+component.
 
 ```csharp
 public override void OnUpdate(SystemContext Context)
@@ -117,18 +117,18 @@ public override void OnUpdate(SystemContext Context)
 ```
 
 Views support arity 1–4 and an exclude filter of up to 3 types. The wrappers a
-view hands back are valid only for the current iteration step — read out any
+view hands back are valid only for the current iteration step. Read out any
 field you need to keep, don't store the wrapper.
 
 :::note[Stateless and single-threaded]
-Keep per-frame work in the view loop, not on the instance — a system holds the
+Keep per-frame work in the view loop, not on the instance. A system holds the
 *rule*, not per-entity state. Script systems tick on the script thread one at a
 time; native systems with non-overlapping component access run in parallel.
 :::
 
 ## Subsystems
 
-Everything outside the entity set — physics, navigation, networking, debug
-drawing — is reached through the system's `World` property, exactly as in entity
-scripts: `World.Physics`, `World.Navigation`, `World.Net`, `World.Draw`. See
+Everything outside the entity set (physics, navigation, networking, debug
+drawing) is reached through the system's `World` property, exactly as in entity
+scripts, via `World.Physics`, `World.Navigation`, `World.Net`, `World.Draw`. See
 [The World API](/manual/scripting/world/).

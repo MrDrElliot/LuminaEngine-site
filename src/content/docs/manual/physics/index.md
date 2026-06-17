@@ -9,13 +9,13 @@ light, see [Entities & Components](/manual/ecs/).
 
 ## The model
 
-Two pieces make an entity physical:
+Two pieces make an entity physical.
 
-- A **Rigid Body** decides how the entity moves: static, kinematic, or dynamic.
+- A **Rigid Body** decides how the entity moves, whether static, kinematic, or dynamic.
 - One or more **Colliders** give it a shape to collide with.
 
 A rigid body with no collider has nothing to hit, and a collider with no rigid
-body is inert. A solid object needs both:
+body is inert. A solid object needs both.
 
 ```
 Crate (entity)

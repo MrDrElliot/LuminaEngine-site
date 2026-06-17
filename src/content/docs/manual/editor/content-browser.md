@@ -19,7 +19,7 @@ current folder.
 
 ## Importing
 
-Drop a source file into the browser (or onto the viewport) to import it: models
+Drop a source file into the browser (or onto the viewport) to import it, whether models
 (`.gltf`, `.glb`, `.fbx`, `.obj`), textures (`.png`, `.jpg`, `.jpeg`, `.hdr`),
 and fonts (`.ttf`, `.otf`). The file is converted into an engine asset and
 appears right away. For import options and texture color space, see the

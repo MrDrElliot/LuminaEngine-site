@@ -3,7 +3,7 @@ title: Viewport
 description: Navigating and editing the 3D scene.
 ---
 
-The viewport is your window into the world: move the camera, select entities,
+The viewport is your window into the world. Move the camera, select entities,
 and transform them with the gizmo.
 
 ## Camera
@@ -25,7 +25,7 @@ and transform them with the gizmo.
 
 ## The gizmo
 
-With the viewport focused and the camera not flying:
+These apply with the viewport focused and the camera not flying.
 
 | Key | Mode |
 | --- | --- |

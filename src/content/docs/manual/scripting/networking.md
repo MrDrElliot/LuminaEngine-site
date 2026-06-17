@@ -10,7 +10,7 @@ and RPC API is still being built out. Treat this page as the current state, not 
 stable contract.
 :::
 
-Lumina uses a server-authoritative model: the **server** owns the simulation and
+Lumina uses a server-authoritative model. The **server** owns the simulation and
 **clients** receive replicated state. `World.Net` tells a script which side it is
 running on.
 
@@ -30,7 +30,7 @@ if (World.Net.IsClient)
 
 | Member | Returns |
 | --- | --- |
-| `World.Net.Mode` | The `ENetMode`: `Standalone`, `Client`, `ListenServer`, or `DedicatedServer` |
+| `World.Net.Mode` | The `ENetMode`, one of `Standalone`, `Client`, `ListenServer`, or `DedicatedServer` |
 | `World.Net.IsServer` | `true` on a listen or dedicated server (the authority) |
 | `World.Net.IsClient` | `true` on a connected client |
 | `World.Net.IsStandalone` | `true` when the world isn't networked |
@@ -38,7 +38,7 @@ if (World.Net.IsClient)
 | `World.Net.ConnectedClients` | Server-side count of connected clients (0 elsewhere) |
 
 A common pattern is to gate authoritative logic behind `IsServer` and run
-presentation everywhere:
+presentation everywhere.
 
 ```csharp
 public override void OnUpdate(float DeltaTime)
@@ -54,11 +54,11 @@ public override void OnUpdate(float DeltaTime)
 
 ## Replicating state
 
-State replication is configured on the **native** side: a C++ component property
+State replication is configured on the **native** side. A C++ component property
 marked `PROPERTY(Replicated)` is collected on the server and applied on clients,
 where the change drives the registry's `on_update` signal. From a script you can
 observe those applied changes with
 [`Registry.OnUpdate<T>`](/manual/scripting/events/#component-signals) on the
 replicated component type. Authoring replicated state and RPCs directly in C# is
-not yet exposed — see the engine's networking documentation for the native
+not yet exposed. See the engine's networking documentation for the native
 workflow.

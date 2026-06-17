@@ -3,10 +3,10 @@ title: Events
 description: The gameplay message bus and component signals for decoupled communication.
 ---
 
-Entities communicate without holding references to each other in two ways: a
+Entities communicate without holding references to each other in two ways, a
 **message bus** for your own gameplay events, and **component signals** for
 reacting to components being added, removed, or changed. Engine-driven physics
-contacts arrive as lifecycle hooks instead — see
+contacts arrive as lifecycle hooks instead. See
 [Physics & Collisions](/manual/scripting/physics/).
 
 ## The message bus
@@ -17,7 +17,7 @@ declare the payload type they expect, and broadcasts are routed on hierarchical
 `"Combat.Damage"`.
 
 Define a payload (any struct or class), subscribe to a channel, and dispose the
-subscription when you're done:
+subscription when you're done.
 
 ```csharp
 public struct DamageMessage
@@ -48,7 +48,7 @@ public sealed class Health : EntityScript
 }
 ```
 
-Broadcast from anywhere — another entity's script, a system, the world itself:
+Broadcast from anywhere, whether another entity's script, a system, or the world itself.
 
 ```csharp
 World.Messages.Broadcast("Combat.Damage", new DamageMessage { Source = Entity, Amount = 10.0f });
@@ -61,7 +61,7 @@ World.Messages.Broadcast("Combat.Damage", new DamageMessage { Source = Entity, A
 
 ### Hierarchical channels
 
-Channels are dotted tags, and matching is hierarchical: a listener on
+Channels are dotted tags, and matching is hierarchical. A listener on
 `"Combat.Damage"` also hears a broadcast on `"Combat.Damage.Fire"`. This is the
 default (`GameplayTagMatch.Partial`). Pass `GameplayTagMatch.Exact` as the third
 argument to receive only that exact channel.
@@ -75,7 +75,7 @@ The bus is per-world, so PIE sessions and multiple worlds stay isolated.
 
 ## Component signals
 
-`World.Registry` exposes the underlying ECS lifecycle signals — fire a callback
+`World.Registry` exposes the underlying ECS lifecycle signals, firing a callback
 whenever a component is **added**, **removed**, or **patched** on any entity.
 Each returns an `IDisposable`; dispose it before the world tears down.
 
@@ -98,6 +98,6 @@ public override void OnReady()
 | `Registry.OnUpdate<T>(Action<Entity>)` | A `T` is patched (see below) |
 | `Registry.Patch<T>(entity)` | Pulses `OnUpdate` for that entity's `T` |
 
-You can build your own typed events out of these: declare a component as a
+You can build your own typed events out of these. Declare a component as a
 channel, `Emplace` it to raise `OnConstruct`, mutate it and `Patch` it to pulse
 `OnUpdate`, and `Remove` it to raise `OnDestroy`.

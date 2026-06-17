@@ -56,7 +56,7 @@ control whether it participates.
 ## Environment and sky
 
 The **Environment** component sets the sky and the image-based lighting that
-fills your scene. Pick a sky mode:
+fills your scene. Pick a sky mode.
 
 - **Solid Color**, a flat background.
 - **Gradient**, a sky gradient with a sun disc.
@@ -74,23 +74,23 @@ Post-process settings live on the **Camera** component and on **Post Process**
 volumes, which blend their settings in when the camera enters them. Higher
 priority volumes win, so you can set a base look and override it per area.
 
-What you can grade and add:
+What you can grade and add.
 
 - **Tone mapping** (ACES, AGX, and variants) and **exposure**, with optional
   auto-exposure.
-- **Color grading**: white balance, contrast, saturation, and shadow / midtone /
+- **Color grading**, with white balance, contrast, saturation, and shadow / midtone /
   highlight tint.
 - **Bloom**, **vignette**, **film grain**, and **chromatic aberration**.
 
-Atmosphere is its own component: **Exponential Height Fog** adds distance and
+Atmosphere is its own component. **Exponential Height Fog** adds distance and
 height fog, and drives volumetric light shafts (god rays). **Decal** components
 project materials onto surfaces, for things like bullet holes and signage.
 
 ## Quality settings
 
-Per-world render settings live in **World Settings**:
+Per-world render settings live in **World Settings**.
 
-- **Anti-aliasing**: **SMAA** (a sharp post-process method) or **MSAA**. There
+- **Anti-aliasing**, either **SMAA** (a sharp post-process method) or **MSAA**. There
   is no TAA, so the image stays crisp without temporal blur.
 - **Variable Rate Shading** trades shading precision for performance on
   supported GPUs. It is off by default.

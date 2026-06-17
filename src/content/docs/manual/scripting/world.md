@@ -4,7 +4,7 @@ description: Spawning, finding, and moving entities through the World.
 ---
 
 `World` is how a script reaches everything beyond its own entity. It has two
-parts: **methods** on the world itself, and **subsystem** properties that group
+parts, **methods** on the world itself, and **subsystem** properties that group
 related functionality.
 
 ```csharp
@@ -14,13 +14,14 @@ World.Physics.AddImpulse(Pickup, new FVector3(0, 5, 0));   // a subsystem
 
 ## Subsystems
 
-Each subsystem is a property on `World`:
+Each subsystem is a property on `World`.
 
 | Property | What it does |
 | --- | --- |
-| `World.Registry` | The component store — `Get<T>`, `Emplace<T>`, views, signals. See [Entities & Components](/manual/scripting/entities-components/). |
+| `World.Registry` | The component store, with `Get<T>`, `Emplace<T>`, views, signals. See [Entities & Components](/manual/scripting/entities-components/). |
 | `World.Physics` | Forces, velocities, raycasts, overlaps. See [Physics & Collisions](/manual/scripting/physics/). |
 | `World.Navigation` | Pathfinding and agent movement over the navmesh. |
+| `World.UI` | Screen-space RmlUi documents. See [User Interface](/manual/scripting/ui/). |
 | `World.Messages` | The gameplay message bus. See [Events](/manual/scripting/events/). |
 | `World.Net` | Network role and replication state. See [Networking](/manual/scripting/networking/). |
 | `World.Draw` | Debug drawing (Development and Debug builds only). |
@@ -61,7 +62,7 @@ To create entities from nothing rather than from a prefab, use a
 
 For an entity you act on every frame, prefer caching its `STransformComponent`
 via `World.Registry.Get<STransformComponent>(entity)` and calling its methods
-directly — same as [`Transform`](/manual/scripting/entities-components/#transform)
+directly, same as [`Transform`](/manual/scripting/entities-components/#transform)
 does for your own entity.
 
 ## Hierarchy
@@ -86,14 +87,14 @@ there for code reached outside a hook.
 ## Components and scripts on other entities
 
 Anything you can do to your own entity's components, you can do to another's
-through `World.Registry`, passing that entity:
+through `World.Registry`, passing that entity.
 
 ```csharp
 Entity Door = World.GetEntityByName("Door");
 SStaticMeshComponent Mesh = World.Registry.Get<SStaticMeshComponent>(Door);
 ```
 
-To call into another entity's **script**, fetch its instance by type:
+To call into another entity's **script**, fetch its instance by type.
 
 ```csharp
 Health? H = World.Registry.GetScript<Health>(Door);
@@ -101,7 +102,7 @@ H?.ApplyDamage(10);
 ```
 
 `GetScript<T>` returns the live managed instance (or `null`), so you call its
-public methods directly — no marshalling. See [Events](/manual/scripting/events/)
+public methods directly, with no marshalling. See [Events](/manual/scripting/events/)
 for decoupled communication that doesn't need a direct reference.
 
 ## Debug drawing
@@ -115,4 +116,4 @@ World.Draw.Sphere(Transform.GetWorldLocation(), 0.5f, Red);
 World.Draw.Line(a, b, Red, Thickness: 2.0f, Duration: 1.0f);
 ```
 
-`World.Draw` methods: `Line`, `Sphere`, `Box`, and `Text` (screen-space).
+The `World.Draw` methods are `Line`, `Sphere`, `Box`, and `Text` (screen-space).

@@ -28,11 +28,11 @@ components, linked back to the source.
 ## Overrides and inheritance
 
 An instance starts out identical to the prefab. The moment you change one of its
-properties in the Details panel, that single property becomes an **override**: it
+properties in the Details panel, that single property becomes an **override**. It
 holds your value, and the engine stops syncing it from the prefab. Everything you
 have not touched stays **inherited**.
 
-This is what makes prefabs safe to keep editing after you have placed them:
+This is what makes prefabs safe to keep editing after you have placed them.
 
 - **Inherited properties follow the prefab.** Edit and save the prefab and the
   change flows into every instance, except where an instance has overridden that
@@ -51,7 +51,8 @@ Details panel, the same as any value changed from its default.
 
 Click the reset arrow (or right-click the property and choose **Reset to Default**)
 on an overridden property to drop the override and restore the **prefab's** value,
-not the original class default. For a prefab instance the chain of defaults is:
+not the original class default. For a prefab instance the chain of defaults runs
+as follows.
 
 **Class default, then Prefab value, then Instance override.**
 
@@ -61,13 +62,13 @@ Reset always steps one level back up that chain, to the prefab.
 
 An instance's transform, its position, rotation, and scale, along with the
 transforms of its child entities, are **never** overwritten by prefab edits.
-Placement is yours: moving an instance, or nudging one of its children, will not be
+Placement is yours. Moving an instance, or nudging one of its children, will not be
 undone when you save the prefab. Reset to Default still snaps a transform back to
 the prefab's authored pose if you ask for it.
 
 ### Adding and removing components
 
-You can diverge structurally as well:
+You can diverge structurally as well.
 
 - **Add a component** to an instance and it stays; a prefab update will not strip it.
 - **Remove an inherited component** from an instance and it stays removed; a prefab
@@ -85,7 +86,7 @@ closed update the next time you open them. Overrides stay put either way.
 ## Detaching
 
 Right-click an instance and choose **Detach from Prefab** to break the link. The
-instance becomes plain entities: it keeps its current values but no longer inherits
+instance becomes plain entities. It keeps its current values but no longer inherits
 from, or is affected by, the prefab. Detaching is one way.
 
 ## Deleting a prefab

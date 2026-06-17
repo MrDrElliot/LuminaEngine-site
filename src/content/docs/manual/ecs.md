@@ -11,14 +11,14 @@ you compose an entity from the components it needs.
 ## Entities
 
 Create an entity from the **Scene Outliner** (the **+** button) or by
-right-clicking in the viewport. You can:
+right-clicking in the viewport. You have a few options.
 
 - Create an **empty** entity,
 - Create one with a single component already on it,
 - Create a primitive (cube, sphere, and so on), which is an entity with a mesh,
 - Drag an asset (mesh or prefab) from the Content Browser into the scene.
 
-Every entity is created with two components you do not manage by hand:
+Every entity is created with two components you do not manage by hand.
 
 - **Transform**, its position, rotation, and scale.
 - **Name**, the label shown in the Outliner (rename from the right-click menu).
@@ -40,7 +40,7 @@ the child.
 Select an entity, then click the **+** button in the **Details** panel header to
 add a component. Components are grouped by category and searchable. Once added,
 a component's properties appear in Details, generated from reflection, and you
-edit them there. Property metadata drives the widgets: color pickers, value
+edit them there. Property metadata drives the widgets, such as color pickers, value
 ranges and units, asset pickers, and an entity-reference picker for fields that
 point at another entity.
 
@@ -96,7 +96,7 @@ Component menu.
 
 ## Data-driven assets
 
-To author structured data without writing C++, use a **Data Asset**: define its
+To author structured data without writing C++, use a **Data Asset**. Define its
 fields with a **Schema**, then create assets against that schema and reference
 them from components or scripts. See the
 [Data Asset editor](/manual/editor/asset-editors/). For per-entity behavior and

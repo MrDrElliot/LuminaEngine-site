@@ -4,7 +4,7 @@ description: Keeping materials fast and your scene cheap to draw.
 ---
 
 Materials are one of the easiest places to spend or save performance. These
-guidelines all follow from one fact: **a unique Material is a compiled shader and
+guidelines all follow from one fact. **A unique Material is a compiled shader and
 a draw bucket.**
 
 ## Prefer instances over new materials

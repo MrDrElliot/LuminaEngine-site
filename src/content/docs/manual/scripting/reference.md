@@ -5,10 +5,10 @@ description: Types, math, attributes, and the global API available to every scri
 
 This page lists the types and global helpers a script reaches for most often.
 The full .NET base class library (`System.*`, `System.Math`, `MathF`, LINQ,
-collections) is also available — see the
+collections) is also available. See the
 [C# documentation](https://learn.microsoft.com/dotnet/csharp/).
 
-Two namespaces cover almost everything:
+Two namespaces cover almost everything.
 
 ```csharp
 using LuminaSharp;   // EntityScript, Entity, Registry, attributes, Physics, Net, Asset, Task, Debug
@@ -32,7 +32,7 @@ FVector3 Dir = (Sum - P).Normalized();
 | --- | --- |
 | `FVector2` | `X, Y`; `Zero`, `One`; `Length`, `Normalized()`; `Dot`, `Distance`, `Lerp` |
 | `FVector3` | `X, Y, Z`; `Zero`, `One`, `UnitX/Y/Z`; `Length`, `Normalized()`; `Dot`, `Cross`, `Distance`, `Lerp` |
-| `FVector4` | `X, Y, Z, W`; `Zero`, `One` — also used for RGBA colors |
+| `FVector4` | `X, Y, Z, W`; `Zero`, `One` (also used for RGBA colors) |
 | `FQuat` | `X, Y, Z, W`; `Identity`; `AngleAxis(radians, axis)`; `Rotate(v)`; `*` composes |
 
 Colors are `FVector4` (RGBA, components 0–1). Scalar helpers (`Sin`, `Clamp`,
@@ -40,7 +40,7 @@ Colors are `FVector4` (RGBA, components 0–1). Scalar helpers (`Sin`, `Clamp`,
 
 ## `Entity`
 
-A lightweight handle to an entity (the C# mirror of `entt::entity`):
+A lightweight handle to an entity (the C# mirror of `entt::entity`).
 
 ```csharp
 Entity E = World.GetEntityByName("Player");
@@ -52,13 +52,13 @@ uint Raw = E.Id;
 
 ## Global API
 
-These static classes are usable from anywhere:
+These static classes are usable from anywhere.
 
 | Class | Members |
 | --- | --- |
-| `Debug` | `Log(msg)`, `LogWarning(msg)`, `LogError(msg)` — writes to the engine log |
+| `Debug` | `Log(msg)`, `LogWarning(msg)`, `LogError(msg)` (writes to the engine log) |
 | `Asset` | `Load<T>(path)`, `LoadAsync<T>(path, callback)`, `Exists(path)` |
-| `Task` | `ParallelFor`, `Run`, `WaitForAll`, `WorkerCount` — see [Parallel Work](/manual/scripting/tasks/) |
+| `Task` | `ParallelFor`, `Run`, `WaitForAll`, `WorkerCount` (see [Parallel Work](/manual/scripting/tasks/)) |
 | `Profiler` | `Sample(name)` (a `using` scope), `Begin`/`End`, `Enabled` |
 
 ```csharp
@@ -100,24 +100,24 @@ public override void OnReady()
 ## The `World` API
 
 `World` (and a system's `World`) exposes the world beyond your entity. Full
-detail is in [The World API](/manual/scripting/world/); the surface in brief:
+detail is in [The World API](/manual/scripting/world/); the surface in brief.
 
-- **Subsystems**: `World.Registry`, `World.Physics`, `World.Navigation`,
-  `World.Messages`, `World.Net`, `World.Draw`.
-- **Entities**: `SpawnPrefab`, `DuplicateEntity`, `DestroyEntity`,
+- **Subsystems**, `World.Registry`, `World.Physics`, `World.Navigation`,
+  `World.UI`, `World.Messages`, `World.Net`, `World.Draw`.
+- **Entities**, `SpawnPrefab`, `DuplicateEntity`, `DestroyEntity`,
   `GetEntityByName`, `GetEntityByTag`, `EntityHasTag`, `GetNumEntities`.
-- **Transform**: `GetEntityLocation` / `SetEntityLocation`, `SetEntityRotation`,
+- **Transform**, `GetEntityLocation` / `SetEntityLocation`, `SetEntityRotation`,
   `TranslateEntity`.
-- **Hierarchy**: `SetParent`, `DetachFromParent`, `GetParent`, `GetRootEntity`.
-- **Time**: `DeltaTime`, `ElapsedTime`.
+- **Hierarchy**, `SetParent`, `DetachFromParent`, `GetParent`, `GetRootEntity`.
+- **Time**, `DeltaTime`, `ElapsedTime`.
 
 ## Attributes
 
-Declared in `LuminaSharp`, applied to script members or classes:
+Declared in `LuminaSharp`, applied to script members or classes.
 
 | Attribute | On | Effect |
 | --- | --- | --- |
-| `[Property]` | field/property | Exposes it in the editor and serializes it. Keys: `Category`, `Tooltip`, `Name`, `Min`, `Max`, `Units`, `Color`, `Slider`, `AssetType`. |
+| `[Property]` | field/property | Exposes it in the editor and serializes it. Keys are `Category`, `Tooltip`, `Name`, `Min`, `Max`, `Units`, `Color`, `Slider`, `AssetType`. |
 | `[Serialize]` | field/property | Persists it without showing it in the inspector. |
 | `[Hide]` | field/property | Never serialized or shown. |
 | `[RequireComponent]` | component-typed field | Resolves and caches the component before `OnReady` (adding it if missing). |

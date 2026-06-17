@@ -21,6 +21,6 @@ to open it. Each asset type has its own editor.
 | **Blackboard** | Named, typed keys for AI and animation. |
 | **Data Asset** / **Schema** | Author a data asset and the schema that defines its fields. |
 | **Prefab** | Edit a saved entity hierarchy. |
-| **Script** (`.cs`) | C# entity scripts — edit them in your IDE; they compile and hot-reload on save. See [Scripting](/manual/scripting/). |
-| **UI** (`.rml` / `.rcss`) | A markup and stylesheet editor with a live preview. |
+| **Script** (`.cs`) | C# entity scripts, edit them in your IDE; they compile and hot-reload on save. See [Scripting](/manual/scripting/). |
+| **UI** (`.rml` / `.rcss`) | A markup and stylesheet editor with a live preview, see [Scripting › User Interface](/manual/scripting/ui/). |
 | **Texture** / **Font** | Preview images and typefaces. |

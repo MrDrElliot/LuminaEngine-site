@@ -4,7 +4,7 @@ description: Forces, velocities, raycasts, overlaps, and contacts from a script.
 ---
 
 Physics lives on `World.Physics`. Most methods take the **entity** you want to
-act on, so the same call works for your own entity or any other:
+act on, so the same call works for your own entity or any other.
 
 ```csharp
 World.Physics.AddImpulse(Entity, new FVector3(0, 5, 0));
@@ -12,7 +12,7 @@ FVector3 Velocity = World.Physics.GetLinearVelocity(Entity);
 ```
 
 The entity needs a [Rigid Body](/manual/physics/rigid-bodies/) for body methods
-to do anything — calls on a body-less entity are safe (mutators no-op, getters
+to do anything. Calls on a body-less entity are safe (mutators no-op, getters
 return zero).
 
 :::note
@@ -54,10 +54,10 @@ simulated pose, not the interpolated render transform.
 ## Raycasts
 
 A **raycast** shoots a line through the world and returns the first thing it
-hits — the workhorse behind shooting, line of sight, ground checks, and
-interaction. Pass an origin, a direction (normalized for you), and a distance;
-the result is a `RaycastHit?`, `null` when nothing is hit. Pass an entity to
-`Ignore` to skip its body (usually the caster's own):
+hits, the workhorse behind shooting, line of sight, ground checks, and
+interaction. Pass an origin, a direction (normalized for you), and a distance.
+The result is a `RaycastHit?`, `null` when nothing is hit. Pass an entity to
+`Ignore` to skip its body (usually the caster's own).
 
 ```csharp
 FVector3 From = Transform.GetWorldLocation();
@@ -70,7 +70,7 @@ if (Hit is RaycastHit H)
 }
 ```
 
-The `RaycastHit` fields:
+The `RaycastHit` fields.
 
 | Field | Meaning |
 | --- | --- |
@@ -84,8 +84,8 @@ The `RaycastHit` fields:
 ## Sphere casts and overlaps
 
 A **sphere cast** sweeps a sphere along a line instead of an infinitely thin
-ray — useful for thick projectiles, character probes, or "is there room here"
-checks. It returns every hit, sorted near-to-far:
+ray, useful for thick projectiles, character probes, or "is there room here"
+checks. It returns every hit, sorted near-to-far.
 
 ```csharp
 RaycastHit[] Hits = World.Physics.SphereCast(From, Dir, 100.0f, Radius: 0.5f, Ignore: Entity);
@@ -95,8 +95,8 @@ foreach (RaycastHit Swept in Hits)
 }
 ```
 
-An **overlap** returns every entity whose body intersects a shape *right now* —
-the core AI-perception, area-of-effect, and trigger primitive:
+An **overlap** returns every entity whose body intersects a shape *right now*,
+the core AI-perception, area-of-effect, and trigger primitive.
 
 ```csharp
 // Everything within 5m, excluding ourselves.
@@ -115,8 +115,8 @@ array allocation.
 Override any of these on your script to be notified. The payload is an
 `SCollisionEvent`, oriented from your entity's point of view.
 
-**Contacts** are solid collisions. **Overlaps** are triggers — a collider with
-its trigger flag set, or a body marked as a sensor — which produce overlap events
+**Contacts** are solid collisions. **Overlaps** are triggers (a collider with
+its trigger flag set, or a body marked as a sensor) which produce overlap events
 but no physical response.
 
 ```csharp
@@ -133,7 +133,7 @@ public override void OnOverlapBegin(SCollisionEvent Event)   // entered a trigge
 // Also: OnContactEnd, OnOverlapEnd.
 ```
 
-The `SCollisionEvent` fields, all read from your entity's point of view:
+The `SCollisionEvent` fields, all read from your entity's point of view.
 
 | Field | Meaning |
 | --- | --- |

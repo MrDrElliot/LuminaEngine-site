@@ -99,6 +99,7 @@ export default defineConfig({
             { label: 'Parallel Work', slug: 'manual/scripting/tasks' },
             { label: 'Physics & Collisions', slug: 'manual/scripting/physics' },
             { label: 'Input', slug: 'manual/scripting/input' },
+            { label: 'User Interface', slug: 'manual/scripting/ui' },
             { label: 'Events', slug: 'manual/scripting/events' },
             { label: 'Networking', slug: 'manual/scripting/networking' },
             { label: 'Reference', slug: 'manual/scripting/reference' },

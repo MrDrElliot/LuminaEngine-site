@@ -3,7 +3,7 @@ title: The Material Graph
 description: Authoring a material with nodes.
 ---
 
-Open a Material to edit it in the **material graph**: a canvas of **nodes** you
+Open a Material to edit it in the **material graph**, a canvas of **nodes** you
 wire together. Values flow left to right into the **Material Output** node, which
 defines the final surface.
 
@@ -26,7 +26,7 @@ connect what you need; anything left unconnected uses a sensible default.
 
 ## Adding nodes
 
-Right-click the canvas to add a node, or use the **quick-place** shortcuts: hold a
+Right-click the canvas to add a node, or use the **quick-place** shortcuts. Hold a
 key and click the canvas.
 
 | Key | Node |
@@ -43,12 +43,12 @@ Drag from one node's output pin to another node's input pin to connect them.
 
 ## The node palette
 
-The graph has a deep set of nodes, grouped by category:
+The graph has a deep set of nodes, grouped by category.
 
 | Category | What's in it |
 | --- | --- |
 | **Constants** | Fixed numbers and colors, plus built-ins like Pi. |
-| **Inputs** | Per-pixel data: texture coordinates, world position, vertex normal, time, camera position. |
+| **Inputs** | Per-pixel data, such as texture coordinates, world position, vertex normal, time, camera position. |
 | **Textures** | Sample a texture, the most common node. |
 | **Math** | Add, multiply, lerp, clamp, power, sin, and dozens more. |
 | **Vector** | Build, split, mask, normalize, dot, cross. |
@@ -72,16 +72,16 @@ detail texture, as a parameter.
 
 ## Material settings
 
-Beyond the graph, a material has a few settings:
+Beyond the graph, a material has a few settings.
 
-- **Type**: usually **PBR**, a lit surface. Other types target specific passes:
+- **Type**, usually **PBR**, a lit surface. Other types target specific passes,
   **Post Process**, **Decal**, and **UI**.
-- **Shading Model**: **Lit** (default) or **Unlit** (emissive only, ignores lighting).
-- **Blend Mode**: **Opaque** (default), **Masked** (alpha-tested cutouts, with an
+- **Shading Model**, **Lit** (default) or **Unlit** (emissive only, ignores lighting).
+- **Blend Mode**, **Opaque** (default), **Masked** (alpha-tested cutouts, with an
   **Opacity Mask Clip Value** threshold), **Translucent** (alpha blended), or
   **Additive**.
-- **Two Sided**: render both faces, for foliage and thin surfaces.
-- **Cast Shadows**: whether the surface casts shadows.
+- **Two Sided**, render both faces, for foliage and thin surfaces.
+- **Cast Shadows**, whether the surface casts shadows.
 
 ## Compiling
 

@@ -3,14 +3,14 @@ title: Parallel Work
 description: Running heavy compute across worker threads, and timing sequences without coroutines.
 ---
 
-When a script has expensive, parallelizable compute — generating a heightfield,
-processing a large array, baking data — the `Task` library spreads it across the
+When a script has expensive, parallelizable compute (generating a heightfield,
+processing a large array, baking data), the `Task` library spreads it across the
 engine's worker threads. This is the C# mirror of the native `Lumina::Task`
 system.
 
-:::caution[Compute only — task bodies must not block]
+:::caution[Compute only, task bodies must not block]
 Task bodies run on the engine's fiber-based worker threads. A body **must be
-self-contained compute**: it must not block, await, sleep, perform I/O, take a
+self-contained compute**. It must not block, await, sleep, perform I/O, take a
 long-held lock, or call engine APIs that are game-thread only (the world,
 registry, physics). Parallel number-crunching into preallocated buffers is the
 supported use; anything that yields its thread will corrupt the runtime.
@@ -20,7 +20,7 @@ supported use; anything that yields its thread will corrupt the runtime.
 
 `Task.ParallelFor(count, body)` splits `[0, count)` across the worker pool and
 runs `body(i)` for each index. It **blocks** until every index is done, so the
-results are ready when it returns:
+results are ready when it returns.
 
 ```csharp
 FVector3[] Points = ...;
@@ -40,8 +40,8 @@ same memory.
 ## One-shot background work
 
 `Task.Run(body)` schedules `body` to run once on a worker thread and returns a
-`TaskHandle` to wait on. You own the handle — `Wait()` for completion, then
-dispose it (a `using` block is the safe pattern):
+`TaskHandle` to wait on. You own the handle, `Wait()` for completion, then
+dispose it (a `using` block is the safe pattern).
 
 ```csharp
 using TaskHandle Handle = Task.Run(() => BakeLightingData());
@@ -60,7 +60,7 @@ Handle.Wait();   // block until the bake finishes
 
 C# scripts don't have coroutines that pause mid-hook. To run something after a
 delay, or to step through a sequence, **drive it from `OnUpdate`** with a small
-amount of state — accumulate `DeltaTime` and act when a timer elapses:
+amount of state, accumulate `DeltaTime` and act when a timer elapses.
 
 ```csharp
 private float _OpenIn = -1.0f;   // < 0 means "not opening"

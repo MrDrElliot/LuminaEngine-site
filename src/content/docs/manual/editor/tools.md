@@ -3,7 +3,7 @@ title: Tools & Profilers
 description: The utility windows under the Tools menu.
 ---
 
-The **Tools** menu opens standalone utility windows. The everyday ones:
+The **Tools** menu opens standalone utility windows. Here are the everyday ones.
 
 | Tool | What it does |
 | --- | --- |
@@ -15,7 +15,7 @@ The **Tools** menu opens standalone utility windows. The everyday ones:
 
 ## Profilers
 
-For performance work:
+For performance work.
 
 - **CPU Profiler**, frame time and a hierarchical scope tree.
 - **GPU Profiler**, GPU timings, pipeline stats, and a barrier inspector.
