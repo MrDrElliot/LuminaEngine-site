@@ -472,6 +472,45 @@ var (Totals, Heaps) = RHI.GetGPUMemoryStats();
 // Totals.TotalUsage / Totals.TotalBudget, plus per-heap detail in Heaps
 ```
 
+## Custom draws and the deferred renderer
+
+Lumina's renderer is deferred at the frame level. Gameplay runs first, across the
+update stages (frame start, pre-physics, physics, post-physics, frame end). Only
+at the **end** of the frame does the renderer gather (extract) the scene's state
+and submit it, and it owns the scene's render targets and the final present to
+the window. Every script has already run by the time the scene is drawn.
+
+That ordering shapes what a script can and cannot do with the RHI.
+
+**You can run independent GPU work.** Anything self-contained, a compute pass, a
+copy or blit, or a render pass into a texture you created, works from a script.
+You open a command list, record, submit to a queue, and wait on your own
+semaphore (the compute example above). It runs as its own GPU submission, on your
+schedule. This is the intended use of the RHI: GPU computation and offscreen work
+whose results you own.
+
+**You cannot inject a draw into the scene's view.** There is no render-extension
+or custom-pass hook in the renderer today, and the scene's color and depth
+targets, plus the swapchain, are engine-owned and assembled at frame end after
+every script has run. A command list you submit is its own GPU work; it is not
+composited into the scene image, and you cannot draw to the backbuffer. Issuing
+"my own draw call into the world", the way you would inside an engine render
+pass, is not possible from a script right now.
+
+To put custom visuals in the world, use the channels that are wired into the
+renderer:
+
+- For lines, shapes, and text, **`World.Draw`** (debug drawing) feeds the
+  engine's own debug pass and shows up in the view. See
+  [The World API](/manual/scripting/world/). (Dev and Debug builds.)
+- For anything heavier, treat the RHI as a producer: compute or render into a
+  texture or buffer you own, then surface that result wherever the engine already
+  lets you reference one. The RHI makes the data; the engine still owns
+  compositing it into the final image.
+
+A general "render into the scene view" extension point (a custom pass or view
+extension) is a future addition, not something the current API exposes.
+
 ## Threading and lifetime, in short
 
 - **Free what you create.** Handles and `GPUPtr` are not garbage collected.

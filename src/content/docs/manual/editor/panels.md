@@ -25,7 +25,7 @@ The systems that run in the active world. **Native Systems** are the engine's
 built-in C++ systems; the checkbox enables or disables one for this world (turn
 one off to replace it with your own). **C# systems** are discovered automatically
 from their `[EntitySystem]` attribute and run in every world. There's no
-per-world file to assign. See [Script Systems](/manual/scripting/systems/). For
+per-world file to assign. See [World Systems](/manual/scripting/world-systems/). For
 per-frame timing, use the profilers under [Tools](/manual/editor/tools/).
 
 ## World Settings

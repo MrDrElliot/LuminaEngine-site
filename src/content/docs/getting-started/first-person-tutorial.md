@@ -108,7 +108,7 @@ public sealed class Player : EntityScript
 
 ### How it works
 
-- **`OnReady`** runs once, after the scene graph is set up (see [lifecycle order](/manual/scripting/lifecycle/)).
+- **`OnReady`** runs once, after the scene graph is set up (see [lifecycle order](/manual/scripting/entity-systems/)).
   - `EnableInput()` adds an Input component so this entity can read input, and returns it so we cache it as `_Input`. Without it, the poll queries read nothing.
 - **`OnUpdate`** runs every frame. `DeltaTime` is the seconds since the last frame; multiplying movement by it keeps the speed the same on any machine.
   - We accumulate **Yaw** and **Pitch** from the mouse delta and write them back as the entity's rotation. The `new FVector3(Pitch, Yaw, 0)` order is (pitch about X, yaw about Y, roll about Z), see [Worlds & Coordinates](/manual/worlds-and-coordinates/).

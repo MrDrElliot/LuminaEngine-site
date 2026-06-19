@@ -1,11 +1,17 @@
 ---
-title: Script Lifecycle
-description: How a script attaches to an entity, when its code runs, and what is per-entity.
+title: Entity Systems
+description: How a script attaches to an entity, when its code runs, the physics phase it runs in, and what is per-entity.
 ---
 
-Understanding *when* each part of a script runs, and what is per-entity versus
-shared, is the difference between code that works and subtle bugs. This page is
-the whole picture. Read it before you write much script code.
+An entity's behavior is a C# script (an `EntityScript`) attached to it: its
+**per-entity system**. Where a [world system](/manual/scripting/world-systems/)
+is created once per world and iterates many entities, an entity system is one
+instance per entity that runs *that* entity's logic.
+
+This page is the whole picture of how that script attaches, *when* each part
+runs, the physics phase it runs in, and what is per-entity versus shared. Read it
+before you write much script code, the timing is the difference between code that
+works and subtle bugs.
 
 ## An entity and its script
 
@@ -67,7 +73,7 @@ For a single entity, top to bottom.
 3. **`OnReady`** runs, **bottom-up** (a child before its parent, so it runs up the
    tree with the root last), once the scene graph is set up. By now every child
    is ready, so it is safe to look up children and other entities here.
-4. **`OnUpdate`** runs every frame while playing.
+4. **`OnUpdate`** runs every frame while playing, in its update phase (below).
 5. **`OnDetach`** runs once, when the entity is destroyed.
 
 ### At map load vs at runtime
@@ -83,13 +89,66 @@ For a single entity, top to bottom.
 Scripts run only in **play mode** (a Game or Simulation world). In the plain
 editor they stay dormant. Press **Play** or **Simulate** to run gameplay.
 
+## Update phases
+
+Like a [world system](/manual/scripting/world-systems/), an entity system runs in
+a physics phase, and you choose which one. There are two update hooks plus a
+fixed-step hook, and they run at different points relative to the physics step.
+
+| Hook | When |
+| --- | --- |
+| `OnUpdate(float DeltaTime)` | Once per frame, in the entity's update phase (pre- or post-physics). |
+| `OnFixedUpdate(float FixedDeltaTime)` | At the fixed physics rate, 0..N times per frame, *before* the physics step. |
+
+### Pre-physics and post-physics
+
+By default `OnUpdate` runs in the **pre-physics** phase, before the physics step,
+which is where you read input and apply movement intent. Add
+`[UpdatePhase(EScriptPhase.PostPhysics)]` to the class to run its `OnUpdate`
+**after** physics resolves instead, which is where you read settled results, for
+example a follow camera or syncing visuals to a body.
+
+```csharp
+[UpdatePhase(EScriptPhase.PostPhysics)]
+public sealed class FollowCamera : EntityScript
+{
+    public override void OnUpdate(float DeltaTime)
+    {
+        // Bodies have already moved this frame, read their final transforms.
+    }
+}
+```
+
+`EScriptPhase` has `PrePhysics` (the default) and `PostPhysics`. The phase applies
+to the whole script's `OnUpdate`.
+
+### Fixed update for physics
+
+`OnFixedUpdate(float FixedDeltaTime)` runs at the **fixed physics timestep**
+(`1 / physics Hz`), zero or more times per frame, *before* each physics step. Its
+delta is the fixed step, not the frame delta, so it is framerate-independent. Use
+it for anything that drives the simulation: applying forces or impulses, and
+character movement.
+
+```csharp
+public override void OnFixedUpdate(float FixedDeltaTime)
+{
+    Registry.Get<SRigidBodyComponent>(Entity).AddForce(_Move * 1000.0f);
+}
+```
+
+Use `OnUpdate` for per-frame logic and visuals; use `OnFixedUpdate` for
+physics-affecting forces and movement. They are independent: a script can
+override either, both, or neither.
+
 ## Where to put what
 
 | Put it here | For |
 | --- | --- |
 | **Fields + `[Property]`** | Constants, tuning values, and editor-exposed values. Initialized before the entity exists. |
 | **`OnReady`** | Per-entity setup that needs the entity, such as caching components, reading the world, finding other entities. |
-| **`OnUpdate`** | Per-frame behavior. |
+| **`OnUpdate`** | Per-frame behavior and visuals. |
+| **`OnFixedUpdate`** | Forces, impulses, and movement that drive physics. |
 | **`OnDetach`** | Cleanup, disposing subscriptions and timers you created (see [Events](/manual/scripting/events/)). |
 | **A `static` member** | State or helpers shared across every entity of the script. |
 
@@ -109,7 +168,7 @@ public sealed class Spinner : EntityScript
 ## Hot reload
 
 When you save a script while the editor is running, it **recompiles in place**.
-The script system tears down the old managed instances, loads the new assembly,
+The engine tears down the old managed instances, loads the new assembly,
 and rebinds each entity (running `OnAttach` and `OnReady` again on the new
 version). Your `[Property]` values set in the editor survive. They are stored on
 the component and reconciled against the script's current fields, so they hold up

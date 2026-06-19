@@ -92,11 +92,11 @@ export default defineConfig({
           label: 'Scripting',
           items: [
             { label: 'Overview', slug: 'manual/scripting' },
-            { label: 'Script Lifecycle', slug: 'manual/scripting/lifecycle' },
+            { label: 'Entity Systems', slug: 'manual/scripting/entity-systems' },
             { label: 'Entities & Components', slug: 'manual/scripting/entities-components' },
             { label: 'The World API', slug: 'manual/scripting/world' },
             { label: 'Globals & Helpers', slug: 'manual/scripting/globals' },
-            { label: 'Script Systems', slug: 'manual/scripting/systems' },
+            { label: 'World Systems', slug: 'manual/scripting/world-systems' },
             { label: 'Parallel Work', slug: 'manual/scripting/tasks' },
             { label: 'Timers', slug: 'manual/scripting/timers' },
             { label: 'Physics & Collisions', slug: 'manual/scripting/physics' },

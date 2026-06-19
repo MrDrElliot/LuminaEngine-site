@@ -13,7 +13,7 @@ documents the API surface.
 
 - **[Entities & Components](/manual/scripting/entities-components/)**, working with this entity and its components.
 - **[The World API](/manual/scripting/world/)**, spawning, finding, and moving entities.
-- **[Script Systems](/manual/scripting/systems/)**, world-level systems that run a rule across many entities.
+- **[World Systems](/manual/scripting/world-systems/)**, world-level systems that run a rule across many entities.
 - **[Physics & Collisions](/manual/scripting/physics/)**, forces, velocities, queries, and contact callbacks.
 - **[Input](/manual/scripting/input/)**, actions, keys, and the mouse.
 - **[User Interface](/manual/scripting/ui/)**, screen-space RmlUi documents driven from C#.
@@ -136,8 +136,9 @@ entity with no `OnUpdate` is never ticked.
 | `OnContactBegin/End(SCollisionEvent)`, `OnOverlapBegin/End(SCollisionEvent)` | A physics contact or trigger overlap. See [Physics & Collisions](/manual/scripting/physics/). |
 | `OnDetach()` | Once, when the entity is destroyed or the script is removed. |
 
-For the full picture (when each runs, what is per-entity, and how hot reload
-behaves) see **[Script Lifecycle](/manual/scripting/lifecycle/)**.
+For the full picture (when each runs, the physics phase it runs in, what is
+per-entity, and how hot reload behaves) see
+**[Entity Systems](/manual/scripting/entity-systems/)**.
 
 ## Attaching a script
 

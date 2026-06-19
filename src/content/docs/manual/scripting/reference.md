@@ -121,4 +121,5 @@ Declared in `LuminaSharp`, applied to script members or classes.
 | `[Serialize]` | field/property | Persists it without showing it in the inspector. |
 | `[Hide]` | field/property | Never serialized or shown. |
 | `[RequireComponent]` | component-typed field | Resolves and caches the component before `OnReady` (adding it if missing). |
-| `[EntitySystem]` | class (on `EntitySystem`) | Declares a [script system](/manual/scripting/systems/)'s `Stage` and `Priority`. |
+| `[EntitySystem]` | class (on `EntitySystem`) | Declares a [world system](/manual/scripting/world-systems/)'s `Stage` and `Priority`. |
+| `[UpdatePhase]` | class (on `EntityScript`) | Runs an [entity system](/manual/scripting/entity-systems/)'s `OnUpdate` in `EScriptPhase.PrePhysics` (default) or `PostPhysics`. |

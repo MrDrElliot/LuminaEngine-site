@@ -1,28 +1,28 @@
 ---
-title: Script Systems
-description: Author world-level ECS systems in C# that run in the same pipeline as native systems.
+title: World Systems
+description: Author world-level ECS systems in C# that run across every entity, in the same pipeline as native systems.
 ---
 
-A **script system** runs over the *whole world*, not a single entity. Where an
-[entity script](/manual/scripting/) is attached to one entity and runs that
-entity's behavior, a system is created once per world and iterates entities
-itself, once per frame, just like an engine (C++) system. The two are different
-tools.
+A **world system** runs over the *whole world*, not a single entity. Where an
+[entity system](/manual/scripting/entity-systems/) is a script attached to one
+entity that runs that entity's behavior, a world system is created once per world
+and iterates entities itself, once per frame, just like an engine (C++) system.
+The two are different tools.
 
-| | Entity script | Script system |
+| | Entity system | World system |
 | --- | --- | --- |
 | Instance | one per entity (C# Script component) | one per world |
 | `this` is | that entity's script | the system (no entity) |
 | Iterates | nothing (it *is* the entity) | entities you query through the context |
 | Good for | one actor's behavior | a rule applied across many entities |
 
-Reach for a system when a behavior is really a *rule over a set of entities*
-(spin everything tagged a certain way, drain every `Health` below zero) rather
-than logic that belongs to one actor.
+Reach for a world system when a behavior is really a *rule over a set of
+entities* (spin everything tagged a certain way, drain every `Health` below zero)
+rather than logic that belongs to one actor.
 
 ## Anatomy of a system
 
-A system is a class that derives from `EntitySystem` and carries an
+A world system is a class that derives from `EntitySystem` and carries an
 `[EntitySystem]` attribute declaring its stage and priority. The attribute is
 what makes the type discovered and run; one instance is created per world
 automatically.
@@ -62,8 +62,10 @@ The system's `World` property is also available, for the full
 
 ## Stages and priority
 
-A system runs in one **update stage**, and systems within a stage run in
-**priority** order. These mirror the engine's own pipeline.
+A world system runs in one **update stage**, and systems within a stage run in
+**priority** order. These mirror the engine's own pipeline, and they are the same
+pre- and post-physics phases an [entity system](/manual/scripting/entity-systems/)
+can opt into.
 
 | `EUpdateStage` | Runs |
 | --- | --- |
@@ -122,7 +124,7 @@ field you need to keep, don't store the wrapper.
 
 :::note[Stateless and single-threaded]
 Keep per-frame work in the view loop, not on the instance. A system holds the
-*rule*, not per-entity state. Script systems tick on the script thread one at a
+*rule*, not per-entity state. World systems tick on the script thread one at a
 time; native systems with non-overlapping component access run in parallel.
 :::
 
@@ -130,5 +132,5 @@ time; native systems with non-overlapping component access run in parallel.
 
 Everything outside the entity set (physics, navigation, networking, debug
 drawing) is reached through the system's `World` property, exactly as in entity
-scripts, via `World.Physics`, `World.Navigation`, `World.Net`, `World.Draw`. See
+systems, via `World.Physics`, `World.Navigation`, `World.Net`, `World.Draw`. See
 [The World API](/manual/scripting/world/).

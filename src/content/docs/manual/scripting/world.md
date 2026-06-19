@@ -49,7 +49,7 @@ if (!Player.IsNull)
 ```
 
 To create entities from nothing rather than from a prefab, use a
-[script system](/manual/scripting/systems/), whose context exposes
+[world system](/manual/scripting/world-systems/), whose context exposes
 `Create()` / `Destroy(entity)`.
 
 ## Transform (world space)

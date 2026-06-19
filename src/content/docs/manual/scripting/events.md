@@ -57,7 +57,7 @@ World.Messages.Broadcast("Combat.Damage", new DamageMessage { Source = Entity, A
 | Call | Effect |
 | --- | --- |
 | `World.Messages.Subscribe<T>(channel, handler)` | Run `handler(T)` for matching broadcasts; returns an `IDisposable`. |
-| `World.Messages.Broadcast<T>(channel, message)` | Send `message` on `channel` now. |
+| `World.Messages.Broadcast<T>(channel, message)` | Send `message` on `channel` now, to every listener in the world. |
 
 ### Hierarchical channels
 
@@ -72,6 +72,57 @@ World.Messages.Subscribe<DamageMessage>("Combat.Damage", OnDamage, GameplayTagMa
 ```
 
 The bus is per-world, so PIE sessions and multiple worlds stay isolated.
+
+### Directional messaging
+
+`Broadcast` reaches every listener in the world. Sometimes you instead want a
+message to travel only along an entity's place in the scene graph, for example a
+turret notifying its mounting vehicle, or a vehicle telling all of its parts to
+power down. `SendUp` and `SendDown` do exactly that.
+
+`SendUp` delivers to the source entity and then each of its ancestors up to the
+root. `SendDown` delivers to the source entity and then every descendant,
+depth-first. By default the source entity receives the message too, pass
+`includeSelf: false` to skip it.
+
+Listeners opt into directional delivery with the entity-scoped `Subscribe`
+overload, which takes the owning entity as its first argument. A directional
+send reaches such a listener only when the walk arrives at its entity. Plain
+`Subscribe` listeners (and `Broadcast`) are unaffected, the two delivery models
+share the same channels but separate listener sets.
+
+```csharp
+public sealed class VehiclePart : EntityScript
+{
+    private IDisposable _Sub = null!;
+
+    public override void OnReady()
+    {
+        // Listen only for sends that walk through THIS entity.
+        _Sub = World.Messages.Subscribe<PowerMessage>(Entity, "Power", OnPower);
+    }
+
+    private void OnPower(PowerMessage Msg) { /* ... */ }
+
+    public override void OnDetach() => _Sub.Dispose();
+}
+
+// On the vehicle root: shut down every part beneath it.
+World.Messages.SendDown(Entity, "Power.Off", new PowerMessage());
+
+// On a part: report damage up to whichever ancestor is listening.
+World.Messages.SendUp(Entity, "Vehicle.Damage", new DamageMessage { Amount = 25.0f });
+```
+
+The same hierarchical channel rule applies, a `Power` listener hears a
+`Power.Off` send. Pass `GameplayTagMatch.Exact` to the entity-scoped `Subscribe`
+to opt out.
+
+| Call | Effect |
+| --- | --- |
+| `World.Messages.Subscribe<T>(entity, channel, handler)` | Listen for directional sends that reach `entity`; returns an `IDisposable`. |
+| `World.Messages.SendUp<T>(source, channel, message, includeSelf = true)` | Deliver up the scene graph: `source`, then each ancestor. |
+| `World.Messages.SendDown<T>(source, channel, message, includeSelf = true)` | Deliver down the scene graph: `source`, then every descendant. |
 
 ## Component signals
 
