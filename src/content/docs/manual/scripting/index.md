@@ -17,6 +17,7 @@ documents the API surface.
 - **[Physics & Collisions](/manual/scripting/physics/)**, forces, velocities, queries, and contact callbacks.
 - **[Input](/manual/scripting/input/)**, actions, keys, and the mouse.
 - **[User Interface](/manual/scripting/ui/)**, screen-space RmlUi documents driven from C#.
+- **[Low-Level Rendering (RHI)](/manual/scripting/rhi/)**, custom GPU work: compute dispatch, textures, and the bindless heap.
 - **[Events](/manual/scripting/events/)**, the gameplay message bus and component signals.
 - **[Parallel Work](/manual/scripting/tasks/)**, running heavy compute across worker threads.
 - **[Networking](/manual/scripting/networking/)**, roles and replication.

@@ -10,7 +10,9 @@ this page is a map of what controls what, not an exhaustive list.
 
 Under the hood it is a clustered forward Vulkan renderer with a Slang shader
 pipeline, bindless resources, and GPU-driven culling. You never touch that
-directly.
+directly. If you do need to run your own GPU work, a custom compute pass or a
+procedural texture, the renderer's Vulkan abstraction is exposed to C# scripts.
+See [Low-Level Rendering (RHI)](/manual/scripting/rhi/).
 
 ## Materials
 
