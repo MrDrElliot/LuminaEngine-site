@@ -131,13 +131,13 @@ entity with no `OnUpdate` is never ticked.
 | --- | --- |
 | `OnAttach()` | Once, when the instance is attached to its entity. The earliest hook. |
 | `OnReady()` | Once, after `OnAttach`, before the first `OnUpdate` (all siblings are attached). Cache things and look up other entities here. |
-| `OnUpdate(float DeltaTime)` | Every frame, on the game thread, while the entity is enabled. `DeltaTime` is seconds. |
+| `OnUpdate(float DeltaTime)` | Every frame, while the entity is enabled. `DeltaTime` is seconds. |
 | `OnInput(InputEvent Event)` | A keyboard or mouse event happened, while the entity is receiving input. See [Input](/manual/scripting/input/). |
 | `OnContactBegin/End(SCollisionEvent)`, `OnOverlapBegin/End(SCollisionEvent)` | A physics contact or trigger overlap. See [Physics & Collisions](/manual/scripting/physics/). |
 | `OnDetach()` | Once, when the entity is destroyed or the script is removed. |
 
 For the full picture (when each runs, the physics phase it runs in, what is
-per-entity, and how hot reload behaves) see
+per-entity, how to run scripts in parallel, and how hot reload behaves) see
 **[Entity Systems](/manual/scripting/entity-systems/)**.
 
 ## Attaching a script

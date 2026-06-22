@@ -141,6 +141,71 @@ Use `OnUpdate` for per-frame logic and visuals; use `OnFixedUpdate` for
 physics-affecting forces and movement. They are independent: a script can
 override either, both, or neither.
 
+## Running in parallel
+
+By default a script's `OnUpdate` and `OnFixedUpdate` run one after another on the
+game thread, in an unspecified order. That is always safe, a script can freely
+touch other entities, spawn or destroy entities, and add or remove components.
+
+When a script only ever touches **its own** entity, that serialization is wasted.
+Add `[NoDeps]` to the class to promise the engine that the script's per-frame
+callbacks have no effect on any other entity. The engine then groups every
+`[NoDeps]` script and ticks them **across worker threads** through the job
+system. Scripts without the attribute keep running serially, so it is purely
+opt-in.
+
+```csharp
+[NoDeps]
+public sealed class Spin : EntityScript
+{
+    [Property(Units = "deg/s")]
+    public float Rate = 90.0f;
+
+    public override void OnUpdate(float DeltaTime)
+    {
+        Transform.AddYaw(Rate * DeltaTime);   // touches only this entity
+    }
+}
+```
+
+A spinner, a projectile that only moves itself, a decoration that bobs in place,
+anything whose logic begins and ends with `this` entity is a good fit. On a scene
+with thousands of such entities the speedup is large.
+
+### The promise
+
+Inside `OnUpdate` and `OnFixedUpdate`, a `[NoDeps]` script **may**:
+
+- read and write **this** entity's own components, through `Registry` with
+  `Entity` or a `[RequireComponent]` field,
+- move **this** entity's `Transform`,
+- do self-contained compute and read values like `DeltaTime`, `Time`, and its
+  own `[Property]` fields.
+
+It **must not**:
+
+- read or write **another** entity's components or transform,
+- make structural changes, spawning or destroying any entity, or adding or
+  removing a component on any entity (its own included),
+- broadcast a message or fire a signal that another script handles right away,
+- block, await, or hand work to the [task system](/manual/scripting/tasks/).
+
+:::caution[Breaking the promise races]
+The engine trusts the attribute, it does not check it. A `[NoDeps]` script that
+reaches another entity, or changes the world's structure, will race the scripts
+running beside it, and that corruption is hard to reproduce. When in doubt, leave
+the attribute off. A serial script is always correct, only slower.
+:::
+
+### Why it is safe
+
+Each script instance owns exactly one entity. When every script in the parallel
+group touches only its own entity, no two of them ever reach the same data, so
+they run at once with no locking. Moving your own transform is fine too, those
+moves are queued and applied together after the parallel pass. The moment a
+script reaches outside its own entity that guarantee is gone, which is why the
+attribute is a promise you make rather than the default.
+
 ## Where to put what
 
 | Put it here | For |

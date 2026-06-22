@@ -57,6 +57,7 @@ World.Messages.Broadcast("Combat.Damage", new DamageMessage { Source = Entity, A
 | Call | Effect |
 | --- | --- |
 | `World.Messages.Subscribe<T>(channel, handler)` | Run `handler(T)` for matching broadcasts; returns an `IDisposable`. |
+| `World.Messages.SubscribeOnce<T>(channel, handler)` | Like `Subscribe`, but auto-unsubscribes after the first matching message. |
 | `World.Messages.Broadcast<T>(channel, message)` | Send `message` on `channel` now, to every listener in the world. |
 
 ### Hierarchical channels
@@ -78,12 +79,12 @@ The bus is per-world, so PIE sessions and multiple worlds stay isolated.
 `Broadcast` reaches every listener in the world. Sometimes you instead want a
 message to travel only along an entity's place in the scene graph, for example a
 turret notifying its mounting vehicle, or a vehicle telling all of its parts to
-power down. `SendUp` and `SendDown` do exactly that.
+power down. `SendUp`, `SendDown`, and `SendTo` do exactly that.
 
 `SendUp` delivers to the source entity and then each of its ancestors up to the
 root. `SendDown` delivers to the source entity and then every descendant,
-depth-first. By default the source entity receives the message too, pass
-`includeSelf: false` to skip it.
+depth-first. `SendTo` delivers to a single target entity. By default a send
+includes the source entity too, pass `includeSelf: false` to skip it.
 
 Listeners opt into directional delivery with the entity-scoped `Subscribe`
 overload, which takes the owning entity as its first argument. A directional
@@ -118,11 +119,52 @@ The same hierarchical channel rule applies, a `Power` listener hears a
 `Power.Off` send. Pass `GameplayTagMatch.Exact` to the entity-scoped `Subscribe`
 to opt out.
 
+#### Stopping propagation
+
+A directional send walks the whole chain by default. To let an entity *handle* a
+message and stop it travelling further, subscribe with a handler that returns
+`bool`: return `true` to mark the message handled and halt the route, or `false`
+to let it keep going. This is how a shield absorbs damage before it reaches the
+body, or a parent vetoes an event meant for its children.
+
+```csharp
+public sealed class Shield : EntityScript
+{
+    private float _Charge = 50.0f;
+    private IDisposable _Sub = null!;
+
+    public override void OnReady()
+        => _Sub = World.Messages.Subscribe<DamageMessage>(Entity, "Combat.Damage", OnDamage);
+
+    // Return true to absorb the hit so nothing above sees it; false to let it pass on up.
+    private bool OnDamage(DamageMessage Msg)
+    {
+        if (_Charge <= 0.0f)
+        {
+            return false;
+        }
+        _Charge -= Msg.Amount;
+        return true;
+    }
+
+    public override void OnDetach() => _Sub.Dispose();
+}
+
+// Damage bubbles up from a part until a shield (or anything else) handles it.
+World.Messages.SendUp(Entity, "Combat.Damage", new DamageMessage { Amount = 25.0f });
+```
+
+Only directional sends honor the return value, `Broadcast` is fire-and-forget and
+ignores it.
+
 | Call | Effect |
 | --- | --- |
 | `World.Messages.Subscribe<T>(entity, channel, handler)` | Listen for directional sends that reach `entity`; returns an `IDisposable`. |
+| `World.Messages.Subscribe<T>(entity, channel, Func<T, bool>)` | Same, but return `true` to handle the message and stop the route. |
 | `World.Messages.SendUp<T>(source, channel, message, includeSelf = true)` | Deliver up the scene graph: `source`, then each ancestor. |
 | `World.Messages.SendDown<T>(source, channel, message, includeSelf = true)` | Deliver down the scene graph: `source`, then every descendant. |
+| `World.Messages.SendTo<T>(target, channel, message)` | Deliver to a single `target` entity. |
+| `World.Messages.UnsubscribeAll(entity)` | Drop all of `entity`'s directional subscriptions at once. |
 
 ## Component signals
 

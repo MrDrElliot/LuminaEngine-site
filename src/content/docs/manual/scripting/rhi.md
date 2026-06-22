@@ -412,6 +412,81 @@ FSpecializationConstant[] Constants =
 
 Free a pipeline with `RHI.FreeH(Pipeline)` when you are done with it.
 
+## Mesh shading
+
+Mesh shaders replace the vertex and index pipeline with two compute-like stages:
+an optional **task** (amplification) stage, and a **mesh** stage that emits a
+small batch of vertices and primitives per workgroup. There is no vertex buffer
+and no index buffer; the mesh stage produces geometry directly. This suits
+GPU-driven workloads like meshlet rendering and procedural geometry.
+
+Mesh shaders need recent hardware (NVIDIA Turing and later, AMD RDNA2 and later)
+and the `VK_EXT_mesh_shader` device extension, so always check support first:
+
+```csharp
+if (!RHI.SupportsMeshShaders())
+{
+    return;   // fall back to a vertex pipeline, or skip the effect
+}
+```
+
+`CreateMeshShaderPipeline` also returns an invalid handle when mesh shaders are
+unsupported, so a guarded call is safe either way.
+
+### Creating a mesh pipeline
+
+Build a mesh pipeline from compiled bytecode, the same way you build a graphics
+pipeline from bytecode. The task stage is optional: pass an empty `TaskCode` (and
+a `""` entry) for a mesh-only pipeline, which is the common case. The fragment
+stage, raster state, and color targets behave exactly as for a graphics pipeline.
+
+```csharp
+// Mesh-only (no task stage): mesh + fragment.
+FPipelineH Pipeline = RHI.CreateMeshShaderPipeline(
+    MeshSpirv,  "MeshMain",
+    PixelSpirv, "PixelMain",
+    FRasterDesc.Default,
+    ColorTargets,
+    Constants);
+
+// With a task (amplification) stage, use the full overload:
+FPipelineH WithTask = RHI.CreateMeshShaderPipeline(
+    TaskSpirv,  "TaskMain",
+    MeshSpirv,  "MeshMain",
+    PixelSpirv, "PixelMain",
+    FRasterDesc.Default, ColorTargets, Constants);
+```
+
+Unlike compute and graphics pipelines, there is no named-shader-library overload
+for mesh pipelines, so supply the compiled SPIR-V yourself.
+
+### Dispatching mesh work
+
+A mesh draw is a raster draw, so record it inside a render pass (see below) with
+the mesh pipeline bound. You launch a grid of workgroups like a compute dispatch.
+The args model is identical to every other draw: `DrawArgs` is a `GPUPtr` to your
+shader's argument struct, read back in the shader with `GetArgs<T>()`.
+
+```csharp
+RHI.CmdSetPipeline(CL, Pipeline);
+RHI.CmdDrawMeshTasks(CL, ArgsPtr, GroupCountX, 1, 1);
+```
+
+For GPU-driven counts, drive the workgroup grid from a buffer the GPU filled. The
+indirect buffers hold `FDrawMeshTasksIndirectArguments` records (a `uint3`
+workgroup count, mirroring `VkDrawMeshTasksIndirectCommandEXT`).
+
+| Call | Launches |
+| --- | --- |
+| `CmdDrawMeshTasks(CL, args, x, y, z)` | A fixed `x * y * z` grid of workgroups. |
+| `CmdDrawMeshTasksIndirect(CL, args, buffer, offset, drawCount, stride)` | `drawCount` draws, each grid read from `buffer`. |
+| `CmdDrawMeshTasksIndirectCount(CL, args, buffer, offset, countBuffer, countOffset, maxDraws, stride)` | As above, with the draw count itself read from `countBuffer` (capped at `maxDraws`). |
+
+When you barrier compute or transfer writes before a mesh draw reads them, the
+mesh and task stages are already covered by `RHI.Barriers.ComputeToAll` and
+`RasterToRead`. Name them explicitly with `EStageFlags.MeshShader` and
+`EStageFlags.TaskShader` when you build a barrier by hand.
+
 ## Textures
 
 Create a texture from an `FTextureDesc`. The `Texture2D` helper fills the common
@@ -435,6 +510,61 @@ the returned slot through your args. To render into one, list it as an
 attachment in `RHI.CmdBeginRenderPass`. `RHI.CreateTexture(Desc)` lets the engine
 manage the backing memory; the overload taking a `GPUPtr` places the texture on
 memory you allocated.
+
+## Render passes and drawing
+
+Raster work (a graphics or mesh pipeline) records inside a **render pass** that
+targets textures you created with `ColorAttachment` or `DepthAttachment` usage. A
+script renders into its **own** textures this way; it cannot target the scene view
+or the swapchain (see [Custom draws](#custom-draws-and-the-deferred-renderer)).
+
+Begin a pass with the attachments to render into, set the viewport, bind a
+pipeline, draw, then end the pass.
+
+```csharp
+FRenderAttachment[] Color = { FRenderAttachment.Clear(Target, 0, 0, 0, 1) };
+
+RHI.CmdBeginRenderPass(CL, Color, new FUIntVector2(512, 512));   // color + render area
+RHI.CmdSetViewport(CL, FRect.Size(512, 512));
+RHI.CmdSetScissor(CL, FRect.Size(512, 512));
+RHI.CmdSetPipeline(CL, Pipeline);
+RHI.CmdDraw(CL, ArgsPtr, vertexCount: 3, instanceCount: 1, firstVertex: 0, firstInstance: 0);
+RHI.CmdEndRenderPass(CL);
+```
+
+An attachment names a texture and how to treat its existing contents. Pass a
+depth attachment to `CmdBeginRenderPass` for depth testing.
+
+| `FRenderAttachment` | Does |
+| --- | --- |
+| `FRenderAttachment.Clear(tex, r, g, b, a)` | Clear to a color first, then store. |
+| `FRenderAttachment.Load(tex)` | Keep the existing contents, then store. |
+
+The draw family all take a `DrawArgs` `GPUPtr` for the shader args, like a
+dispatch:
+
+| Call | Draws |
+| --- | --- |
+| `CmdDraw(CL, args, vertexCount, instanceCount, firstVertex, firstInstance)` | Non-indexed. |
+| `CmdDrawIndexed(CL, indexBuffer, indexOffset, args, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance)` | Indexed. |
+| `CmdDrawIndirect(CL, args, offset, drawCount, stride)` | Args from a buffer of `FDrawIndirectArguments`. |
+| `CmdDrawIndexedIndirect(CL, args, offset, drawCount, stride)` | Indexed, args from a buffer. |
+| `CmdDrawMeshTasks*` | Mesh shading (above). |
+
+Set fixed-function state on the command list before drawing:
+
+| Call | Sets |
+| --- | --- |
+| `CmdSetViewport(CL, rect)` / `CmdSetScissor(CL, rect)` | Viewport / scissor rect (an `FRect`). |
+| `CmdSetCullMode(CL, mode)` / `CmdSetFrontFace(CL, face)` | Face culling and winding. |
+| `CmdSetLineWidth(CL, width)` | Line width for line topologies. |
+| `CmdSetIndexBuffer(CL, buffer, offset, type)` | The index buffer for indexed draws. |
+| `CmdSetDepthStencilState(CL, ds)` | A depth/stencil state object. |
+
+For depth or stencil, create a state object with
+`RHI.CreateDepthStencil(FDepthStencilDesc)`, bind it with
+`CmdSetDepthStencilState`, give the pass a depth attachment, and free it with
+`RHI.FreeH(depthStencil)` when done.
 
 ## Per-frame transient memory
 
@@ -510,6 +640,41 @@ renderer:
 
 A general "render into the scene view" extension point (a custom pass or view
 extension) is a future addition, not something the current API exposes.
+
+## Copy, clear, and other commands
+
+The rest of the command surface copies and clears memory and textures, and
+annotates captures. Each records into a command list like the calls above.
+
+Memory:
+
+| Call | Does |
+| --- | --- |
+| `CmdMemcpy(CL, dest, source, size)` | GPU-to-GPU copy. |
+| `CmdMemset(CL, dest, size, value)` / `CmdMemzero(CL, dest, size)` | Fill with a value / zero. |
+| `CmdWriteMemory(CL, dest, data)` | Inline a CPU byte span into the stream and write it to `dest`. |
+
+Textures (use `FTextureSlice.Full` for the whole texture, or set its `Mip`,
+`Layer`, and `Offset`/`Extent` for a sub-region):
+
+| Call | Does |
+| --- | --- |
+| `CmdCopyTexture(CL, src, srcSlice, dst, dstSlice)` | Copy a texture region. |
+| `CmdCopyMemoryToTexture(CL, src, rowLength, dst[, slice])` | Upload a buffer into a texture. |
+| `CmdCopyTextureToMemory(CL, src, slice, dst[, rowLength])` | Read a texture back into a buffer. |
+| `CmdBlitTexture(CL, src, srcSlice, dst, dstSlice[, filter])` | Scaled copy (resize, mip generation). |
+| `CmdResolveTexture(CL, src, dst)` | Resolve an MSAA texture to a single-sample one. |
+| `CmdClearTexture(CL, tex, r, g, b, a)` / `CmdClearTextureUInt(CL, tex, r, g, b, a)` | Clear to a float / uint color. |
+
+Debug markers group work in a GPU capture (RenderDoc, Nsight):
+
+```csharp
+RHI.CmdBeginMarker(CL, "My pass");
+// ... record ...
+RHI.CmdEndMarker(CL);
+```
+
+To reuse a command list, `RHI.ResetCommandList(CL)` clears it for re-recording.
 
 ## Threading and lifetime, in short
 
