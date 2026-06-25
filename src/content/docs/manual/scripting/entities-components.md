@@ -133,24 +133,37 @@ camera follow another entity, add an `SCameraFollowComponent` and set its target
 
 Expose a field to the editor with the `[Property]` attribute. It appears in the
 entity's **C# Script** section in the Details panel, and you read or write it
-like any field.
+like any field. The field's **type** picks the widget: a numeric drag, a vector
+or color picker, an enum dropdown, an asset or entity picker, a nested struct, a
+resizable list, and so on.
 
 ```csharp
-[Property(Min = 0, Units = "m/s", Category = "Movement")]
+[Property(Category = "Movement", Min = 0, Max = 20, Units = "m/s", Tooltip = "Top speed.")]
 public float Speed = 5.0f;
 
-[Property(Tooltip = "Mesh to spawn", AssetType = "CStaticMesh")]
-public FSoftObjectPath Mesh;
+[Property(Color = true)] public FVector3 Tint = new(1, 1, 1);
+
+// Typed asset and entity references draw a searchable picker from their type.
+[Property] public TSoftObjectPtr<CStaticMesh> Mesh;
+[Property] public Entity Target;
 ```
 
-The field's type picks the widget. Supported keys include `Category`, `Tooltip`,
-`Name` (label override), `Min`, `Max`, `Units`, `Color` (a color picker for a
-vector), `Slider` (with `Min`/`Max`), and `AssetType` (a reflected asset class
-like `"CStaticMesh"` or `"CMaterial"`, which shows an asset picker, loaded with
-`Asset.Load<T>(path)`).
+Every `[Property]` key is optional.
 
-Two related attributes.
+| Key | Effect |
+| --- | --- |
+| `Category = "X"` | Groups the field under a collapsible header. Nest with `"A\|B"`. |
+| `Tooltip = "X"` | Hover help on the field. |
+| `Name = "X"` | Renames the field; this is both its inspector label and its saved key. |
+| `Min = n` / `Max = n` | Clamp range for a numeric field. |
+| `Units = "X"` | Unit suffix after a numeric value, e.g. `"m/s"`. |
+| `Color = true` | Draws an RGBA color picker for an `FVector3` / `FVector4` instead of drag fields. |
 
-- `[Serialize]` persists a field with the entity **without** showing it in the
-  inspector.
-- `[Hide]` keeps a field from ever being serialized or shown.
+Related attributes control persistence and hot reload.
+
+| Attribute | Effect |
+| --- | --- |
+| `[Serialize]` | Persists the field with the entity **without** showing it in the inspector. |
+| `[Hide]` | Keeps the field from ever being serialized or shown. |
+| `[Alias("OldName")]` | A prior member name, so a saved value still loads after you rename the field. Repeatable. |
+| `[SkipHotReload]` | Resets the field to its default on a C# hot reload instead of carrying the old value. Also valid on the script class to reset all of its properties. |

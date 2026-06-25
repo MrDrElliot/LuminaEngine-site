@@ -5,9 +5,10 @@ description: The gameplay message bus and component signals for decoupled commun
 
 Entities communicate without holding references to each other in two ways, a
 **message bus** for your own gameplay events, and **component signals** for
-reacting to components being added, removed, or changed. Engine-driven physics
-contacts arrive as lifecycle hooks instead. See
-[Physics & Collisions](/manual/scripting/physics/).
+reacting to components being added, removed, or changed. Engine-driven signals
+like physics contacts and AI perception are exposed as component events you bind
+a handler to; see [Physics & Collisions](/manual/scripting/physics/) and
+[AI Perception](/manual/scripting/perception/).
 
 ## The message bus
 

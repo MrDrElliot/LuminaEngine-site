@@ -88,12 +88,12 @@ resolve them in code. They live in `Lumina`.
 | `TObjectPtr<T>` | A typed strong reference holding the resolved object; `Value` |
 
 ```csharp
-[Property(Tooltip = "Played on pickup", AssetType = "CAudioStream")]
-public FSoftObjectPath PickupSound;
+[Property(Tooltip = "Played on pickup")]
+public TSoftObjectPtr<CAudioStream> PickupSound;
 
 public override void OnReady()
 {
-    CAudioStream? Sound = PickupSound.Load<CAudioStream>();
+    CAudioStream? Sound = PickupSound.Get();
 }
 ```
 
@@ -117,9 +117,11 @@ Declared in `LuminaSharp`, applied to script members or classes.
 
 | Attribute | On | Effect |
 | --- | --- | --- |
-| `[Property]` | field/property | Exposes it in the editor and serializes it. Keys are `Category`, `Tooltip`, `Name`, `Min`, `Max`, `Units`, `Color`, `Slider`, `AssetType`. |
+| `[Property]` | field/property | Exposes it in the editor and serializes it. Keys are `Category`, `Tooltip`, `Name`, `Min`, `Max`, `Units`, `Color`. |
 | `[Serialize]` | field/property | Persists it without showing it in the inspector. |
 | `[Hide]` | field/property | Never serialized or shown. |
+| `[Alias("OldName")]` | field/property/class | A prior name so saved data survives a rename. Repeatable. |
+| `[SkipHotReload]` | field/property/class | Resets to default on a C# hot reload instead of carrying the old value. |
 | `[RequireComponent]` | component-typed field | Resolves and caches the component before `OnReady` (adding it if missing). |
 | `[EntitySystem]` | class (on `EntitySystem`) | Declares a [world system](/manual/scripting/world-systems/)'s `Stage` and `Priority`. |
 | `[UpdatePhase]` | class (on `EntityScript`) | Runs an [entity system](/manual/scripting/entity-systems/)'s `OnUpdate` in `EScriptPhase.PrePhysics` (default) or `PostPhysics`. |

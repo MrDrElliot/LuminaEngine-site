@@ -14,7 +14,7 @@ documents the API surface.
 - **[Entities & Components](/manual/scripting/entities-components/)**, working with this entity and its components.
 - **[The World API](/manual/scripting/world/)**, spawning, finding, and moving entities.
 - **[World Systems](/manual/scripting/world-systems/)**, world-level systems that run a rule across many entities.
-- **[Physics & Collisions](/manual/scripting/physics/)**, forces, velocities, queries, and contact callbacks.
+- **[Physics & Collisions](/manual/scripting/physics/)**, forces, velocities, queries, and collision events.
 - **[Input](/manual/scripting/input/)**, actions, keys, and the mouse.
 - **[User Interface](/manual/scripting/ui/)**, screen-space RmlUi documents driven from C#.
 - **[Low-Level Rendering (RHI)](/manual/scripting/rhi/)**, custom GPU work: compute dispatch, textures, and the bindless heap.
@@ -133,7 +133,6 @@ entity with no `OnUpdate` is never ticked.
 | `OnReady()` | Once, after `OnAttach`, before the first `OnUpdate` (all siblings are attached). Cache things and look up other entities here. |
 | `OnUpdate(float DeltaTime)` | Every frame, while the entity is enabled. `DeltaTime` is seconds. |
 | `OnInput(InputEvent Event)` | A keyboard or mouse event happened, while the entity is receiving input. See [Input](/manual/scripting/input/). |
-| `OnContactBegin/End(SCollisionEvent)`, `OnOverlapBegin/End(SCollisionEvent)` | A physics contact or trigger overlap. See [Physics & Collisions](/manual/scripting/physics/). |
 | `OnDetach()` | Once, when the entity is destroyed or the script is removed. |
 
 For the full picture (when each runs, the physics phase it runs in, what is

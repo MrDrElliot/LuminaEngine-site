@@ -51,7 +51,7 @@ editable.
 ```csharp
 public sealed class Menu : EntityScript
 {
-    [Property(Tooltip = "RML document shown on screen.", AssetType = "rml")]
+    [Property(Tooltip = "RML document shown on screen.")]
     public string Document = "/Game/Content/UI/Menu.rml";
 
     private UIDocument _Doc;
@@ -374,7 +374,7 @@ namespace Game;
 
 public sealed class MenuExample : EntityScript
 {
-    [Property(Tooltip = "RML document shown on screen.", AssetType = "rml")]
+    [Property(Tooltip = "RML document shown on screen.")]
     public string Document = "/Game/Content/UI/Menu.rml";
 
     private UIDocument _Menu;

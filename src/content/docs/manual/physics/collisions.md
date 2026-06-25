@@ -31,21 +31,30 @@ same thing at the whole-body level.
 
 ## Reacting in a script
 
-Override the collision callbacks on a script to respond. **Contacts** come from
-solid colliders, **overlaps** from triggers.
+Bind a handler to the rigid body's collision events. Cache the
+`SRigidBodyComponent` with `[RequireComponent]` and bind in `OnReady`.
+**Contacts** come from solid colliders, **overlaps** from triggers.
 
 ```csharp
-public override void OnContactBegin(SCollisionEvent Event)
+[RequireComponent] private SRigidBodyComponent _Body = null!;
+
+public override void OnReady()
+{
+    _Body.OnContactBegin.Bind(OnHit);
+    _Body.OnOverlapBegin.Bind(OnEnterTrigger);
+}
+
+private void OnHit(SCollisionEvent Event)
 {
     Debug.Log($"hit {Event.Other} at {Event.ImpactSpeed} m/s");
 }
 
-public override void OnOverlapBegin(SCollisionEvent Event)
+private void OnEnterTrigger(SCollisionEvent Event)
 {
     Debug.Log($"entered trigger of {Event.Other}");
 }
 ```
 
-The full callback set (`OnContactBegin`/`OnContactEnd`, `OnOverlapBegin`/
+The full event set (`OnContactBegin`/`OnContactEnd`, `OnOverlapBegin`/
 `OnOverlapEnd`) and every `SCollisionEvent` field are in
 [Scripting › Physics](/manual/scripting/physics/).

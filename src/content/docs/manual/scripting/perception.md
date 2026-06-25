@@ -28,18 +28,29 @@ the things it should notice (both authored in the editor under the **AI**
 category, or added from script). Then react in your `EntityScript`:
 
 ```csharp
-public override void OnTargetPerceived(SPerceptionEvent Event)
+public sealed class Guard : EntityScript
 {
-    // We just became aware of Event.Target via Event.Sense.
-    Debug.Log($"Spotted {Event.Target} via {Event.Sense}");
-    MoveTo(Event.Location);
-}
+    [RequireComponent] private SPerceptionComponent _Perception = null!;
 
-public override void OnTargetLost(SPerceptionEvent Event)
-{
-    // Event.Location is where we last knew the target to be.
-    Debug.Log($"Lost {Event.Target}, searching last known spot");
-    MoveTo(Event.Location);
+    public override void OnReady()
+    {
+        _Perception.OnTargetPerceived.Bind(OnSpotted);
+        _Perception.OnTargetLost.Bind(OnLost);
+    }
+
+    private void OnSpotted(SPerceptionEvent Event)
+    {
+        // We just became aware of Event.Target via Event.Sense.
+        Debug.Log($"Spotted {Event.Target} via {Event.Sense}");
+        MoveTo(Event.Location);
+    }
+
+    private void OnLost(SPerceptionEvent Event)
+    {
+        // Event.Location is where we last knew the target to be.
+        Debug.Log($"Lost {Event.Target}, searching last known spot");
+        MoveTo(Event.Location);
+    }
 }
 ```
 
@@ -163,9 +174,10 @@ World.Perception.AddDetectableTag(Guard, GameplayTag.Request("Team.Blue"));
 
 ## Reacting to perception
 
-The primary way to respond is the two `EntityScript` callbacks shown in
-[Quick start](#quick-start). Both receive an `SPerceptionEvent`, oriented from
-the perceiving entity's point of view.
+The primary way to respond is to bind the perception component's two events,
+`OnTargetPerceived` and `OnTargetLost`, shown in [Quick start](#quick-start).
+Both carry an `SPerceptionEvent`, oriented from the perceiving entity's point of
+view.
 
 | Field | Meaning |
 | --- | --- |
@@ -179,9 +191,9 @@ the perceiving entity's point of view.
 channel at once.
 
 :::note
-Perception callbacks run during the system's event-dispatch phase, *after* the
+Perception handlers run during the system's event-dispatch phase, *after* the
 state has settled for the tick. That makes it safe to add or remove components
-(including the perceiver's own script) from inside a callback.
+(including the perceiver's own script) from inside a handler.
 :::
 
 Native C++ systems can subscribe without touching script: the system exposes

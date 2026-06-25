@@ -110,28 +110,45 @@ Each query is capped at `Physics.MaxQueryResults` (256). For per-frame queries,
 the `OverlapSphere` overload that writes into a caller `Span<uint>` avoids the
 array allocation.
 
-## Collision callbacks
+## Collision events
 
-Override any of these on your script to be notified. The payload is an
-`SCollisionEvent`, oriented from your entity's point of view.
+A rigid body publishes its contacts and overlaps as events you bind a handler
+to. Cache the `SRigidBodyComponent` with `[RequireComponent]` and bind in
+`OnReady`. The payload is an `SCollisionEvent`, oriented from your entity's
+point of view.
 
 **Contacts** are solid collisions. **Overlaps** are triggers (a collider with
 its trigger flag set, or a body marked as a sensor) which produce overlap events
 but no physical response.
 
 ```csharp
-public override void OnContactBegin(SCollisionEvent Event)
+public sealed class Mine : EntityScript
 {
-    Debug.Log($"hit {Event.Other} at {Event.ImpactSpeed} m/s");
-}
+    [RequireComponent] private SRigidBodyComponent _Body = null!;
 
-public override void OnOverlapBegin(SCollisionEvent Event)   // entered a trigger
-{
-    Debug.Log($"entered trigger of {Event.Other}");
-}
+    public override void OnReady()
+    {
+        _Body.OnContactBegin.Bind(OnHit);
+        _Body.OnOverlapBegin.Bind(OnEnterTrigger);
+    }
 
-// Also: OnContactEnd, OnOverlapEnd.
+    private void OnHit(SCollisionEvent Event)
+    {
+        Debug.Log($"hit {Event.Other} at {Event.ImpactSpeed} m/s");
+    }
+
+    private void OnEnterTrigger(SCollisionEvent Event)
+    {
+        Debug.Log($"entered trigger of {Event.Other}");
+    }
+}
 ```
+
+The full set is `OnContactBegin` / `OnContactEnd` and `OnOverlapBegin` /
+`OnOverlapEnd` (each carrying an `SCollisionEvent`), plus the payload-free
+`OnWake` / `OnSleep` (bound with a plain `Action`). `Bind` returns a
+`DelegateBinding`, but a script's bindings are removed for you when it detaches,
+so you only need to keep it when you want to `Unbind()` early.
 
 The `SCollisionEvent` fields, all read from your entity's point of view.
 
