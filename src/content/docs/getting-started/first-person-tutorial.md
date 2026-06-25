@@ -4,8 +4,9 @@ description: Build a small playable first-person scene from scratch.
 ---
 
 This tutorial builds a **first-person camera you can fly around a scene** with
-the mouse and WASD. It pulls together entities, components, the camera, input,
-and a script, which is the core of how a Lumina game fits together. It assumes
+the mouse and WASD, then collect pickups you fly into. It pulls together entities,
+components, the camera, input, a script, and collision events, which is the core
+of how a Lumina game fits together. It assumes
 the editor is running with a project open, see
 [Your First Project](/getting-started/first-project/).
 
@@ -129,6 +130,64 @@ Moving the mouse looks around, and WASD moves you through the scene. Press
 
 That is a complete gameplay loop, an entity, a camera, input, and a script moving
 it every frame.
+
+## 6. Collect pickups with a trigger
+
+The camera ignores the world so far. Let's make it **react** to things using the
+engine's collision events. You **bind a handler** to an event, the same way you
+would wire up any other engine event, rather than overriding a magic method.
+
+**Make a pickup.** In the Outliner, add a **Cube** (or **Sphere**) primitive,
+name it `Pickup`, and drop it somewhere you can fly into. Give it two components
+in the Details panel.
+
+- a **Rigid Body**, with **Body Type** set to **Static**.
+- a **Box Collider** (a cube's shape), with **Is Trigger** ticked.
+
+A trigger is not solid: you pass through it, and it raises **overlap** events
+instead of stopping you. Duplicate `Pickup` a few times to scatter several around.
+
+**Let the player be detected.** A trigger only notices entities that have a body,
+so add two components to the `Player`.
+
+- a **Rigid Body**, with **Body Type** set to **Kinematic**. It moves only when
+  your script moves it, so the player stays a free-fly camera and is never pulled
+  down by gravity.
+- a **Capsule Collider**.
+
+**Handle the overlap.** Update `Player.cs`: cache the rigid body, bind its
+`OnOverlapBegin` in `OnReady`, and collect whatever you touch.
+
+```csharp
+[RequireComponent] private SRigidBodyComponent _Body = null!;
+
+public override void OnReady()
+{
+    _Input = EnableInput();
+    _Body.OnOverlapBegin.Bind(OnPickup);
+}
+
+private void OnPickup(SCollisionEvent Event)
+{
+    Debug.Log($"Collected {Event.Other}");
+    World.DestroyEntity(Event.Other);
+}
+```
+
+Press **Play** and fly into a pickup; it logs and vanishes.
+
+### How the event binding works
+
+- **`[RequireComponent]`** finds the Rigid Body you added (and would add one if it
+  were missing) and caches it as `_Body` before `OnReady` runs.
+- **`_Body.OnOverlapBegin.Bind(OnPickup)`** is the pattern for every engine event:
+  you bind a handler to it. The same shape covers `OnContactBegin` for solid hits
+  and perception's `OnTargetPerceived`, see
+  [Collisions & Triggers](/manual/physics/collisions/) and
+  [Scripting › Physics](/manual/scripting/physics/).
+- **`SCollisionEvent.Other`** is the entity you overlapped, the pickup, so we log
+  it and destroy it. Every `SCollisionEvent` field is listed in the physics
+  scripting reference.
 
 ## Where to go next
 

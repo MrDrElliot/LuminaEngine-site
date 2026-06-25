@@ -9,11 +9,33 @@ This page builds the engine itself. Once it is running you will create a game
 project from inside the editor, covered in
 [Your First Project](/getting-started/first-project/).
 
-<Aside type="caution">
-You need **Visual Studio 2026 (18.0+)** and the **.NET 10 SDK** (x64). The C#
-scripting layer targets .NET 10, which older Visual Studio versions cannot build
-(`NETSDK1209`). `Setup.bat` verifies both up front and tells you what is missing.
+## Prerequisites
+
+Lumina builds on **Windows** (10 1803 or newer, x64). Install these first. Both
+are free.
+
+- **Visual Studio 2026 (18.0 or newer)** with the **Desktop development with C++**
+  and **.NET desktop development** workloads. The C# scripting layer targets
+  .NET 10, and only the MSBuild bundled with Visual Studio 18.0+ can build that
+  target. Older Visual Studio fails with `NETSDK1209`, and installing a
+  standalone SDK does not fix it, because Visual Studio uses its own bundled
+  MSBuild. [Download](https://visualstudio.microsoft.com/downloads/).
+- **.NET 10 SDK (x64).** Compiles the engine's C# layer (LuminaSharp) and your
+  game scripts. [Download](https://dotnet.microsoft.com/download/dotnet/10.0).
+
+The **Vulkan SDK** is optional. It is only needed for the validation layers in
+Debug builds; the engine bundles its own Vulkan headers and the loader ships with
+your GPU drivers.
+
+<Aside type="note">
+`Setup.bat` checks all of this before it builds anything and prints exactly what
+is missing, so a fresh clone fails fast with a clear message instead of a cryptic
+error deep in the build. Everything else (the compilers, shader tools, and
+runtime listed under [External dependencies](#external-dependencies)) is fetched
+for you.
 </Aside>
+
+## Build the editor
 
 <Steps>
 
@@ -32,24 +54,11 @@ scripting layer targets .NET 10, which older Visual Studio versions cannot build
    Setup.bat
    ```
 
-   This is a one-shot setup for a fresh clone. It does the following.
-   - Downloads `premake5.exe` into `Tools/` if it is missing.
-   - Downloads and extracts all external dependencies (`External.zip`).
-   - Persists the `LUMINA_DIR` environment variable to your user profile.
-   - Configures the git hooks.
-   - Generates `Lumina.sln`.
-
-   <Aside type="tip">
-   No Python is required. Setup uses the `curl.exe` and `tar.exe` that ship
-   with Windows 10 1803 and newer.
-   </Aside>
-
-   <Aside type="caution">
-   If the dependency download fails, grab
-   [External.zip](https://www.dropbox.com/scl/fi/mzad6ruqibzsmam30npju/External.zip?rlkey=egj0adfoytpjydnhbs53qd3lh&st=pw81jqsw&dl=0)
-   manually, extract it into the `LuminaEngine/` folder, then run
-   `GenerateProjectFiles.bat`.
-   </Aside>
+   This is a one-shot setup for a fresh clone. It verifies your prerequisites,
+   bootstraps `premake5.exe` into `Tools/`, downloads and extracts the prebuilt
+   dependency bundle (see [External dependencies](#external-dependencies)),
+   persists the `LUMINA_DIR` environment variable, configures the git hooks, and
+   generates `Lumina.sln`.
 
 3. **Open the solution**
 
@@ -82,6 +91,53 @@ scripting layer targets .NET 10, which older Visual Studio versions cannot build
 
 </Steps>
 
+## External dependencies
+
+The first run of `Setup.bat` downloads one prebuilt bundle, **`External.zip`
+(~671 MB)**, from this repository's
+[GitHub Releases](https://github.com/MrDrElliot/LuminaEngine/releases) (the
+`external-deps` tag) and extracts it into `External/`. It is a release asset, not
+a committed file, so it stays out of git history.
+
+<Aside type="caution">
+Setup reaches out to the internet to fetch this bundle. Before downloading
+anything it prints exactly what it will fetch and **waits for a `[Y/n]`
+confirmation**, so nothing leaves or enters your machine without your say-so.
+After the download it is integrity-checked against a **SHA-256 hash recorded in
+the repository**; a corrupted, tampered, or swapped file is rejected, deleted,
+and setup aborts. Answer **n** at the prompt to cancel and download nothing.
+</Aside>
+
+The bundle is entirely open source. Its full sources, versions, and licenses are
+in [`DEPENDENCIES.md`](https://github.com/MrDrElliot/LuminaEngine/blob/main/DEPENDENCIES.md).
+
+| Library | Size | Used for |
+| --- | --- | --- |
+| .NET 10 runtime + hosting headers | 78 MB | the CoreCLR host for C# scripting |
+| LLVM / Clang 19 (libclang) | 337 MB | parsing C++ headers for reflection code generation |
+| Slang | 155 MB | compiling `.slang` shaders to SPIR-V |
+| RenderDoc | 24 MB | in-app GPU frame capture |
+| Tracy | 77 MB | the CPU/GPU profiler |
+
+To verify the download yourself, compare its hash against the one in
+`BuildScripts/Actions/Setup.lua`.
+
+```bat
+powershell -NoProfile -Command "(Get-FileHash External.zip -Algorithm SHA256).Hash"
+```
+
+To run setup without the prompt (for CI), pass `Setup.bat --yes`. If you would
+rather not download the bundle at all, fetch each library from its upstream and
+lay it out under `External/` yourself; `DEPENDENCIES.md` lists the exact paths.
+
+<Aside type="tip">
+If the automatic download fails (a firewall, proxy, or antivirus blocking it),
+download `External.zip` from the
+[`external-deps` release](https://github.com/MrDrElliot/LuminaEngine/releases/tag/external-deps)
+manually, extract it so you have an `External/` folder in the repository root,
+then run `GenerateProjectFiles.bat`.
+</Aside>
+
 ## After pulling
 
 After pulling or merging, regenerate the solution so new and removed source
@@ -110,9 +166,14 @@ GenerateProjectFiles.bat --tracy=off --validation=on --verbose-logging=off
 
 | Symptom | Fix |
 | --- | --- |
-| *Missing v143 toolset* | Visual Studio Installer, Individual Components, **MSVC v143 Build Tools** |
+| *`NETSDK1209`, or "Visual Studio is too old for net10.0"* | You are on Visual Studio 2022 or older. Install **Visual Studio 2026 (18.0+)**. A standalone .NET SDK will not fix this, because Visual Studio uses its own bundled MSBuild. |
+| *".NET 10 SDK not installed"* | Install the [.NET 10 SDK (x64)](https://dotnet.microsoft.com/download/dotnet/10.0), then run `dotnet --list-sdks` and confirm a `10.x` entry appears. |
+| *`dotnet` works in a terminal but Visual Studio still cannot build net10.0* | Visual Studio builds with its own MSBuild, not the one on `PATH`. The fix is the Visual Studio 2026 install above, not the standalone SDK. |
+| *`External.zip` SHA-256 mismatch, setup aborts* | The download was corrupted or intercepted. Delete `External.zip` and re-run `Setup.bat`, or grab it manually from the [releases page](https://github.com/MrDrElliot/LuminaEngine/releases/tag/external-deps). |
+| *Dependency download fails or hangs* | A firewall, proxy, or antivirus is blocking it. Download `External.zip` manually and extract it into the repo root (see [above](#external-dependencies)). |
+| *"wrong engine" errors, or it links a different clone* | A stale `LUMINA_DIR`. Re-run `Setup.bat` from the correct clone, then restart Visual Studio so it picks up the new value. |
+| *Missing v143 toolset* | Visual Studio Installer, Individual Components, **MSVC v143 Build Tools**. |
 | *"Cannot find .generated.h"* | Build again. Visual Studio sometimes needs a second pass to pick up generated files. |
-| *C1076 compiler limit* | Retry the build. This is an intermittent issue with a font file. |
 | *"Application control policy blocked this file"* | Disable **Windows 11 Smart App Control**. |
 
 Still stuck? [Open an issue](https://github.com/MrDrElliot/LuminaEngine/issues)
