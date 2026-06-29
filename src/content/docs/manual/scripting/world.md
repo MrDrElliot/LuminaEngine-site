@@ -32,6 +32,7 @@ Each subsystem is a property on `World`.
 | --- | --- |
 | `World.SpawnPrefab(path)` | Instantiates a prefab, returns its root `Entity` |
 | `World.SpawnPrefab(path, location, rotation?, parent?)` | Same, placed (and optionally parented) in one call |
+| `World.SpawnProjectile(origin, velocity, damage?, lifetime?)` | Fires a swept projectile entity (see [Physics](/manual/scripting/physics/#projectiles)) |
 | `World.DuplicateEntity(entity)` | Deep-copies an entity and its children, returns the new root |
 | `World.DestroyEntity(entity)` | Removes the entity |
 | `World.GetEntityByName(name)` | First entity with that name (`Entity.Null` if none) |

@@ -97,6 +97,50 @@ PROPERTY(Editable, Color)
 FVector4 Tint = FVector4(1.0f);
 ```
 
+### Instanced struct properties
+
+A `TInstancedStruct<TBase>` property owns a struct instance whose concrete type
+you pick in the Details panel, from `TBase` or any reflected struct deriving
+from it. The picker sits on the property's row, and the chosen struct's own
+properties edit inline beneath it. It is the value-type form of an instanced
+object: store a different behavior struct per instance and edit it in place.
+
+```cpp
+#include "Core/Object/InstancedStruct.h"
+
+REFLECT()
+struct RUNTIME_API SCommand
+{
+    GENERATED_BODY()
+};
+
+REFLECT()
+struct RUNTIME_API SWaitCommand : public SCommand
+{
+    GENERATED_BODY()
+
+    PROPERTY(Editable, ClampMin = 0, Units = "s")
+    float Seconds = 1.0f;
+};
+
+REFLECT(Component)
+struct RUNTIME_API SAIComponent
+{
+    GENERATED_BODY()
+
+    // The picker offers SCommand and every struct derived from it.
+    PROPERTY(Editable)
+    TInstancedStruct<SCommand> Command;
+};
+```
+
+Read the stored value with `Command.GetPtr<SWaitCommand>()` (null unless the
+stored type is `SWaitCommand` or derived), and replace it with
+`Command.InitializeAs<SWaitCommand>()`. The value serializes inline by the
+chosen struct's name. The base `SCommand` only needs `REFLECT()` +
+`GENERATED_BODY()`. The same workflow is available to C# scripts through the
+`[Instanced]` attribute; see [Instanced properties](/manual/scripting/entities-components/#instanced-properties).
+
 ## Functions
 
 `FUNCTION(Script)` exposes a member function to C#, so a script can call it on

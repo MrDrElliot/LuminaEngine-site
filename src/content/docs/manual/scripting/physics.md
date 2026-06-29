@@ -163,3 +163,47 @@ The `SCollisionEvent` fields, all read from your entity's point of view.
 | `ImpactSpeed` | Speed along the normal (m/s) |
 | `IsTrigger` | `true` if the other side was a trigger or sensor |
 | `BodyID` / `OtherBodyID` | The Jolt body ids |
+
+## Projectiles
+
+`World.SpawnProjectile` fires a lightweight projectile entity. It sweeps forward
+every frame with a continuous raycast, so it never tunnels through thin walls,
+reports its first hit, and despawns after its lifetime. This is far cheaper than
+a full rigid body and runs entirely in the ECS.
+
+```csharp
+public sealed class Gun : EntityScript
+{
+    private void Fire(FVector3 muzzle, FVector3 aim)
+    {
+        Entity shot = World.SpawnProjectile(muzzle, aim * 60.0f, damage: 25.0f, lifetime: 5.0f);
+        World.Registry.Get<SProjectileComponent>(shot).OnHit.Bind(OnProjectileHit);
+    }
+
+    private void OnProjectileHit(SProjectileHitEvent hit)
+    {
+        Debug.Log($"hit {hit.HitEntity} at {hit.Point} for {hit.Damage}");
+    }
+}
+```
+
+The full overload also takes an `instigator` entity that the sweep ignores, so a
+projectile never hits whoever fired it:
+`World.SpawnProjectile(origin, velocity, damage, lifetime, instigator)`.
+
+Tune the spawned `SProjectileComponent` (or add it to an entity yourself in the
+editor, under **Gameplay**).
+
+| Field | Meaning |
+| --- | --- |
+| `Velocity` | World-space velocity (m/s) |
+| `GravityScale` | Multiplier on world gravity; 0 = a straight line |
+| `Radius` | Sweep radius; 0 = a thin ray, larger for a fatter projectile |
+| `Damage` | Carried in the hit event; you decide how to apply it |
+| `CollisionMask` | Which collision layers it can hit |
+| `bDestroyOnHit` | Destroy the projectile on its first hit |
+| `Instigator` | Entity the sweep ignores (the shooter) |
+| `OnHit` | Fired once on hit, with an `SProjectileHitEvent` |
+
+`SProjectileHitEvent` carries `Projectile`, `HitEntity`, `Point`, `Normal`, and
+`Damage`. The same API is available from C++ as `CWorld::SpawnProjectile`.

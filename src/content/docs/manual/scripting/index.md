@@ -141,8 +141,21 @@ per-entity, how to run scripts in parallel, and how hot reload behaves) see
 
 ## Attaching a script
 
-In the editor, add a **C# Script** component to an entity and set its **Script
-Class** to your script's type name (for example `Game.Player`). Press **Play** or
-**Simulate** to run it. To attach scripts at runtime, spawn a prefab that already
-carries a configured C# Script component (see
-[The World API](/manual/scripting/world/)).
+In the editor, add a **C# Script** component to an entity, then click **Add
+Script** and pick your script's type (for example `Game.Player`). An entity can
+carry **several scripts** at once, each with its own properties; they run
+independently. Press **Play** or **Simulate** to run them.
+
+Attach, read, and remove scripts at runtime too. From inside a script these act
+on its own entity:
+
+```csharp
+Weapon weapon = AddScript<Weapon>();   // attach a new script, returns the instance
+Weapon? w     = GetScript<Weapon>();   // the first Weapon on this entity, or null
+List<Weapon> all = GetScripts<Weapon>(); // every Weapon on this entity
+RemoveScript<Weapon>();                // remove the first Weapon
+```
+
+The same calls exist on the registry for any entity, e.g.
+`World.Registry.AddScript<Weapon>(entity)` or
+`World.Registry.GetScript<Weapon>(entity)`.

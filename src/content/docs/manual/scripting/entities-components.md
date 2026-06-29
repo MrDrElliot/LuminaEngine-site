@@ -167,3 +167,51 @@ Related attributes control persistence and hot reload.
 | `[Hide]` | Keeps the field from ever being serialized or shown. |
 | `[Alias("OldName")]` | A prior member name, so a saved value still loads after you rename the field. Repeatable. |
 | `[SkipHotReload]` | Resets the field to its default on a C# hot reload instead of carrying the old value. Also valid on the script class to reset all of its properties. |
+
+## Instanced properties
+
+An **instanced** property holds an owned instance of a type you pick in the
+inspector. Mark a `[Property]` field with `[Instanced]` and the Details panel
+shows a type picker of the concrete classes that derive from the field's
+declared type. Choose one and its own `[Property]` members edit inline, right
+below the picker. It is the value-type analog of swapping in a different
+behavior object per entity.
+
+```csharp
+// A family of behaviors. The field is typed as the base (here an interface).
+public interface ICommand { }
+
+public sealed class AttackCommand : ICommand
+{
+    [Property(Min = 0)] public float Damage = 10.0f;
+    [Property] public string Target = "Enemy";
+}
+
+public sealed class WaitCommand : ICommand
+{
+    [Property(Min = 0, Units = "s")] public float Seconds = 1.0f;
+}
+
+public sealed class Enemy : EntityScript
+{
+    // The picker offers AttackCommand and WaitCommand; the chosen one edits inline.
+    [Property(Category = "AI"), Instanced] public ICommand Command;
+}
+```
+
+The declared type can be an interface, an abstract class, or a concrete base
+class. When it is concrete, the base type is itself one of the choices.
+
+:::note
+Instancing is **opt-in only**. A field is never instanced unless it carries
+`[Instanced]`, whatever its declared type. A plain interface- or
+abstract-typed `[Property]` without it is skipped (it has no inline editor).
+:::
+
+A candidate type must be **default-constructible** (have a public parameterless
+constructor) so the editor and the loader can create it. The chosen value
+persists and round-trips by the concrete type's name, so it survives save,
+reload, and hot reload even though the rest of the picker is rebuilt each time.
+
+Arrays of instanced objects (`List<ICommand>`) are not supported yet; use a
+single instanced field.

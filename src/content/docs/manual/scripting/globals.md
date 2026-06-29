@@ -55,7 +55,8 @@ if (World.Registry.TryGet<SHealthComponent>(other) is { } health)
 | --- | --- |
 | `World.Registry.Get<T>(entity)` / `TryGet<T>` / `Has<T>` | read a component |
 | `World.Registry.Add<T>(entity)` / `GetOrAdd<T>` / `Remove<T>` | add or remove |
-| `World.Registry.GetScript<T>(entity)` | another entity's script |
+| `World.Registry.GetScript<T>(entity)` / `GetScripts<T>` | another entity's first script of type T, or all of them |
+| `World.Registry.AddScript<T>(entity)` / `RemoveScript<T>` | attach or detach a script (an entity may hold several) |
 | `World.Registry.All<T>()` | iterate every entity with a T |
 
 ## Trace
