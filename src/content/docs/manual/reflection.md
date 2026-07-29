@@ -141,6 +141,37 @@ chosen struct's name. The base `SCommand` only needs `REFLECT()` +
 `GENERATED_BODY()`. The same workflow is available to C# scripts through the
 `[Instanced]` attribute; see [Instanced properties](/manual/scripting/entities-components/#instanced-properties).
 
+### Container properties
+
+A `TVector<T>` property is a resizable list, and a `THashMap<K, V>` property is a
+key/value map. Both are `Editable`, serialize by walking their elements, and get
+a built-in editor in the Details panel with no extra work. `T`, `K`, and `V` can
+be any reflected type: a scalar, string, `FName`, enum, struct, or object
+reference.
+
+```cpp
+REFLECT(Component, Category = "Gameplay")
+struct RUNTIME_API SLootComponent
+{
+    GENERATED_BODY()
+
+    PROPERTY(Editable)
+    TVector<FName> Drops;
+
+    // Item id to spawn weight.
+    PROPERTY(Editable)
+    THashMap<FName, float> Weights;
+};
+```
+
+In the Details panel a list shows **Add** and **Clear** on its header with a
+numbered row per element; a map shows the same controls with one row per entry,
+the **key** edited inline on the left and the **value** on the right. A struct
+element or value expands to a nested table. **Map keys must be unique**, editing
+a key to one that already exists is rejected and reverts. The same containers are
+available to C# scripts as `List<T>` and `Dictionary<K, V>`; see
+[Collections](/manual/scripting/entities-components/#collections).
+
 ## Functions
 
 `FUNCTION(Script)` exposes a member function to C#, so a script can call it on

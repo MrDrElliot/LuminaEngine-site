@@ -27,6 +27,11 @@ The **Vulkan SDK** is optional. It is only needed for the validation layers in
 Debug builds; the engine bundles its own Vulkan headers and the loader ships with
 your GPU drivers.
 
+You also need a GPU and driver supporting **Vulkan 1.4**. The engine rejects
+anything older at startup with an explicit message, so update your drivers if you
+see it. Mesh and task shaders are used when available and skipped when they are
+not.
+
 <Aside type="note">
 `Setup.bat` checks all of this before it builds anything and prints exactly what
 is missing, so a fresh clone fails fast with a clear message instead of a cryptic
@@ -58,11 +63,11 @@ for you.
    bootstraps `premake5.exe` into `Tools/`, downloads and extracts the prebuilt
    dependency bundle (see [External dependencies](#external-dependencies)),
    persists the `LUMINA_DIR` environment variable, configures the git hooks, and
-   generates `Lumina.sln`.
+   generates `Lumina.slnx`.
 
 3. **Open the solution**
 
-   Open `Lumina.sln` in Visual Studio 2026.
+   Open `Lumina.slnx` in Visual Studio 2026.
 
 4. **Set the startup project**
 

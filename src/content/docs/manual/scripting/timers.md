@@ -4,7 +4,7 @@ description: Schedule one-shot and repeating callbacks against world time.
 ---
 
 Timers live on `World.Timers`. They run callbacks after a delay or on a repeat,
-measured in world time — so they pause when the world pauses and stop when it is
+measured in world time, so they pause when the world pauses and stop when it is
 destroyed.
 
 ```csharp
@@ -27,7 +27,7 @@ from the surrounding scope.
 | `SetTimerForEntity(owner, seconds, callback, loop, firstDelay)` | As `SetTimer`, but cleared automatically when `owner` is destroyed |
 
 `firstDelay` (default −1, meaning "same as the interval") overrides only the
-wait before the *first* fire — handy for staggering many loopers so they don't
+wait before the *first* fire, handy for staggering many loopers so they don't
 all run on the same frame.
 
 ```csharp
@@ -66,10 +66,10 @@ float Left = World.Timers.GetRemaining(Reload);   // seconds until next fire
 ## Lifetime
 
 One-shot timers (`Delay`, or `SetTimer` with `Loop: false`) release their
-callback automatically once they fire — you never have to clean them up.
+callback automatically once they fire, so you never have to clean them up.
 
 **Looping timers hold their callback until you cancel them.** Clear them before
-the world goes away — typically in `OnDetach`:
+the world goes away, typically in `OnDetach`:
 
 ```csharp
 private TimerHandle _heartbeat;

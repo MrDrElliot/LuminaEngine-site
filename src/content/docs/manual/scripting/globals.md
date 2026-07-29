@@ -1,12 +1,12 @@
 ---
 title: Globals & Helpers
-description: Ambient world access and the static engine APIs — Time, Trace, Sound, Gizmo, and entity sugar.
+description: Ambient world access and the static engine APIs, Time, Trace, Sound, Debug, Gizmo, and entity sugar.
 ---
 
 Most engine APIs hang off `World` (e.g. `World.Physics`, `World.Audio`). For the
 things you reach for constantly, there's a cleaner, s&box-style surface: **static
 APIs and entity extensions that resolve the world for you.** They work anywhere a
-gameplay callback is running — `OnUpdate`, `OnInput`, collision/perception
+gameplay callback is running: `OnUpdate`, `OnInput`, collision/perception
 callbacks, and inside `EntitySystem.OnUpdate`.
 
 ```csharp
@@ -26,7 +26,7 @@ public override void OnUpdate(float dt)
 
 `Game.World` is the world the current callback belongs to. The runtime sets it
 around every script and system callback, so the statics below never need a world
-passed in. Outside a callback (e.g. a worker thread) `Game.World` throws — check
+passed in. Outside a callback (e.g. a worker thread) `Game.World` throws, so check
 `Game.InWorld` if you're unsure.
 
 ## Time
@@ -36,12 +36,12 @@ float dt  = Time.Delta;   // seconds since last frame
 double t  = Time.Now;     // seconds since the world started
 ```
 
-No need to thread the `OnUpdate(float dt)` argument through your helpers —
+No need to thread the `OnUpdate(float dt)` argument through your helpers,
 `Time.Delta` reads the current frame's delta anywhere.
 
 ## Components
 
-`Entity` is a plain id — components are reached through `World.Registry`, keyed
+`Entity` is a plain id, so components are reached through `World.Registry`, keyed
 by entity:
 
 ```csharp
@@ -61,7 +61,7 @@ if (World.Registry.TryGet<SHealthComponent>(other) is { } health)
 
 ## Trace
 
-`Trace` is a fluent physics query — build it, then `Run()` (closest hit) or
+`Trace` is a fluent physics query: build it, then `Run()` (closest hit) or
 `RunAll()` (every hit, near to far). It wraps the same engine queries as
 `World.Physics` with a cleaner shape.
 
@@ -98,6 +98,17 @@ engine.Stop(fadeOut: true);
 `Position`, and `Looping` are settable, plus `Stop()`. (This is the static, code-
 first counterpart to the [`World.Audio`](/manual/scripting/audio/) facade.)
 
+## Debug
+
+```csharp
+Debug.Log($"picked up {item}");
+Debug.LogWarning("no spawn point assigned");
+Debug.LogError("target prefab failed to load");
+```
+
+Goes to the console, `Lumina.log`, and the editor's Output Log, tagged `[C#]`.
+See [Logging](/manual/logging/).
+
 ## Gizmo
 
 Immediate-mode debug drawing (Dev/Debug builds only). Set the state once, then
@@ -118,7 +129,7 @@ so it works in any color parameter. Handy direction constants live on
 
 ## Async with GameTask
 
-`GameTask` gives real `await` on the game thread — the continuation resumes on
+`GameTask` gives real `await` on the game thread, the continuation resumes on
 the game thread with the world still available, so you can touch the world right
 after awaiting.
 
@@ -141,13 +152,13 @@ public override async void OnReady()
 | `GameTask.LoadAsync<T>(path)` | when the asset finishes loading (returns it) |
 
 Pass `DestroyToken` (a `CancellationToken` on every `EntityScript`) so a pending
-await cancels cleanly when the entity is destroyed — otherwise the continuation
+await cancels cleanly when the entity is destroyed, otherwise the continuation
 would run after the script is gone.
 
 :::caution
 These are for the **game thread** only. A `GameTask` await resumes on the game
 thread (don't `ConfigureAwait(false)` it), so the world is live after it. For
-parallel CPU work use [`Task`](/manual/scripting/tasks/) (the job system) — and
+parallel CPU work use [`Task`](/manual/scripting/tasks/) (the job system), and
 don't touch the world from a worker task body.
 :::
 

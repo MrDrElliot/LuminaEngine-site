@@ -27,8 +27,8 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 <CardGrid>
   <Card title="Vulkan renderer" icon="rocket">
-    A bindless, clustered forward renderer with cascaded shadows, image-based
-    lighting, volumetric fog, and a Slang shader pipeline.
+    A bindless, GPU-driven renderer with clustered lighting, cascaded shadows,
+    image-based lighting, volumetric fog, and a Slang shader pipeline.
   </Card>
   <Card title="Data-driven world" icon="puzzle">
     An EnTT entity-component world with a reflection system that powers the
@@ -53,4 +53,5 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
   <LinkCard title="Entities & Components" description="Build scenes from entities and components." href="/manual/ecs/" />
   <LinkCard title="C# Scripting" description="Write gameplay against a typed API." href="/manual/scripting/" />
   <LinkCard title="Physics" description="Rigid bodies, collisions, and raycasts." href="/manual/physics/" />
+  <LinkCard title="Engine Internals" description="How the engine is built, for people working on it." href="/internals/" />
 </CardGrid>

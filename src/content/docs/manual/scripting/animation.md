@@ -7,9 +7,9 @@ Animation lives on `World.Animation`. Every method takes the **entity** you want
 to animate, which needs a skeletal mesh for the pose to show. There are two ways
 to drive it, and you pick per entity by which component it has:
 
-- **A single clip** — play one animation directly (attacks, reactions,
+- **A single clip**, play one animation directly (attacks, reactions,
   one-shots). Backed by `SSimpleAnimationComponent`.
-- **An animation graph** — a state machine you steer by setting named
+- **An animation graph**, a state machine you steer by setting named
   parameters (locomotion, blends). Backed by `SAnimationGraphComponent`.
 
 ## Playing a single clip
@@ -50,8 +50,9 @@ if (World.Animation.IsFinished(Entity))
 ## Driving an animation graph
 
 A graph is a state machine authored in the editor. You don't tell it which clip
-to play — you set **parameters**, and its transitions decide. Parameters are
-named floats and bools, resolved by name.
+to play. You set **parameters**, and its transitions decide. Parameters are
+named values, resolved by name, declared by the graph's
+[blackboard](/manual/scripting/blackboard/).
 
 ```csharp
 World.Animation.SetFloat(Entity, "Speed", Velocity.Length);
@@ -68,7 +69,16 @@ World.Animation.SetBool(Entity, "Jump", JumpPressed);
 | `HasParameter(entity, name)` | `true` if the graph declares that parameter |
 
 Setting a parameter the graph doesn't declare is a no-op, so it's safe to push
-values speculatively. A typical locomotion update looks like this:
+values speculatively.
+
+A graph's parameters are declared by the [blackboard](/manual/scripting/blackboard/)
+assigned to it, and on an entity that has a **Blackboard Component** the live
+values live there, and the calls above write straight through to it, so both
+styles agree. Reach for the blackboard directly when the same values are shared
+with AI or other scripts; reach for `World.Animation` when animation is all you
+need.
+
+A typical locomotion update looks like this:
 
 ```csharp
 public override void OnUpdate(float DeltaTime)

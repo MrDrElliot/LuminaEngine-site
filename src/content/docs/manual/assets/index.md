@@ -46,7 +46,7 @@ The asset types you will work with.
 | **Prefab** | A saved entity hierarchy. |
 | **Data Asset** / **Schema** | Custom data and the shape that defines it. |
 | **Entity Component Type** | A data-authored component. |
-| **Blackboard** | Typed keys for AI and animation. |
+| **Blackboard** | Typed keys for AI and animation, see [Blackboards](/manual/scripting/blackboard/). |
 | **Font** | A typeface. |
 | **World** | A level. |
 

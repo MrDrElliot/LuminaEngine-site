@@ -57,6 +57,12 @@ public sealed class Guard : EntityScript
 That is the whole loop for most AI: get told when a target appears, get told
 when it is lost, and use the queries below for everything in between.
 
+A common next step is to park what you sensed in a
+[blackboard](/manual/scripting/blackboard/), writing the target into an `Entity`
+key and its position into a `Vector` key, so the rest of your AI (and the
+character's animation graph) reads one shared store instead of the perception
+events directly.
+
 ## The perceiver
 
 `SPerceptionComponent` declares which senses run and how far they reach. Every
@@ -80,8 +86,8 @@ sight.
 `SightRadius` and `LoseSightRadius` form a **hysteresis** band: a target is
 acquired only inside the tighter `SightRadius` *and* the FOV cone, but once
 seen it is retained out to the larger `LoseSightRadius` regardless of angle.
-This stops a target that steps to the perceiver's side — faster than the AI can
-physically turn — from being dropped and re-acquired every scan. Keep
+This stops a target that steps to the perceiver's side, faster than the AI can
+physically turn, from being dropped and re-acquired every scan. Keep
 `LoseSightRadius >= SightRadius`.
 
 Line of sight is a physics raycast from the eye to the source's
@@ -90,7 +96,7 @@ Line of sight is a physics raycast from the eye to the source's
 
 ### Hearing
 
-Hearing is **event-driven** — nothing is scanned. Call
+Hearing is **event-driven**, nothing is scanned. Call
 `World.Perception.ReportNoise` when something makes a sound, and every perceiver
 within range that cares about the instigator hears it.
 
@@ -130,7 +136,7 @@ the damage amount.
 | --- | --- | --- |
 | `ForgetTime` | `5` s | How long a lost target is remembered before `OnTargetLost` fires. |
 | `UpdateInterval` | `0.1` s | Minimum seconds between sight scans for this perceiver. |
-| `DetectableTags` | *(empty)* | Affiliation filter — see below. Empty senses everyone. |
+| `DetectableTags` | *(empty)* | Affiliation filter, see below. Empty senses everyone. |
 
 While a target is sensed its memory timer is held at zero. When it slips out of
 sight (or a heard/damaged target's momentary stimulus ends) the timer counts up;
@@ -139,7 +145,7 @@ seen. Only after `ForgetTime` elapses is the target truly forgotten and
 `OnTargetLost` raised.
 
 `UpdateInterval` spreads sight cost across frames: raising it makes a crowd of
-AI cheaper at the cost of slower reaction. Hearing and damage are unaffected —
+AI cheaper at the cost of slower reaction. Hearing and damage are unaffected,
 they always apply the tick they are reported.
 
 ## The source
@@ -152,7 +158,7 @@ To be perceivable, an entity needs an `SAIStimuliSourceComponent`.
 | `RegisteredSenses` | Sight \| Hearing | Which passive senses this source can be detected by. |
 | `SightTargetOffset` | `(0, 1.0, 0)` | Aim point offset (along up) so LoS rays target the torso, not the floor. |
 
-`RegisteredSenses` gates passive detection only — damage is always reported
+`RegisteredSenses` gates passive detection only, damage is always reported
 explicitly via `ReportDamage`, so a source need not register for it.
 
 ## Affiliation: who can sense whom
@@ -164,7 +170,7 @@ Sight and hearing are filtered by **gameplay tags**:
 - The perceiver senses the source only when `DetectableTags` matches **any** of
   the source's `AffiliationTags`.
 
-An **empty** `DetectableTags` filter senses everyone — handy for an omniscient
+An **empty** `DetectableTags` filter senses everyone, handy for an omniscient
 sensor or while prototyping. Damage ignores affiliation entirely.
 
 ```csharp
@@ -203,7 +209,7 @@ its event sink.
 
 ## Querying perceived state
 
-Use `World.Perception` for follow-up logic between events — checking whether a
+Use `World.Perception` for follow-up logic between events, like checking whether a
 known target is *still* visible, picking the nearest threat, or doing a one-off
 line-of-sight test.
 
@@ -214,7 +220,7 @@ line-of-sight test.
 | `GetPerceivedTargets(perceiver, Span<uint>)` | Allocation-free variant into a caller buffer; returns the count. |
 | `CanSense(perceiver, target)` | `true` if sensed right now by any channel. |
 | `CanSense(perceiver, target, sense)` | `true` if sensed by that specific channel this tick. |
-| `GetLastKnownLocation(perceiver, target)` | `FVector3?` — last seen position, or `null` if not remembered. |
+| `GetLastKnownLocation(perceiver, target)` | `FVector3?`, last seen position, or `null` if not remembered. |
 | `HasLineOfSight(from, to)` | One-shot LoS test between two entities (eye/aim offsets applied). |
 
 ```csharp
@@ -225,7 +231,7 @@ if (Threat != Entity.Null && World.Perception.CanSense(Entity, Threat, EAISenseC
 }
 else if (World.Perception.GetLastKnownLocation(Entity, Threat) is FVector3 LastSeen)
 {
-    // Sound or memory only — investigate where we last had eyes on it.
+    // Sound or memory only, investigate where we last had eyes on it.
     MoveTo(LastSeen);
 }
 ```
@@ -251,7 +257,7 @@ World.Perception.RegisterAsSource(Pickup, GameplayTag.Request("Team.Red"),
     EAISenseChannel.Sight | EAISenseChannel.Hearing);
 ```
 
-For richer tag sets, author the component in the editor — `RegisterAsSource`
+For richer tag sets, author the component in the editor, `RegisterAsSource`
 adds a single affiliation tag as a convenience.
 
 ## Debugging
@@ -273,7 +279,7 @@ The system is built to scale to a crowd of perceivers:
 - Stimulus sources are gathered into a **spatial grid** each tick, so a
   perceiver only tests sources inside its sight radius rather than the whole
   world.
-- The per-perceiver sight scan — including the line-of-sight raycasts — runs in
+- The per-perceiver sight scan, including the line-of-sight raycasts, runs in
   **parallel** across the job system.
 - `UpdateInterval` throttles each perceiver's sight scan; hearing and damage are
   zero-cost until something is reported.

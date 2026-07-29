@@ -8,11 +8,16 @@ You do not write rendering code. You drive the renderer with **materials**,
 assets and components. Every property below appears in the Details panel, so
 this page is a map of what controls what, not an exhaustive list.
 
-Under the hood it is a clustered forward Vulkan renderer with a Slang shader
-pipeline, bindless resources, and GPU-driven culling. You never touch that
-directly. If you do need to run your own GPU work, a custom compute pass or a
-procedural texture, the renderer's Vulkan abstraction is exposed to C# scripts.
-See [Low-Level Rendering (RHI)](/manual/scripting/rhi/).
+Under the hood it is a bindless Vulkan renderer with a Slang shader pipeline and
+GPU-driven culling: opaque meshes go through a visibility buffer and are shaded
+in a deferred material pass, terrain renders forward with a depth pre-pass, and
+lights are assigned to clusters. You never touch that directly. If you do need to
+run your own GPU work, a custom compute pass or a procedural texture, the
+renderer's Vulkan abstraction is exposed to C# scripts. See
+[Low-Level Rendering (RHI)](/manual/scripting/rhi/).
+
+If you are working on the renderer itself rather than driving it, see
+[Render Passes](/internals/render-passes/) and [RHI](/internals/rhi/).
 
 ## Materials
 

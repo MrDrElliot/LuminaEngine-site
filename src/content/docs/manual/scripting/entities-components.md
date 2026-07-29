@@ -168,6 +168,30 @@ Related attributes control persistence and hot reload.
 | `[Alias("OldName")]` | A prior member name, so a saved value still loads after you rename the field. Repeatable. |
 | `[SkipHotReload]` | Resets the field to its default on a C# hot reload instead of carrying the old value. Also valid on the script class to reset all of its properties. |
 
+## Collections
+
+A `List<T>` or `T[]` field is a resizable list, and a `Dictionary<K, V>` field is
+a key/value map. Both edit in the Details panel: a list adds a numbered row per
+element, a map adds one row per entry with the **key** on the left and the
+**value** on the right, each with Add, Clear, and per-row remove controls.
+
+```csharp
+[Property] public List<float> Cooldowns;
+[Property] public Dictionary<string, int> Ammo;
+```
+
+The element, key, and value can be any type that works as a plain `[Property]`: a
+number, `bool`, `string`, enum, vector, a reflected struct (edits inline as a
+nested table), or an asset or entity reference. A map **key** must additionally be
+a value the inspector can edit inline, a number, `string`, or enum; a struct key
+is shown read-only. **Map keys are unique**, editing one to a key that already
+exists reverts with a warning.
+
+A collection cannot nest directly as a map value (for example
+`Dictionary<string, List<int>>` is skipped); wrap it in a reflected struct
+instead. Put `[Instanced]` on a `Dictionary<K, V>` to make each **value** an
+instanced object with its own type picker, the same way it works on a list.
+
 ## Instanced properties
 
 An **instanced** property holds an owned instance of a type you pick in the
@@ -213,5 +237,22 @@ constructor) so the editor and the loader can create it. The chosen value
 persists and round-trips by the concrete type's name, so it survives save,
 reload, and hot reload even though the rest of the picker is rebuilt each time.
 
-Arrays of instanced objects (`List<ICommand>`) are not supported yet; use a
-single instanced field.
+### Lists of instanced objects
+
+Put `[Instanced]` on a `List<T>` (or `T[]`) and each element becomes its own
+instanced object: every entry has its own type picker and its own inline editor,
+so a single list can mix concrete types. The attribute applies to the elements,
+not the list.
+
+```csharp
+public sealed class Enemy : EntityScript
+{
+    // A list where each element picks its own command type and edits inline.
+    [Property(Category = "AI"), Instanced] public List<ICommand> Commands;
+}
+```
+
+Add, remove, and reorder elements with the usual list controls. Each element
+follows the same rules as a single instanced field: the candidate type must be
+default-constructible, and the value round-trips by the concrete type's name
+through save, reload, and hot reload.
