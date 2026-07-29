@@ -34,8 +34,7 @@ in the **World Settings** panel, see [Editor](/manual/editor/).
 
 ## Coordinate space
 
-Lumina is **left-handed**, **Y-up**, and measured in **meters**. If you have
-used Unity, this is the same convention.
+Lumina is **left-handed**, **Y-up**, and measured in **meters**.
 
 | Axis | Direction | Identity value |
 | --- | --- | --- |

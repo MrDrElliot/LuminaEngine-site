@@ -35,7 +35,7 @@ If you are looking for something to contribute, this is the list.
 
 | Topic | Status |
 | --- | --- |
-| **Generated API reference** | Deferred. A class reference generated from the reflection database (Godot's ClassDB style) is the intended eventual home for per-type and per-property documentation. The hand-written manual comes first. |
+| **Generated API reference** | Deferred. A class reference generated from the reflection database is the intended eventual home for per-type and per-property documentation. The hand-written manual comes first. |
 
 ## Ground rules for filling a gap
 

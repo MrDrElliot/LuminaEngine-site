@@ -8,10 +8,11 @@ components' data classes, the world, the game instance. If a type needs
 reflection, serialization, an editor property grid, or a path you can reference
 by name, it is a `CObject`.
 
-The system is deliberately close to Unreal's shape (classes, class default
-objects, packages, path names), but the lifetime model is different: **Lumina
-reference counts objects, it does not trace them**. There is no mark and sweep
-pass.
+The system is built from four ideas: a runtime class per type, a class default
+object holding declared defaults, packages as both namespace and storage unit,
+and path names for addressing. Lifetime is the part worth stating up front:
+**Lumina reference counts objects, it does not trace them**. There is no mark
+and sweep pass.
 
 ## The pieces
 
