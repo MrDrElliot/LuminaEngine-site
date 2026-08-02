@@ -15,53 +15,67 @@ any number of plugins discovered at startup.
 
 ## Declaring a module
 
-Modules are declared in Premake with `LuminaModule` (`BuildScripts/Module.lua`):
+A module is a directory containing a `<Name>.Build.cs`, a C# rules file that
+LuminaBuildTool compiles and executes:
 
-```lua
-LuminaModule({
-    Name = "Runtime",
-    Kind = "SharedLib",
-    PCH = { Header = "pch.h", Source = "pch.cpp" },
-    Reflection = true,
-    PublicIncludeDirs = { "." },
-    PrivateDefines = { "LUMINA_RENDERER_VULKAN", "VK_NO_PROTOTYPES" },
-    Dependencies = LuminaThirdParty.RuntimePublicDeps,
-})
+```csharp
+using LuminaBuildTool.Configuration;
+
+public class Runtime : LuminaModuleRules
+{
+    public Runtime(TargetInfo Target)
+        : base(Target)
+    {
+        BinaryType = ModuleBinaryType.SharedLibrary;
+
+        PrecompiledHeader = new PrecompiledHeaderRules("RuntimePCH.h", "Source/RuntimePCH.cpp");
+
+        PublicIncludePaths.Add("Source");
+
+        PrivateDefinitions.AddRange(new[] { "LUMINA_RENDERER_VULKAN", "VK_NO_PROTOTYPES" });
+
+        PublicDependencyModuleNames.AddRange(new[] { "EA", "Entt", "Vulkan" });
+    }
+}
 ```
 
-`LuminaModule` handles the parts that are easy to get wrong:
+There is no source list. Every `.cpp` and `.h` under the rules file's directory is
+the module's source, discovered at build time. The tool handles the parts that are
+easy to get wrong:
 
-- Defines `<NAME>_EXPORTS` for the module itself, so its API macro resolves to
-  `__declspec(dllexport)` when compiling it and `dllimport` everywhere else.
-- Propagates public include directories and public defines transitively through
-  `ModuleDependencies`, including the include directories of third-party
-  dependencies.
-- Registers the module in the global `LuminaModules` table so dependents can
-  resolve it.
-- Wires the reflection step when `Reflection = true`.
+- Defines the module's `<NAME>_API` macro, resolving export versus import from the
+  dependency graph.
+- Propagates public include paths and public definitions transitively through
+  `PublicDependencyModuleNames`, while private settings stop at the declaring
+  module.
+- Wires the reflection step for modules with reflected types.
 
 See [Build System](/internals/build-system/) for the full option set.
 
 ## API macros
 
-`Engine/Source/Runtime/ModuleAPI.h` is force-included in every translation unit
-and resolves the per-module export macros from the `*_EXPORTS` define. Adding a
-module means adding a block here:
+Mark anything other modules need with your module's API macro:
 
 ```cpp
-#ifndef RUNTIME_API
-    #ifdef RUNTIME_EXPORTS
-        #define RUNTIME_API DLL_EXPORT
-    #else
-        #define RUNTIME_API DLL_IMPORT
-    #endif
-#endif
+class RUNTIME_API FRenderManager
+{
+    ...
+};
 ```
 
-Two exceptions are worth remembering:
+LuminaBuildTool defines `<NAME>_API` on the compiler command line, for the module
+being compiled and for every shared library in its dependency closure, resolving
+`DLL_EXPORT` versus `DLL_IMPORT` from the graph. There is no header to edit and
+nothing to register, which is what lets an out-of-tree game or plugin module have
+an API macro at all. Third-party modules are skipped, because a vendored library
+is entitled to that name for its own purposes.
 
-- In a monolithic build (`LUMINA_MONOLITHIC`) the macros are defined empty
-  before the per-module blocks run, so everything links statically.
+`Engine/Source/Runtime/Source/ModuleAPI.h` is force-included in every translation
+unit and holds only what cannot be derived that way. Two things are worth
+remembering:
+
+- In a monolithic build (`LUMINA_MONOLITHIC`) the per-module macros are defined
+  empty, so everything links statically.
 - `LUMINA_SCRIPT_API` is **always** `DLL_EXPORT`, in every build mode. The C#
   interop thunks are resolved by name at runtime through `GetProcAddress` /
   `NativeLibrary.TryGetExport`, never linked, so they must appear in an export
@@ -118,8 +132,8 @@ A plugin is a folder under `Engine/Plugins/<Name>` (engine plugins) or under a
 project's `Plugins` folder, containing:
 
 - `<Name>.lplugin`, a JSON descriptor.
-- `<Name>.lua`, the Premake declaration for its modules.
-- `Source/`, and optionally `Content/` and `Binaries/`.
+- `Source/<Module>/<Module>.Build.cs` for each module the descriptor lists.
+- Optionally `Content/` and `Binaries/`.
 
 A descriptor looks like this:
 
@@ -141,9 +155,10 @@ A descriptor looks like this:
 }
 ```
 
-`LuminaDiscoverEnginePlugins()` in the root `premake5.lua` turns every
-`Engine/Plugins/<Name>/<Name>.lua` into a project automatically, so adding a
-plugin needs no edit to the root script.
+LuminaBuildTool discovers plugins by scanning for `.lplugin` descriptors, so
+adding a plugin needs no edit to anything above it. The descriptor is the single
+source of truth for the plugin's identity and its module list, and every module it
+names needs a matching `.Build.cs` under `Source/`.
 
 At runtime, `FPluginManager::DiscoverEnginePlugins()` runs first in
 `FEngine::Init`, before any subsystem. A project's `.lproj` may override the

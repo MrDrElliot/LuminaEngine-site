@@ -25,12 +25,12 @@ For the user-facing view of panels and workflows see the
 | `LoadStartupMap()` | **Deliberately a no-op.** The editor does not auto-load a world; the user picks one. |
 | `GetCurrentEditorWorld()` | The active editor world. |
 | `CreateProject(...)` | Creates a project on disk from the Blank template, returns the generated `.lproject` path or a human-readable error. |
-| `CreatePlugin(...)` | Scaffolds a project-local plugin from the Plugin template: the `.lplugin`, the Premake `.lua`, and a Runtime plus Editor module pair. Requires a loaded project, and project files must be regenerated afterward. |
-| `GenerateProjectFiles(Dir)` | Runs the project's `GenerateProject.bat` in a detached console so the user watches Premake's output. |
+| `CreatePlugin(...)` | Scaffolds a project-local plugin from the Plugin template: the `.lplugin` descriptor plus a Runtime and an Editor module, each with its own `.Build.cs`. Requires a loaded project, and project files must be regenerated afterward. |
+| `GenerateProjectFiles(Dir)` | Runs the project's `GenerateProject.bat` on a worker thread, streaming LuminaBuildTool's output into the editor log. |
 
 The canonical new-project path is the editor's own project browser: launch with
 no project, the Open Project dialog appears, Create New Project copies the Blank
-template and runs Premake, then Open Solution.
+template and runs LuminaBuildTool, then Open Solution.
 
 ## FEditorUI
 

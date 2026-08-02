@@ -90,8 +90,9 @@ the target range, so:
   (set from `__AVX2__` or `__FMA__`).
 
 The baseline must stay in sync across the `/arch` flag, the `__AVX__` define, and
-the Premake `vectorextensions` setting for modules and game projects. Changing
-one without the others produces code that runs until it does not.
+the `VectorExtensions` setting in `Engine/Build/Lumina.BuildRules.cs`, which
+applies to engine modules and game projects alike. Changing one without the
+others produces code that runs until it does not.
 
 `SIMD::kAlignment` is 32, the natural alignment for the widest register. Buffers
 fed to `LoadAligned` and `StoreAligned` must meet it; `Load` and `Store` are the

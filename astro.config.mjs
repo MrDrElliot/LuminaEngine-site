@@ -43,6 +43,7 @@ export default defineConfig({
           label: 'Engine',
           items: [
             { label: 'Overview', slug: 'manual/overview' },
+            { label: 'Building & Modules', slug: 'internals/build-system' },
             { label: 'Reflection', slug: 'manual/reflection' },
             { label: 'Logging', slug: 'manual/logging' },
           ],
@@ -177,7 +178,6 @@ export default defineConfig({
             { label: 'Editor Architecture', slug: 'internals/editor-architecture' },
             { label: 'Platform Layer', slug: 'internals/platform' },
             { label: 'Diagnostics', slug: 'internals/diagnostics' },
-            { label: 'Build System', slug: 'internals/build-system' },
           ],
         },
         {

@@ -125,7 +125,7 @@ anything reads a file.
 ## Process
 
 `Platform/Process` wraps process creation and control. `PlatformProcess` is what
-launches the build tools, opens the generated solution, and runs the premake
+launches the build tools, opens the generated solution, and runs project file
 regeneration from the editor.
 
 `Platform::EnableHighResolutionTiming()` / `DisableHighResolutionTiming()` bracket

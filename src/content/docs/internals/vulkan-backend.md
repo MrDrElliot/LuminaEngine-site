@@ -220,8 +220,8 @@ geometry lands clockwise in framebuffer space.
   `VK_ERROR_DEVICE_LOST`: the address ranges and, where the driver provides it,
   the offending vendor-specific info.
 - **Nsight Aftermath** is wired through `VK_NV_device_diagnostics_config` on
-  NVIDIA. The Aftermath DLL is copied next to the executable by the Runtime
-  module's Premake script.
+  NVIDIA. The Aftermath DLL is declared a runtime dependency in
+  `NvidiaAftermath.Build.cs` and copied next to the executable by the build tool.
 - **Debug markers** (`CmdBeginMarker` / `CmdEndMarker`) name every pass, so a
   crash dump points at a pass rather than an opaque command buffer offset. An
   unbalanced marker corrupts the label stack for the rest of the frame, so every

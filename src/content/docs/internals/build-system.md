@@ -1,294 +1,261 @@
 ---
 title: Build System
-description: Premake modules, feature options, the reflection step, and environment variables.
+description: LuminaBuildTool, targets, modules, plugins, and the rules files that describe them.
 ---
 
-Lumina builds with **Premake 5** into a Visual Studio solution. There is no
-CMake, and no in-house build tool beyond the Premake modules under
-`BuildScripts`.
+Lumina builds with **LuminaBuildTool** (LBT), its own build tool. You describe what to
+build in small C# files next to your code, and LBT works out the rest: dependency order,
+what needs recompiling, and the IDE projects.
 
-For first-time setup instructions see
-[Installation](/getting-started/installation/). This page covers how the build is
-put together.
+There is no CMake and no Premake. Visual Studio is used as a compiler and a place to
+debug, not as the build system.
 
-## Layout
+## Building
 
-| File | Role |
-| --- | --- |
-| `premake5.lua` (root) | The workspace: groups, project includes, third-party list, plugin discovery. |
-| `BuildScripts/Dependencies.lua` | `LuminaConfig`: paths, output directories, `LUMINA_DIR` resolution. |
-| `BuildScripts/Workspace.lua` | `LuminaWorkspaceSettings`: configurations, per-config defines and flags. |
-| `BuildScripts/Module.lua` | `LuminaModule`: the module declaration helper. |
-| `BuildScripts/ThirdParty.lua` | Third-party library definitions and include resolution. |
-| `BuildScripts/Options.lua` | Feature toggles (Tracy, validation, Aftermath, verbose logging). |
-| `BuildScripts/BuildConfig.lua` | User-editable defaults for those toggles. |
-| `BuildScripts/Plugin.lua`, `PluginDiscovery.lua` | Plugin projects and automatic discovery. |
-| `BuildScripts/CSharpProject.lua` | C# project support (`dotnetrawprops`, `dotnetrawitems`). |
-| `BuildScripts/GameProject.lua` | Standalone game project generation. |
-| `BuildScripts/Actions/*.lua` | Custom Premake actions: `setup`, `Reflection`, `Clean`. |
-| `BuildScripts/ReflectionGen.lua` | The `ReflectionGen` utility project. |
-| `Setup.bat`, `GenerateProjectFiles.bat` | Entry points. |
+From the engine root:
 
-## Setup
-
-`Setup.bat`:
-
-1. Sets `LUMINA_DIR` to the repository root and warns if a **different** value
-   was previously persisted, because a stale value produces "wrong engine
-   linked" errors. Tooling started before the change (Visual Studio, Rider, the
-   taskbar) keeps the old value until restarted.
-2. Runs `BuildScripts/CheckPrerequisites.ps1` unless `SKIP_PREREQ_CHECKS=1`.
-3. Bootstraps `Tools/premake5.exe` (5.0.0-beta2) by downloading it if missing,
-   using `curl.exe` and `tar.exe`, both present on Windows 10 1803 and later. No
-   Python is required.
-4. Runs `premake5 setup`, which fetches and verifies `External.zip`, configures
-   git hooks, and persists `LUMINA_DIR` with `setx`.
-5. Generates the solution.
-
-`premake5 setup` is loaded before the workspace is evaluated and returns early,
-so it works on a fresh clone where the engine tree does not exist yet:
-
-```lua
-include "BuildScripts/Actions/Setup"
-if _ACTION == "setup" then return end
+```bat
+LuminaBuild.bat Build Lumina -TargetType=Editor -Configuration=Development
 ```
 
-`LUMINA_SETUP_YES` (or `--yes`) skips the interactive confirmation, which is what
-CI uses.
+Or generate a solution and press F5:
 
-### Prerequisites
-
-`CheckPrerequisites.ps1` distinguishes hard failures (blocking) from soft
-warnings:
-
-- Windows tooling (`curl.exe`, `tar.exe`, PowerShell).
-- The required **.NET SDK** major version, for the C# projects.
-- A **Visual Studio** version new enough to target `net10.0`.
-- The **Vulkan SDK**, located through its environment variable.
-
-### Regenerating
-
-`GenerateProjectFiles.bat` runs `premake5 vs2026` and produces `Lumina.slnx`.
-Extra arguments pass straight through to Premake:
-
-```bash
-GenerateProjectFiles.bat --tracy=off
+```bat
+GenerateProjectFiles.bat
 ```
 
-**Regenerate after adding or removing any source file.** The reflection step's
-input list comes from Premake, not from a directory scan, so a new header is
-invisible to the Reflector until the solution is regenerated.
+Useful options:
 
-## Configurations
-
-Three configurations, all 64-bit Windows:
-
-| Configuration | Characteristics |
+| Option | What it does |
 | --- | --- |
-| `Debug` | Unoptimized. Defines `LE_DEBUG`, `LUMINA_DEBUG`, `_DEBUG`, `DEBUG`. Validation and Tracy on by default. |
-| `Development` | Optimized with symbols. Target suffix `-Development`. The normal working configuration. |
-| `Shipping` | Fully optimized. Defines `NDEBUG`, `LE_SHIPPING`, `LUMINA_SHIPPING`, and **`LUMINA_MONOLITHIC`**. |
+| `-Configuration=Debug\|Development\|Shipping` | Which configuration to build |
+| `-TargetType=Editor\|Game\|Program` | Editor build, standalone game, or a tool |
+| `-Project=<path>` | Build a game project instead of the engine |
+| `-Clean` | Delete outputs first |
+| `-NoUnity` | Compile every file separately, see [Unity builds](#unity-builds) |
+| `-DryRun` | List what would rebuild without doing it |
 
-`LUMINA_CONFIGURATION_NAME` is defined as the configuration string and is part of
-the [module ABI signature](/internals/modules-and-plugins/), which is why mixing
-configurations across module boundaries is refused rather than silently
-corrupting the heap.
+## The three things you declare
 
-Shipping is **monolithic**: every module links statically into the executable.
-`IMPLEMENT_MODULE` switches to intrusive static registration, the API macros
-become empty, and interop thunks land in the executable's export table (which is
-why `LUMINA_SCRIPT_API` is always `dllexport`).
+**A target** is something you can build and run: the editor, a game, a tool. Declared in
+`<Name>.Target.cs`.
 
-## Feature options
+**A module** is one library. It compiles to a DLL and is the unit of dependency. Declared
+in `<Name>.Build.cs`.
 
-`BuildScripts/Options.lua` resolves four toggles from three sources, in
-increasing priority: the auto policy, `BuildConfig.lua`, then command-line flags.
+**A plugin** is a folder of modules that can be switched on and off per project. Declared
+in `<Name>.lplugin`.
 
-| Option | Flag | Auto policy |
-| --- | --- | --- |
-| Tracy profiler | `--tracy=auto\|on\|off` | On in Debug and Development. |
-| Vulkan validation and sync layers | `--validation=auto\|on\|off` | On in Debug only. |
-| NVIDIA Aftermath crash dumps | `--aftermath=auto\|on\|off` | On in Debug and Development, **and only when an NVIDIA GPU is detected**. |
-| Verbose logging (`LOG_TRACE` / `DEBUG` / `INFO`) | `--verbose-logging=auto\|on\|off` | Kept in Debug and Development, stripped in Shipping. Warn, error, and critical are always kept. |
+A target names one launch module, and pulls in whatever that module depends on.
 
-The NVIDIA probe shells out to `Get-CimInstance Win32_VideoController`, falling
-back to `wmic`, and the result is cached on `LuminaConfig` so it runs once per
-generation.
+## Modules
 
-`BuildConfig.lua` is the place to record a persistent preference:
+A module is a folder with a `.Build.cs` in it. Everything beside the file is its source.
 
-```lua
-return {
-    Tracy          = "auto",
-    Validation     = "auto",
-    Aftermath      = "auto",
-    VerboseLogging = "auto",
+```
+Source/Combat/
+├── Combat.Build.cs
+├── CombatComponent.h
+└── CombatComponent.cpp
+```
+
+```csharp
+using LuminaBuildTool.Configuration;
+
+public class Combat : LuminaModuleRules
+{
+    public Combat(TargetInfo Target)
+        : base(Target)
+    {
+        PublicDependencyModuleNames.Add("Runtime");
+
+        PrivateDependencyModuleNames.Add("JoltPhysics");
+    }
 }
 ```
 
-Toggles are baked in at generation time, so **regenerate after editing them**.
-Turning Tracy on also adds the Tracy third-party project to the workspace.
+That is a complete module. No source list, no project file, no registration anywhere
+else. Add a `.cpp` and it compiles on the next build.
 
-`--with-tests` adds the Tests project and its GoogleTest dependency. It is off by
-default because it costs roughly 22 seconds on a clean build.
+### Public versus private
 
-## Declaring a module
+This is the one distinction worth understanding.
 
-```lua
-LuminaModule({
-    Name              = "MyModule",
-    Kind              = "SharedLib",
-    PCH               = { Header = "pch.h", Source = "pch.cpp" },
-    Reflection        = true,
-    PublicIncludeDirs = { "." },
-    PublicDefines     = { },
-    PrivateDefines    = { "SOMETHING" },
-    ModuleDependencies = { "Runtime" },
-    Dependencies       = { "EnTT", "glfw" },     -- third-party
-    ExtraLinks         = { "slang" },
-    LibDirs            = { ... },
-    FatalWarnings      = { "4456" },
-})
+**Public** means "my headers expose this, so anyone using me needs it too". A dependent
+gets it automatically.
+
+**Private** means "I use this inside my `.cpp` files". It stops at your module.
+
+```csharp
+// CombatComponent.h includes a Runtime header, so anyone including
+// CombatComponent.h needs Runtime as well.
+PublicDependencyModuleNames.Add("Runtime");
+
+// Only CombatComponent.cpp touches Jolt. Nobody downstream needs to know.
+PrivateDependencyModuleNames.Add("JoltPhysics");
 ```
 
-`LuminaModule` resolves public include directories and public defines
-**transitively** through `ModuleDependencies`, including those of third-party
-dependencies, so a dependent does not restate them.
+Prefer private. It keeps rebuilds small and stops one module's choices spreading through
+the codebase.
 
-Per-file build settings use Premake filters. The Runtime module pins one:
+### Common settings
 
-```lua
--- /GT (fiber-safe TLS) required or the scheduler reads stale TLS after fiber migration.
-filter { "files:**/JobScheduler.cpp" }
-    buildoptions { "/GT" }
-filter {}
+```csharp
+// Extra include paths, relative to the module directory.
+PublicIncludePaths.Add("Public");
+PrivateIncludePaths.Add("Internal");
+
+// Preprocessor defines.
+PublicDefinitions.Add("COMBAT_ENABLED=1");
+PrivateDefinitions.Add("COMBAT_INTERNAL_CHECKS=1");
+
+// A precompiled header for this module.
+PrecompiledHeader = new PrecompiledHeaderRules("CombatPCH.h", "Source/CombatPCH.cpp");
+
+// Skip reflection if this module has no reflected types. Saves build time.
+bEnableReflection = false;
+
+// A file that needs a flag the rest of the module must not get.
+AddPerFileOption("Scheduler.cpp", "/GT");
 ```
 
-## Precompiled headers
+If you name a file that does not exist, the build fails and tells you. A setting attached
+to a renamed file would otherwise disappear silently.
 
-`Engine/Source/Runtime/pch.h` carries the standard library, EASTL, EnTT, and
-xxhash. `Engine/Editor/Source/EditorPCH.h` includes the Runtime PCH plus ImGui
-and `ImGuiX`.
+### Exporting types
 
-The selection rule is measured, not guessed: **only headers above roughly 85%
-fan-in belong in a PCH**. The Reflector's `HeaderIncludeGraph` diagnostic
-reports that fan-in. Editor-specific headers such as `EditorUI.h` and
-`EditorTool.h` are deliberately kept out, so editing one does not invalidate the
-PCH for every editor translation unit.
+Mark anything other modules need with your module's API macro:
 
-`ModuleAPI.h` is force-included **after** the PCH header, so PCH content that
-depends on `RUNTIME_API` must include `ModuleAPI.h` explicitly up front, or the
-macro is undefined while the PCH is parsed.
-
-## The reflection step
-
-```
-Reflector (a normal C++ application project)
-  |
-ReflectionGen (Utility project, prebuild command)
-  premake5 Reflection -> Intermediates/ReflectionData.json
-  Reflector.exe       -> Intermediates/Reflection/<Project>/*.generated.{h,cpp}
-                         Intermediates/Reflection/<Project>/ReflectionUnity_N.gen.cpp
-                         Intermediates/CSharpBindings/**/*.generated.cs
-  |
-modules with Reflection = true compile
+```cpp
+class COMBAT_API FCombatSystem
+{
+    ...
+};
 ```
 
-`ReflectionGen` declares `fastuptodate "Off"` because reflected headers are not
-tracked inputs; the Reflector does its own dirty checking. It also declares
-`dependson { "Reflector" }` so a clean build does not race.
+The build system defines `COMBAT_API` for you, working out export versus import from the
+dependency graph. There is no header to edit and nothing to declare.
 
-The unity shard count is fixed and listed statically in the Premake scripts,
-because Premake must name the files before they exist.
+## Targets
 
-See [Reflection and Code Generation](/internals/reflection-codegen/).
+A target says what to build and how to run it.
 
-## C# projects
+```csharp
+using LuminaBuildTool.Configuration;
 
-`CSharpProject.lua` adds raw-MSBuild escape hatches (`dotnetrawprops`,
-`dotnetrawitems`, `dotnetrawtail`) so the managed projects can express things
-Premake does not model.
+public class MyGameTarget : LuminaGameTargetRules
+{
+    public MyGameTarget(TargetInfo Target)
+        : base(Target)
+    {
+        LaunchModuleName = "MyGame";
 
-- **`LuminaSharp.Generators`** is a `netstandard2.0` Roslyn source generator
-  (the `[NativeCall]` generator), referenced as an analyzer.
-- **`LuminaSharp`** targets `net10.0`, depends on `Runtime` (which emits the
-  bindings) and on the generator, and globs
-  `Intermediates/CSharpBindings/**/*.generated.cs` with an MSBuild `<Compile
-  Include>` expanded at build time, since those files do not exist when Premake
-  runs.
-- A post-build target copies the generator DLL next to `LuminaSharp.dll` so the
-  runtime script compiler can load it.
+        SetProjectFileToOpen("../MyGame.lproject");
+    }
+}
+```
 
-## Third-party libraries
-
-Everything is vendored under `Engine/Source/ThirdParty` and built from source as
-part of the workspace: EA (EASTL), EnTT, glfw, imgui, Tracy (optional),
-MiniAudio, JoltPhysics, Recast, enet, RPMalloc, XXHash, miniz,
-VulkanMemoryAllocator, Volk, tinyobjloader, MeshOptimizer, MikkTSpace, json,
-fastgltf, OpenFBX, basis_universal, SLang, FreeType, RmlUi, msdfgen, and
-GoogleTest when tests are enabled.
-
-Prebuilt binaries and SDKs live under `External/`, fetched by `premake5 setup`
-from `External.zip` with checksum verification. Slang is linked from
-`External/SLang/lib`.
-
-Vendored libraries that expose an allocator hook are routed through the
-`LmThirdParty*` C-ABI shim so their allocations appear in engine memory
-tracking. See [Memory](/internals/memory/).
+Most projects never need more than this. Targets can also set engine-wide options
+(`bMonolithic`, `CppStandard`, `GlobalDefinitions`), but changing those means the engine
+is compiled differently for your target and is no longer shared with other projects.
 
 ## Plugins
 
-`LuminaDiscoverEnginePlugins()` turns every `Engine/Plugins/<Name>/<Name>.lua`
-into a project automatically. A project's own plugins are discovered the same
-way. Adding a plugin therefore requires no edit to the root script.
+A plugin bundles modules that can be turned on and off per project. Project plugins live
+in `Plugins/` beside your `.lproject`; engine plugins live in the engine's own `Plugins/`.
 
-## Output layout
+```
+Plugins/Combat/
+├── Combat.lplugin
+└── Source/
+    ├── CombatRuntime/          Loaded in the editor and in a packaged game
+    └── CombatEditor/           Editor only, stripped from packaged builds
+```
 
-| Path | Contents |
-| --- | --- |
-| `Binaries/` | Executables and DLLs, per configuration. |
-| `Intermediates/Obj/` | Object files. |
-| `Intermediates/Reflection/` | Generated reflection sources. |
-| `Intermediates/CSharpBindings/` | Generated C# bindings. |
-| `Intermediates/ShaderCache/` | Compiled SPIR-V (`.lsc`). |
-| `Intermediates/AssetRegistry.assetdb` | Asset discovery cache. |
-| `Intermediates/ThumbnailCache/` | Asset thumbnails. |
+The descriptor lists the modules and when they load:
 
-`premake5 Clean` removes generated output.
+```json
+{
+    "Name": "Combat",
+    "EnabledByDefault": true,
+    "Modules": [
+        { "Name": "CombatRuntime", "Type": "Runtime", "LoadingPhase": "PreEngineInit" },
+        { "Name": "CombatEditor",  "Type": "Editor",  "LoadingPhase": "EditorInit" }
+    ]
+}
+```
+
+Create one from the editor with **Tools > Plugin Browser > New Plugin**, which scaffolds
+it and regenerates your project files. Toggle plugins in the same window; the choice is
+recorded in your `.lproject`.
+
+Plugin names must be unique across your project and the engine, because discovery keys on
+the name.
 
 ## Game projects
 
-A game project has its own solution and links the **prebuilt** engine rather than
-building it. That is why `LUMINA_DIR` must be set: `Dependencies.lua` prefers the
-environment variable and only falls back to the workspace location, which is
-correct for engine builds and wrong for game projects. If `LUMINA_DIR` is unset
-or points somewhere that is not an engine root, generation fails with an
-explanatory message rather than a confusing link error.
+A project builds against the engine tree rather than a prebuilt copy:
 
-The Sandbox project is intentionally outside the engine workspace for the same
-reason: it is a standalone game project with its own solution.
+```bat
+LuminaBuild.bat Build MyGame -Project=C:\Path\To\MyGame
+```
 
-## Build times
+Your modules build into your project's `Binaries` and `Intermediates`. Engine modules stay
+in the engine tree and are shared by every project, so the engine is built once, not once
+per project. The first build on a fresh clone pays for the engine; every project after that
+reuses it.
 
-The dominant cost is header parsing, roughly 70% of a clean build. When measuring
-a change, measure **CPU seconds** (`CL=-Bt+`), not wall clock: wall clock varies
-by up to 40 seconds run to run on the same machine and will mislead you.
+In the generated solution your code appears under `Games/<Project>/Source` and
+`Games/<Project>/Plugins`, with the engine's own projects kept separate.
 
-Levers that actually move the number: PCH contents (fan-in measured, not guessed),
-the reflection unity shard count, and the amalgamated reflection parse.
+## Unity builds
 
-If the linker reports `LNK1140` (too many sections), the PDB has grown past its
-limit. Delete the oversized `.pdb` and relink.
+LBT compiles each module as a few generated files that include the real sources, so shared
+headers are parsed once per group instead of once per file. This is on by default.
 
-## Common failure modes
+It changes what the language guarantees: sources in one group share a translation unit, so
+a file-scope `static`, an anonymous namespace, a `using namespace`, or a leftover macro
+reaches its neighbors.
+
+If a compile error only appears in a normal build and not with `-NoUnity`, that is the
+cause. Two ways out:
+
+```csharp
+// One file that must stay on its own, for example because it carries a
+// single-header library's implementation macro.
+ExcludeFromUnity.Add("StbImageImpl.cpp");
+
+// Or opt the whole module out.
+bUseUnityBuild = false;
+```
+
+Files with per-file compiler options, a precompiled header source, and generated reflection
+code are held back automatically.
+
+## Reflection
+
+Modules with `bEnableReflection` are scanned for `REFLECT()` types and the generated code is
+compiled in. This is automatic; you only interact with it by including the generated header:
+
+```cpp
+#include "CombatComponent.generated.h"
+```
+
+See [Reflection & Codegen](/internals/reflection-codegen/) for what the generator produces.
+
+## Adding files
+
+Add a `.cpp` or `.h` anywhere under a module and it is picked up on the next build. Re-run
+`GenerateProjectFiles.bat` only when you want the IDE's file list to catch up.
+
+## When something goes wrong
 
 | Symptom | Cause |
 | --- | --- |
-| New file does not compile or reflect | Project files not regenerated. |
-| "Wrong engine linked" in a game project | A stale persisted `LUMINA_DIR`. Tools started before the change keep the old value. |
-| Feature toggle has no effect | Toggles are baked in at generation time. Regenerate. |
-| Module refuses to load at runtime | ABI signature mismatch from mixing configurations or compilers. |
-| Reflection output is stale | The prebuild did not run. `ReflectionGen` must stay `fastuptodate "Off"`. |
-| `LNK1140` | Oversized PDB. Delete it and relink. |
-| Undefined `RUNTIME_API` while compiling the PCH | `ModuleAPI.h` not included up front in the PCH header. |
-| Setup fails on a fresh clone | Missing prerequisites, or `External.zip` could not be fetched or verified. |
+| `No target named 'X'` | Building a project without `-Project=<path>` |
+| `Module 'X' has no source or header files` | The `.Build.cs` is not beside the sources |
+| `lists 'Y.cpp' but has no such source file` | A file named in the rules was renamed or removed |
+| Error disappears with `-NoUnity` | A unity merge conflict, see above |
+| `<NAME>_API` undefined | The module is not in the dependency graph of what you are building |
+
+Build with `-Verbose` to see what the tool decided and why.

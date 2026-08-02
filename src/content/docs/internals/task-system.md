@@ -215,7 +215,7 @@ of `RunJob`, and show up in both the profiler and Tracy.
 | Symptom | Cause |
 | --- | --- |
 | Data written to the wrong per-thread slot | A worker index cached across a wait. Re-read `GetWorkerIndex()` after any park. |
-| Crash inside the scheduler after a migration | `/GT` missing on `JobScheduler.cpp`. It is pinned in `Engine/Source/Runtime/premake5.lua` for exactly this reason. |
+| Crash inside the scheduler after a migration | `/GT` missing on `JobScheduler.cpp`. It is pinned in `Engine/Source/Runtime/Runtime.Build.cs` for exactly this reason. |
 | Deadlock with idle cores | A bare spin wait on an external thread. Use `WaitForCounter` or `AssistOneJob` so the waiter helps drain. |
 | Deadlock re-entering a lock | `FFiberMutex` is not recursive. |
 | A continuation runs on an unexpected thread | Continuations are jobs. They run on a worker, not on whichever thread called `SetValue`. |

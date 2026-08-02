@@ -50,7 +50,8 @@ Two consequences you must design around:
   `Jobs::GetCurrentFiberHandle()` instead.
 - **`JobScheduler.cpp` is compiled with `/GT`** (fiber-safe thread-local
   storage). Without it the scheduler reads stale TLS after a migration and
-  crashes. The Premake file pins this flag on that one file.
+  crashes. `Runtime.Build.cs` pins this flag on that one file with
+  `AddPerFileOption`.
 
 Non-worker threads (main, and any thread registered with
 `RegisterExternalThread`) are not on fibers. A `WaitForCounter` from one of them

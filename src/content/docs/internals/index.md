@@ -84,7 +84,8 @@ FRenderThread drain (a job on a pool worker)
 | `Engine/Applications/Lumina` | The executable entry point |
 | `Engine/Applications/Reflector` | The code generator |
 | `Engine/Source/LuminaSharp` | The managed (C#) engine API |
-| `BuildScripts` | Premake modules, options, setup, and the reflection build step |
+| `Engine/Tools/LuminaBuildTool` | The build tool: rules compilation, the module graph, the reflection step, project generation |
+| `Engine/Build` | Shared build rules (`*.BuildRules.cs`) and `BuildConfiguration.json` |
 
 ## What this section covers
 
@@ -116,7 +117,7 @@ FRenderThread drain (a job on a pool worker)
 | [Editor Architecture](/internals/editor-architecture/) | Editor engine, tools, panels, transactions |
 | [Platform Layer](/internals/platform/) | Windowing, input, filesystem, process, crash handling |
 | [Diagnostics](/internals/diagnostics/) | Logging, console variables, profilers, GPU debugging |
-| [Build System](/internals/build-system/) | Premake modules, options, the reflection step |
+| [Build System](/internals/build-system/) | LuminaBuildTool, targets, modules, plugins, rules files |
 
 ## Conventions used in the code
 

@@ -60,32 +60,36 @@ for you.
    ```
 
    This is a one-shot setup for a fresh clone. It verifies your prerequisites,
-   bootstraps `premake5.exe` into `Tools/`, downloads and extracts the prebuilt
+   builds LuminaBuildTool, downloads and extracts the prebuilt
    dependency bundle (see [External dependencies](#external-dependencies)),
    persists the `LUMINA_DIR` environment variable, configures the git hooks, and
-   generates `Lumina.slnx`.
+   generates `Lumina.sln`.
 
 3. **Open the solution**
 
-   Open `Lumina.slnx` in Visual Studio 2026.
+   Open `Lumina.sln` in Visual Studio 2026.
 
 4. **Set the startup project**
 
    In the Solution Explorer, right-click **Lumina** and choose
    **Set as Startup Project**.
 
-5. **Choose a configuration and platform**
+5. **Choose a configuration**
 
-   Pick a configuration.
+   Each solution configuration pairs a build configuration with a target type,
+   for example **Development Editor**, **Development Game**, or **Shipping
+   Editor**. The only platform is **x64**.
+
+   The build configuration half decides the compile:
 
    - **Development**, for day-to-day work. Fast, with Tracy and logging enabled.
    - **Debug**, for full debugger support. Significantly slower to compile and run.
-   - **Shipping**, for packaging. Strips profiling, verbose logging, and the editor.
+   - **Shipping**, for packaging. Strips profiling and verbose logging.
 
-   Then pick a platform. **Editor** (the default) includes all editor tooling,
-   and **Game** is a runtime-only build with no editor.
+   The target type half decides what gets built. **Editor** includes all editor
+   tooling, and **Game** is a runtime-only build with no editor.
 
-   Start with **Development | Editor**.
+   Start with **Development Editor**.
 
 6. **Build and run**
 
@@ -125,7 +129,7 @@ in [`DEPENDENCIES.md`](https://github.com/MrDrElliot/LuminaEngine/blob/main/DEPE
 | Tracy | 77 MB | the CPU/GPU profiler |
 
 To verify the download yourself, compare its hash against the one in
-`BuildScripts/Actions/Setup.lua`.
+`Engine/Tools/LuminaBuildTool/Modes/SetupMode.cs`.
 
 ```bat
 powershell -NoProfile -Command "(Get-FileHash External.zip -Algorithm SHA256).Hash"
@@ -145,8 +149,9 @@ then run `GenerateProjectFiles.bat`.
 
 ## After pulling
 
-After pulling or merging, regenerate the solution so new and removed source
-files are picked up.
+Source files are discovered at build time, so a plain pull just needs a rebuild.
+Regenerate the solution when modules or plugins were added or removed, or to
+refresh the file list the IDE shows.
 
 ```bat
 GenerateProjectFiles.bat
@@ -159,12 +164,12 @@ then run `GenerateProjectFiles.bat` again.
 
 Optional engine features (the Tracy profiler, Vulkan validation, NVIDIA
 Aftermath, verbose logging) are configured in
-`BuildScripts/BuildConfig.lua` and baked in when you regenerate the solution.
-You can override any of them for a single regeneration from the command line,
-like this.
+`Engine/Build/BuildConfiguration.json`, which is read on every build. Each is
+`auto`, `on`, or `off`; `auto` lets the engine decide per configuration. You can
+override any of them for a single build from the command line, like this.
 
 ```bat
-GenerateProjectFiles.bat --tracy=off --validation=on --verbose-logging=off
+LuminaBuild.bat Build Lumina -Tracy=off -Validation=on -VerboseLogging=off
 ```
 
 ## Troubleshooting

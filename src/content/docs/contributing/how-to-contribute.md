@@ -78,8 +78,10 @@ Rebase on the latest `main` before opening a pull request.
 
 ## Adding files
 
-Adding or removing a source file requires regenerating project files **before**
-building, because the reflection step's input list comes from Premake:
+Adding or removing a source file needs no build script edit. LuminaBuildTool
+discovers every `.cpp` and `.h` under a module's directory at build time, and the
+reflection step reads the same list. Regenerate project files only when you want
+the IDE's file list to catch up:
 
 ```bash
 GenerateProjectFiles.bat
@@ -104,11 +106,11 @@ Before opening a pull request:
 - Performance impact considered, and measured if the change is on a hot path.
   For build-time changes, measure CPU seconds rather than wall clock.
 
-The Tests project is off by default. Enable it when your change has test
-coverage:
+The Tests target is not part of a normal solution build. Build it when your
+change has test coverage:
 
 ```bash
-GenerateProjectFiles.bat --with-tests
+LuminaBuild.bat Build Tests
 ```
 
 ## Commit messages
@@ -131,8 +133,8 @@ during iteration" beats "Fixed stuff".
 ## Pull requests
 
 Include a description, the motivation, the changes made, how you tested
-(editor, sandbox, packaged), screenshots for visual changes, and any related
-issues.
+(editor, standalone game, packaged), screenshots for visual changes, and any
+related issues.
 
 A maintainer reviews within a few days. Address feedback, and once approved the
 change is merged and credited in the release notes.

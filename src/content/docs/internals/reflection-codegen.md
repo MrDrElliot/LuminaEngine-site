@@ -15,12 +15,12 @@ how properties show up in the editor) see the manual's
 ## What runs when
 
 ```
-Reflector (built first)
+Reflector (a prebuild target, built first)
   |
-ReflectionGen (Utility project, prebuild step)
-  premake5 Reflection    -> Intermediates/ReflectionData.json (per-project file lists + include dirs)
-  Reflector.exe          -> Intermediates/Reflection/<Project>/*.generated.{h,cpp}
-                            Intermediates/Reflection/<Project>/ReflectionUnity_N.gen.cpp
+LuminaBuildTool's reflection step
+  writes <Intermediate>/Reflection_Files.json (per-module header lists + include dirs)
+  runs Reflector.exe     -> Intermediates/Reflection/<Module>/*.generated.{h,cpp}
+                            Intermediates/Reflection/<Module>/ReflectionUnity_N.gen.cpp
                             Intermediates/CSharpBindings/**/*.generated.cs
   |
 Runtime / Editor / plugin modules compile, including the generated headers
@@ -28,30 +28,34 @@ Runtime / Editor / plugin modules compile, including the generated headers
 LuminaSharp compiles, globbing the emitted .generated.cs files
 ```
 
-`ReflectionGen` is a single Premake `Utility` project that runs the Reflector
-once per build. Every module with `Reflection = true` depends on it.
+LuminaBuildTool plans one reflection action per target, covering every module with
+`bEnableReflection`. Like any other action it declares its inputs (the reflected
+headers) and its outputs (the generated unity shards), so it reruns when a
+reflected header changes and is skipped when none did.
 
-It is declared `fastuptodate "Off"` on purpose: reflected headers are not tracked
-inputs of the project, so MSBuild would consider the step up to date and skip it.
-The Reflector does its own dirty checking internally, so forcing the prebuild
-every build is cheap.
+The action never runs in parallel with itself: the generator holds every header in
+memory at once and is already internally parallel, so a second instance would only
+fight it for cores.
 
-`Reflector` itself is listed in `dependson`, otherwise a clean build races
-reflection against the tool's own compilation.
+`Reflector` is a prebuild target of anything that reflects, otherwise a clean build
+would race reflection against the tool's own compilation.
 
 ## Discovering what to parse
 
-The `Reflection` Premake action (`BuildScripts/Actions/Reflection.lua`) walks the
-workspace and, for every project with `enablereflection`, records:
+The build tool writes `Reflection_Files.json` into the target's intermediate
+directory. For every module with `bEnableReflection` it records:
 
-- the project base directory,
-- every source file,
-- the union of include directories across configurations,
-- the C# bindings output directory.
+- the module base directory,
+- every header file,
+- the module's resolved include directories,
+- the C# bindings output directory,
+- the generated code directory and the module's precompiled header.
 
-The result is a JSON file the Reflector reads. This is why adding a source file
-requires regenerating project files before building: the Reflector's input list
-comes from Premake, not from a directory scan.
+The Reflector reads that file. Its contents come from the same source scan the
+compile itself uses, so a new header is picked up on the next build with nothing to
+regenerate first. The file is written per target, because an Editor and a Game
+build reflect different module sets and a shared file would make each look like a
+changed input to the other.
 
 ## Parsing
 
@@ -129,17 +133,18 @@ Two mechanics fall out of that:
 
 Compiling thousands of tiny `.generated.cpp` files is slow, so the Reflector also
 emits `ReflectionUnity_0.gen.cpp` through `ReflectionUnity_7.gen.cpp` per
-project, each `#include`-ing a share of the generated sources. The shard **count
-is fixed** and listed statically in the Premake scripts
-(`LuminaConfig.ReflectionUnityShardCount`), because Premake has to name the files
-before they exist. Changing the count means editing both sides.
+module, each `#include`-ing a share of the generated sources. The shard **count is
+fixed** and mirrored in the build tool as `ReflectionStep.UnityShardCount`, because
+the tool has to name those files as build outputs before they exist. It must match
+`kUnityShardCount` in `CodeGenerator.cpp`, so changing the count means editing both
+sides.
 
 ### C# bindings
 
 `CSharpBindingEmitter` writes `.generated.cs` files into
 `Intermediates/CSharpBindings/`. `LuminaSharp.csproj` globs them with an MSBuild
 `<Compile Include=...>` pattern, expanded at build time since the files do not
-exist when Premake runs.
+exist until the Reflector has run.
 
 `SCRIPT_EXPORT(Class = "Namespace.Class")` on a namespace-scope free function
 makes the Reflector emit a native `extern "C"` thunk plus a C# `[NativeCall]`
@@ -191,8 +196,8 @@ metadata table.
 
 ## Practical rules
 
-1. **Add a source file, then regenerate project files before building.** The
-   Reflector's file list comes from the Premake-generated JSON.
+1. **Add a header and build.** The Reflector's file list is rebuilt from the
+   module's own sources every build, so there is nothing to regenerate first.
 2. **`#include "Foo.generated.h"` last.**
 3. **One `GENERATED_BODY()` per reflected type**, and rerun generation after
    moving it.
@@ -209,7 +214,7 @@ metadata table.
 | --- | --- |
 | `..._GENERATED_BODY` undeclared | The `GENERATED_BODY()` line moved, or the header is new and generation has not run. |
 | "Already included, missing `#pragma once`" | Two generated headers pulled into one translation unit, or a missing `#pragma once`. |
-| Linker error on `Construct_CClass_...` | The header is not in the reflected file list. Regenerate project files. |
-| A new type is invisible to the editor | Missing `REFLECT()`, or the module was not marked `Reflection = true`. |
+| Linker error on `Construct_CClass_...` | The header is not under a reflected module's directory, or that module sets `bEnableReflection = false`. |
+| A new type is invisible to the editor | Missing `REFLECT()`, or the module sets `bEnableReflection = false`. |
 | A C# binding does not appear | The property lacks `Script` (or is `ScriptHidden`), or `LuminaSharp` compiled before the bindings were emitted. Check the project dependency order. |
 | Stale generated file referencing a deleted type | The expected-output sweep should remove it; if the build was interrupted, delete `Intermediates/Reflection` and rebuild. |
