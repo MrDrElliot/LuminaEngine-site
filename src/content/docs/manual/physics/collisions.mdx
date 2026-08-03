@@ -1,0 +1,125 @@
+---
+title: Collisions & Triggers
+description: Controlling what collides with what, and reacting to contacts and overlaps.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Collision layers
+
+Every body has a **Collision Profile** with a **Layer** and a **Mask**.
+
+- **Layer** is the category this body belongs to.
+- **Mask** is the categories this body collides against.
+
+Two bodies collide if **either one's mask includes the other's layer**. The
+built-in layers are **Static**, **Dynamic**, and **Channel 0** through
+**Channel 13** for your own gameplay categories. For example, put bullets on a
+channel and give them a mask of only the layers they should hit, so they pass
+through everything else.
+
+By default a body's Layer is **Dynamic** and its Mask is **Static + Dynamic**, so
+ordinary bodies collide with the world and each other.
+
+## Solid colliders vs triggers
+
+By default a collider is **solid**. Bodies bounce off it, and you receive
+**contact** events.
+
+Turn on a collider's **Is Trigger** flag and it stops being solid. Bodies pass
+through it, but you receive **overlap** events. Use triggers for pickups,
+checkpoints, and damage volumes. The rigid body's **Is Sensor** flag does the
+same thing at the whole-body level.
+
+## Reacting to a collision
+
+A rigid body publishes its contacts and overlaps as delegates on
+`SRigidBodyComponent`. **Contacts** are solid collisions. **Overlaps** are
+triggers, which report but produce no physical response.
+
+The delegates are the same objects in both languages, only the way you attach
+differs: C++ adds a lambda, C# binds a method.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+SRigidBodyComponent& Body = Context.Get<SRigidBodyComponent>(Entity);
+
+Body.OnContactBegin.AddLambda([](const SCollisionEvent& Event)
+{
+    LOG_INFO("hit {} at {} m/s", (uint32)Event.Other, Event.ImpactSpeed);
+});
+
+Body.OnOverlapBegin.AddLambda([](const SCollisionEvent& Event)
+{
+    LOG_INFO("entered trigger of {}", (uint32)Event.Other);
+});
+```
+
+`AddLambda` returns an `FDelegateHandle`. Nothing unbinds it for you, so keep the
+handle and remove the binding when the owner goes away.
+
+</TabItem>
+<TabItem label="C#">
+
+```csharp
+public sealed class Mine : EntityScript
+{
+    [RequireComponent] private SRigidBodyComponent _Body = null!;
+
+    public override void OnReady()
+    {
+        _Body.OnContactBegin.Bind(OnHit);
+        _Body.OnOverlapBegin.Bind(OnEnterTrigger);
+    }
+
+    private void OnHit(SCollisionEvent Event)
+    {
+        Debug.Log($"hit {Event.Other} at {Event.ImpactSpeed} m/s");
+    }
+
+    private void OnEnterTrigger(SCollisionEvent Event)
+    {
+        Debug.Log($"entered trigger of {Event.Other}");
+    }
+}
+```
+
+Cache the component with `[RequireComponent]` and bind in `OnReady`. `Bind`
+returns a `DelegateBinding`, but a script's bindings are removed for you when it
+detaches, so you only need to keep it when you want to `Unbind()` early.
+
+</TabItem>
+</Tabs>
+
+The full set is `OnContactBegin` / `OnContactEnd` and `OnOverlapBegin` /
+`OnOverlapEnd`, each carrying an `SCollisionEvent`, plus the payload-free
+`OnWake` / `OnSleep`.
+
+## The collision event
+
+`SCollisionEvent` is oriented from **your** entity's point of view, in both
+languages.
+
+| Field | Meaning |
+| --- | --- |
+| `Entity` | Your entity |
+| `Other` | The other entity |
+| `Point` | World-space contact point (`FVector3`) |
+| `Normal` | Contact normal, pointing away from you (`FVector3`) |
+| `Velocity` / `OtherVelocity` | Linear velocities at contact (m/s) |
+| `RelativeVelocity` | Other minus self (`FVector3`) |
+| `ImpactSpeed` | Speed along the normal (m/s) |
+| `bIsTrigger` | `true` if the other side was a trigger or sensor |
+| `BodyID` / `OtherBodyID` | The Jolt body ids |
+
+:::note
+C# spells the trigger flag `IsTrigger`; the C++ struct field is `bIsTrigger`.
+Every other field name is shared.
+:::
+
+## Next
+
+- [Queries](/manual/physics/queries/), asking what is there instead of waiting to be told.
+- [Materials & Destruction](/manual/physics/materials-destruction/), surface response and breakable objects.

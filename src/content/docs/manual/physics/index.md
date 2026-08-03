@@ -32,11 +32,13 @@ still until you press Play. See [Worlds & Coordinates](/manual/worlds-and-coordi
 
 ## This section
 
-- **[Rigid Bodies](/manual/physics/rigid-bodies/)**, how an entity moves.
+- **[Rigid Bodies](/manual/physics/rigid-bodies/)**, how an entity moves, plus forces and velocities.
 - **[Colliders](/manual/physics/colliders/)**, the shapes it collides with.
-- **[Collisions & Triggers](/manual/physics/collisions/)**, layers, masks, and trigger volumes.
+- **[Collisions & Triggers](/manual/physics/collisions/)**, layers, masks, trigger volumes, and contact events.
+- **[Queries](/manual/physics/queries/)**, raycasts, sphere casts, and overlaps.
+- **[Projectiles](/manual/physics/projectiles/)**, lightweight swept projectiles.
 - **[Character Controller](/manual/physics/characters/)**, walking, jumping, and player movement.
 - **[Materials & Destruction](/manual/physics/materials-destruction/)**, surface properties and breakable objects.
 
-To drive physics from a script (forces, velocities, contact callbacks), see
-[Scripting › Physics](/manual/scripting/physics/).
+Every page shows the same operation in **C++** and **C#**. Pick a language with
+the tabs on any code sample and the whole site follows your choice.

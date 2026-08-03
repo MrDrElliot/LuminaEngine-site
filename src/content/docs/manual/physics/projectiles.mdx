@@ -1,0 +1,84 @@
+---
+title: Projectiles
+description: Lightweight swept projectiles that never tunnel.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+A **projectile** is an entity carrying an `SProjectileComponent`.
+`SProjectileSystem` sweeps it forward every frame with a continuous cast, so it
+never tunnels through thin walls, reports its first hit, and despawns after its
+lifetime.
+
+This is far cheaper than a full [rigid body](/manual/physics/rigid-bodies/) and
+runs entirely in the ECS, so prefer it for bullets and thrown objects that only
+need to know what they hit.
+
+## Spawning one
+
+`SpawnProjectile` lives on `CWorld` and takes the same arguments in both
+languages: an origin, a world-space velocity, damage, a lifetime, and optionally
+the entity that fired it.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+entt::entity Shot = World->SpawnProjectile(Muzzle, Aim * 60.0f, 25.0f, 5.0f, Shooter);
+
+World->GetRegistry().get<SProjectileComponent>(Shot).OnHit.AddLambda(
+    [](const SProjectileHitEvent& Hit)
+    {
+        LOG_INFO("hit {} at {} for {}", (uint32)Hit.HitEntity, Hit.Point, Hit.Damage);
+    });
+```
+
+</TabItem>
+<TabItem label="C#">
+
+```csharp
+public sealed class Gun : EntityScript
+{
+    private void Fire(FVector3 Muzzle, FVector3 Aim)
+    {
+        Entity Shot = World.SpawnProjectile(Muzzle, Aim * 60.0f, damage: 25.0f, lifetime: 5.0f);
+        World.Registry.Get<SProjectileComponent>(Shot).OnHit.Bind(OnProjectileHit);
+    }
+
+    private void OnProjectileHit(SProjectileHitEvent Hit)
+    {
+        Debug.Log($"hit {Hit.HitEntity} at {Hit.Point} for {Hit.Damage}");
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
+The overload without an instigator defaults `Damage` to `0` and `Lifetime` to
+`5` seconds. Passing an instigator makes the sweep ignore that entity, so a
+projectile never hits whoever fired it.
+
+## Tuning the component
+
+You can also add `SProjectileComponent` to an entity yourself, in the editor
+under **Gameplay**, and set these directly.
+
+| Field | Meaning |
+| --- | --- |
+| `Velocity` | World-space velocity (m/s) |
+| `GravityScale` | Multiplier on world gravity; 0 = a straight line |
+| `Radius` | Sweep radius; 0 = a thin ray, larger for a fatter projectile |
+| `Damage` | Carried in the hit event; you decide how to apply it |
+| `CollisionMask` | Which collision layers it can hit, default Static + Dynamic |
+| `bDestroyOnHit` | Destroy the projectile on its first hit |
+| `Instigator` | Entity the sweep ignores (the shooter) |
+| `OnHit` | Fired once on hit, with an `SProjectileHitEvent` |
+
+`SProjectileHitEvent` carries `Projectile`, `HitEntity`, `Point`, `Normal`, and
+`Damage`.
+
+:::note
+`SProjectileSystem` runs in the `PrePhysics` stage, so a projectile's movement
+lands before the physics step and before rendering.
+:::

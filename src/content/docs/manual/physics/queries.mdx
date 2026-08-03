@@ -1,0 +1,164 @@
+---
+title: Queries
+description: Raycasts, sphere casts, and overlaps.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+A **query** asks the physics scene what is there, without simulating anything.
+Queries are the workhorse behind shooting, line of sight, ground checks,
+interaction prompts, and area-of-effect damage.
+
+All three run on the game thread and read the latched physics state.
+
+## Raycasts
+
+A raycast shoots a line through the world and returns the first thing it hits.
+
+The two languages describe the ray differently. C++ fills in a settings struct
+with a **start and an end point**; C# takes an **origin, a direction, and a
+distance**, and normalizes the direction for you.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+const FVector3 From = Context.GetEntityTransform(Entity).GetWorldLocation();
+const FVector3 Dir  = Context.GetEntityTransform(Entity).GetForward();
+
+SRayCastSettings Settings;
+Settings.Start = From;
+Settings.End   = From + Dir * 100.0f;
+Settings.AddIgnoredBody(Context.GetEntityBodyID(Entity));
+
+if (TOptional<SRayResult> Hit = Context.GetPhysicsScene()->CastRay(Settings))
+{
+    LOG_INFO("hit {} at {}", (uint32)Hit->Entity, Hit->Location);
+}
+```
+
+`SRayCastSettings` also carries `LayerMask` to restrict the query to collision
+layers, `bIgnoreSelf`, and `bDrawDebug` / `DebugDuration` to draw the ray in the
+viewport.
+
+</TabItem>
+<TabItem label="C#">
+
+```csharp
+FVector3 From = Transform.GetWorldLocation();
+FVector3 Dir = Transform.GetForward();
+
+RaycastHit? Hit = World.Physics.Raycast(From, Dir, 100.0f, Ignore: Entity);
+if (Hit is RaycastHit H)
+{
+    Debug.Log($"hit {H.Entity} at {H.Point}");
+}
+```
+
+</TabItem>
+</Tabs>
+
+The hit result carries the same information under different names.
+
+| C++ `SRayResult` | C# `RaycastHit` | Meaning |
+| --- | --- | --- |
+| `Entity` | `Entity` | The entity that was hit |
+| `Location` | `Point` | The world-space hit point (`FVector3`) |
+| `Normal` | `Normal` | The surface normal at the hit |
+| `Distance` | `Distance` | Distance from the origin to the hit |
+| `Fraction` | `Fraction` | How far along the ray, `0` at the origin, `1` at the end |
+| `BodyID` | `BodyId` | The Jolt body id that was hit |
+| `Start` / `End` | | The ray that produced the hit |
+| `BoneIndex` | | Skeleton bone for a ragdoll body, `INDEX_NONE` otherwise |
+
+## Sphere casts
+
+A sphere cast sweeps a sphere along a line instead of an infinitely thin ray,
+useful for thick projectiles, character probes, and "is there room here" checks.
+It returns every hit, sorted near to far.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+SSphereCastSettings Settings;
+Settings.Start  = From;
+Settings.End    = From + Dir * 100.0f;
+Settings.Radius = 0.5f;
+Settings.AddIgnoredBody(Context.GetEntityBodyID(Entity));
+
+for (const SRayResult& Swept : Context.CastSphere(Settings))
+{
+    LOG_INFO("swept into {}", (uint32)Swept.Entity);
+}
+```
+
+</TabItem>
+<TabItem label="C#">
+
+```csharp
+RaycastHit[] Hits = World.Physics.SphereCast(From, Dir, 100.0f, Radius: 0.5f, Ignore: Entity);
+foreach (RaycastHit Swept in Hits)
+{
+    Debug.Log($"swept into {Swept.Entity}");
+}
+```
+
+</TabItem>
+</Tabs>
+
+## Overlaps
+
+An overlap returns every entity whose body intersects a shape **right now**, the
+core AI-perception, area-of-effect, and trigger primitive.
+
+C++ appends into a vector you own, so a per-frame query can reuse its storage.
+C# returns a fresh array.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+TVector<uint32> Ignore { Context.GetEntityBodyID(Entity) };
+TVector<entt::entity> Nearby;
+
+Context.GetPhysicsScene()->OverlapSphere(Center, 5.0f, Ignore, Nearby);
+Context.GetPhysicsScene()->OverlapBox(Center, HalfExtents, Rotation, Ignore, Nearby);
+```
+
+Results are appended and de-duplicated, so clear the vector between queries if
+you do not want them to accumulate.
+
+</TabItem>
+<TabItem label="C#">
+
+```csharp
+// Everything within 5m, excluding ourselves.
+Entity[] Nearby = World.Physics.OverlapSphere(Transform.GetWorldLocation(), 5.0f, Ignore: Entity);
+
+// An oriented or axis-aligned box.
+Entity[] InBox = World.Physics.OverlapBox(Center, HalfExtents, Rotation, Ignore: Entity);
+```
+
+Each query is capped at `Physics.MaxQueryResults` (256). For per-frame queries,
+the `OverlapSphere` overload that writes into a caller `Span<uint>` avoids the
+array allocation.
+
+</TabItem>
+</Tabs>
+
+## Reaching the scene
+
+C++ queries go through `Physics::IPhysicsScene`. From a system, get it with
+`Context.GetPhysicsScene()`, which returns null in a world that does not
+simulate, so null-check it. `CastSphere` is mirrored directly onto
+`FSystemContext` as a convenience; `CastRay`, `CastRayAll`, `CollidePoint`, and
+the overlaps are on the scene.
+
+Outside a system, `CWorld` exposes `GetPhysicsScene()`, `CastRay`, and
+`CastSphere` on itself.
+
+## Next
+
+- [Collisions & Triggers](/manual/physics/collisions/), reacting to contacts rather than asking for them.
+- [Projectiles](/manual/physics/projectiles/), a swept query with a lifetime attached.

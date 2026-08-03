@@ -183,11 +183,10 @@ Press **Play** and fly into a pickup; it logs and vanishes.
 - **`_Body.OnOverlapBegin.Bind(OnPickup)`** is the pattern for every engine event:
   you bind a handler to it. The same shape covers `OnContactBegin` for solid hits
   and perception's `OnTargetPerceived`, see
-  [Collisions & Triggers](/manual/physics/collisions/) and
-  [Scripting › Physics](/manual/scripting/physics/).
+  [Collisions & Triggers](/manual/physics/collisions/).
 - **`SCollisionEvent.Other`** is the entity you overlapped, the pickup, so we log
-  it and destroy it. Every `SCollisionEvent` field is listed in the physics
-  scripting reference.
+  it and destroy it. Every `SCollisionEvent` field is listed in
+  [Collisions & Triggers](/manual/physics/collisions/#the-collision-event).
 
 ## Where to go next
 

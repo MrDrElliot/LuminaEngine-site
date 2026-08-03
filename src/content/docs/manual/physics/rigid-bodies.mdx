@@ -1,0 +1,211 @@
+---
+title: Rigid Bodies
+description: How an entity moves under physics, from the editor and from code.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+The **Rigid Body** component (`SRigidBodyComponent`) makes an entity simulate.
+Its most important setting is the **body type**.
+
+| Body type | Moves? | Use for |
+| --- | --- | --- |
+| **Static** | Never | Floors, walls, level geometry. |
+| **Kinematic** | Only when you move it | Platforms, doors, scripted movers. |
+| **Dynamic** | Yes, fully simulated | Crates, props, anything that falls and bounces. |
+
+A dynamic body needs a [collider](/manual/physics/colliders/) with volume to get
+its mass. Static and kinematic bodies are not pushed by collisions, but dynamic
+bodies still collide with them.
+
+## Key properties
+
+| Property | What it does |
+| --- | --- |
+| **Body Type** | Static, Kinematic, or Dynamic (above). |
+| **Mass** / **Override Mass** | Mass in kg. By default it is computed from the collider's volume and density; turn on **Override Mass** to set **Mass** directly. |
+| **Use Gravity** | Turn off for projectiles or floating objects. |
+| **Linear / Angular Damping** | Drag that bleeds off movement and spin over time. |
+| **Restitution Override** | Bounciness, 0 (no bounce) to 1 (perfectly elastic). |
+| **Friction Override** | Surface grip. |
+| **Center Of Mass Offset** | Shift the balance point; lower it for car-like stability. |
+| **Allow Sleeping** | Let a body that comes to rest stop simulating, which saves cost. |
+| **Is Sensor** | Detect overlaps without a physical response, a whole-body [trigger](/manual/physics/collisions/). |
+| **Motion Quality** | 0 = Discrete (cheap); 1 = LinearCast, which stops fast bodies tunneling through thin walls. |
+| **Max Linear / Angular Velocity** | Speed caps (m/s and rad/s). |
+| **Collision Profile** | The layer and mask that decide what this body collides with, see [Collisions & Triggers](/manual/physics/collisions/). |
+
+:::note
+The Restitution and Friction **Override** fields are a fallback. If a collider
+has a [Physics Material](/manual/physics/materials-destruction/), that wins.
+:::
+
+## Reading and writing the component
+
+Every property above is readable and writable at runtime. In C++ you reach the
+component through the system context; in C# you reach it through `Registry`.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+SRigidBodyComponent& Body = Context.Get<SRigidBodyComponent>(Entity);
+Body.LinearDamping = 0.2f;
+Body.bUseGravity = false;
+```
+
+</TabItem>
+<TabItem label="C#">
+
+```csharp
+SRigidBodyComponent Body = Registry.Get<SRigidBodyComponent>(Entity);
+Body.LinearDamping = 0.2f;
+Body.bUseGravity = false;
+```
+
+</TabItem>
+</Tabs>
+
+Both hand back the **live** component, so writing a field writes through to the
+entity's data.
+
+:::caution
+Changing a property does not retroactively rebuild the body. `Mass`,
+`CenterOfMassOffset`, and `BodyType` are read when the body is created, so set
+them before the body exists or change the body type through
+`ChangeBodyMotionType` rather than by assigning the field.
+:::
+
+## Forces and impulses
+
+Forces do not go through the component, they go through the **physics scene**,
+keyed by entity. The entity needs a rigid body for these to do anything; calls on
+a body-less entity are safe (mutators no-op, getters return zero).
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+Physics::IPhysicsScene* Scene = Context.GetPhysicsScene();
+Scene->AddImpulse(Entity, FVector3(0.0f, 5.0f, 0.0f));
+Scene->AddForceAtPosition(Entity, Force, WorldPoint);
+```
+
+`GetPhysicsScene()` returns null in a world with no physics (the editor world),
+so null-check it before a call that is not on the simulated path.
+
+</TabItem>
+<TabItem label="C#">
+
+```csharp
+World.Physics.AddImpulse(Entity, new FVector3(0, 5, 0));
+World.Physics.AddForceAtPosition(Entity, Force, WorldPoint);
+```
+
+</TabItem>
+</Tabs>
+
+| Method | Effect |
+| --- | --- |
+| `AddForce(entity, force)` | World-space force (N) for one step |
+| `AddImpulse(entity, impulse)` | Instantaneous impulse (kg·m/s) |
+| `AddTorque(entity, torque)` | Torque (N·m) for one step |
+| `AddAngularImpulse(entity, impulse)` | Instantaneous angular impulse |
+| `AddForceAtPosition(entity, force, point)` | Force at a world point (adds spin) |
+| `AddImpulseAtPosition(entity, impulse, point)` | Impulse at a world point |
+
+Apply forces before the physics step and they accumulate onto it. In C++ that
+means a system that runs in `PrePhysics`; in C# it means `OnUpdate`.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+REFLECT(System)
+struct SHoverSystem
+{
+    GENERATED_BODY()
+    ENTITY_SYSTEM(RequiresUpdate(EUpdateStage::PrePhysics))
+
+    static void Update(const FSystemContext& Context) noexcept
+    {
+        Physics::IPhysicsScene* Scene = Context.GetPhysicsScene();
+        if (Scene == nullptr)
+        {
+            return;
+        }
+
+        Context.ForEach<SHoverComponent>([&](entt::entity E, SHoverComponent&)
+        {
+            Scene->AddForce(E, FVector3(0.0f, 20.0f, 0.0f));
+        });
+    }
+};
+```
+
+</TabItem>
+<TabItem label="C#">
+
+```csharp
+public override void OnUpdate(float DeltaTime)
+{
+    World.Physics.AddForce(Entity, new FVector3(0, 20, 0));
+}
+```
+
+</TabItem>
+</Tabs>
+
+## Velocities
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+Scene->SetLinearVelocity(Entity, FVector3(0.0f, 0.0f, 10.0f));
+FVector3 Velocity = Scene->GetLinearVelocity(Entity);
+```
+
+</TabItem>
+<TabItem label="C#">
+
+```csharp
+World.Physics.SetLinearVelocity(Entity, new FVector3(0, 0, 10));
+FVector3 Velocity = World.Physics.GetLinearVelocity(Entity);
+```
+
+</TabItem>
+</Tabs>
+
+| Method | Effect |
+| --- | --- |
+| `SetLinearVelocity(entity, v)` | Replace linear velocity (m/s) |
+| `SetAngularVelocity(entity, v)` | Replace angular velocity (rad/s) |
+| `GetLinearVelocity(entity)` / `GetAngularVelocity(entity)` | Read it back (`FVector3`) |
+| `GetVelocityAtPoint(entity, point)` | Velocity of a world point on the body |
+
+## Reading and waking a body
+
+| Method | Returns / effect |
+| --- | --- |
+| `GetBodyPosition(entity)` / `GetBodyRotation(entity)` | The true physics pose |
+| `GetCenterOfMass(entity)` | World-space center of mass |
+| `GetEntityBodyID(entity)` | The Jolt body id (`0xFFFFFFFF` if no body) |
+| `ActivateBody(bodyId)` / `DeactivateBody(bodyId)` | Wake or sleep the body |
+| `SetGravityFactor(entity, factor)` | Per-body gravity multiplier (0 = float, 1 = normal) |
+
+:::note
+Getters return the latched physics snapshot, which is frame-coherent. The physics
+step runs slightly behind the game thread, so `GetBodyPosition` is the true
+simulated pose, not the interpolated render transform in `STransformComponent`.
+:::
+
+The C# `World.Physics` facade names the body accessor `GetBodyId(entity)` and
+takes an entity for `ActivateBody` / `DeactivateBody`; the C++ scene calls it
+`GetEntityBodyID(entity)` and its activate calls take the **body id**.
+
+## Next
+
+- [Colliders](/manual/physics/colliders/), the shapes a body collides with.
+- [Collisions & Triggers](/manual/physics/collisions/), layers, masks, and contact events.
+- [Queries](/manual/physics/queries/), raycasts, sphere casts, and overlaps.

@@ -3,6 +3,8 @@ title: Materials & Destruction
 description: Surface properties and breakable objects.
 ---
 
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
 ## Physics materials
 
 A **Physics Material** asset describes a surface. Assign it to a collider's
@@ -28,13 +30,27 @@ Create one from the **Content Browser** and edit it in the
 Make an object shatter by adding a **Destructible** component next to its static
 mesh. When it breaks, the entity splits into physics-driven chunks.
 
-The break parameters below are exposed to script, so a C# script can tune them at
-runtime, for example raising the outward speed of the pieces.
+The break parameters below are readable and writable at runtime, so you can tune
+them per entity, for example raising the outward speed of the pieces.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+SDestructibleComponent& Destruct = Context.Get<SDestructibleComponent>(Entity);
+Destruct.ExplosionStrength = 12.0f;
+```
+
+</TabItem>
+<TabItem label="C#">
 
 ```csharp
 SDestructibleComponent Destruct = Registry.Get<SDestructibleComponent>(Entity);
 Destruct.ExplosionStrength = 12.0f;
 ```
+
+</TabItem>
+</Tabs>
 
 Triggering the fracture itself is driven natively today; a script-facing
 fracture call is not yet exposed in C#. Tune the break on the component.

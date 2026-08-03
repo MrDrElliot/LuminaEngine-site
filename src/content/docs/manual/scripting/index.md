@@ -14,7 +14,7 @@ documents the API surface.
 - **[Entities & Components](/manual/scripting/entities-components/)**, working with this entity and its components.
 - **[The World API](/manual/scripting/world/)**, spawning, finding, and moving entities.
 - **[World Systems](/manual/scripting/world-systems/)**, world-level systems that run a rule across many entities.
-- **[Physics & Collisions](/manual/scripting/physics/)**, forces, velocities, queries, and collision events.
+- **[Physics](/manual/physics/)**, forces, velocities, queries, and collision events.
 - **[Input](/manual/scripting/input/)**, actions, keys, and the mouse.
 - **[User Interface](/manual/scripting/ui/)**, screen-space RmlUi documents driven from C#.
 - **[Low-Level Rendering (RHI)](/manual/scripting/rhi/)**, custom GPU work: compute dispatch, textures, and the bindless heap.

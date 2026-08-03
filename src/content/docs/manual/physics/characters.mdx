@@ -3,6 +3,8 @@ title: Character Controller
 description: Walking, jumping, and player movement.
 ---
 
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
 Players and walking NPCs do not use a plain rigid body. They use a **character
 controller**, a capsule that climbs steps, slides along walls, and never tips
 over. It is three components on one entity.
@@ -11,7 +13,7 @@ over. It is three components on one entity.
 | --- | --- |
 | **Character Physics** | The collision capsule (Radius, Half Height) and how it handles slopes, steps, and pushing dynamic bodies. |
 | **Character Movement** | The feel, including speed, acceleration, jump, gravity, air control, rotation. |
-| **Character Controller** | The intent layer your script talks to. |
+| **Character Controller** | The intent layer your code talks to. |
 
 Add all three in the Details panel to make an entity a character.
 
@@ -28,17 +30,35 @@ How it handles terrain is set on **Character Physics** with **Max Slope Angle**
 (the steepest walkable incline) and **Step Height** (the tallest ledge it climbs
 automatically), plus the capsule's **Radius**, **Half Height**, and **Mass**.
 
-## Driving it from a script
+## Driving it from code
 
 Talk to the **Character Controller**, not the transform. Feed it intent each
 frame and the movement system resolves it on the physics step.
 
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+SCharacterControllerComponent& Controller = Context.Get<SCharacterControllerComponent>(Entity);
+Controller.AddMovementInput(Direction);   // accumulate a world-space move direction
+Controller.AddYaw(Turn);                  // look left/right (degrees)
+Controller.Jump();                        // jump this frame
+```
+
+</TabItem>
+<TabItem label="C#">
+
 ```csharp
 SCharacterControllerComponent Controller = Registry.Get<SCharacterControllerComponent>(Entity);
 Controller.AddMovementInput(Direction);   // accumulate a world-space move direction
-Controller.AddYaw(Turn);                   // look left/right (degrees)
-Controller.Jump();                         // jump this frame
+Controller.AddYaw(Turn);                  // look left/right (degrees)
+Controller.Jump();                        // jump this frame
 ```
+
+</TabItem>
+</Tabs>
+
+The methods are identical in both languages.
 
 | Method | Does |
 | --- | --- |
