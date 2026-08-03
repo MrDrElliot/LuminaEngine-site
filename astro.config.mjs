@@ -101,6 +101,7 @@ export default defineConfig({
           label: 'Audio',
           items: [
             { label: 'Overview', slug: 'manual/audio' },
+            { label: 'Playing Sounds', slug: 'manual/audio/playback' },
             { label: 'Mixing & Buses', slug: 'manual/audio/mixing' },
             { label: 'Audio Settings', slug: 'manual/audio/settings' },
           ],
@@ -116,7 +117,6 @@ export default defineConfig({
             { label: 'World Systems', slug: 'manual/scripting/world-systems' },
             { label: 'Parallel Work', slug: 'manual/scripting/tasks' },
             { label: 'Timers', slug: 'manual/scripting/timers' },
-            { label: 'Audio', slug: 'manual/scripting/audio' },
             { label: 'Animation', slug: 'manual/scripting/animation' },
             { label: 'Blackboards', slug: 'manual/scripting/blackboard' },
             { label: 'Input', slug: 'manual/scripting/input' },

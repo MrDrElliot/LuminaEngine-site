@@ -1,0 +1,246 @@
+---
+title: Playing Sounds
+description: Fire 2D and spatialized one-off sounds from code and steer them while they play.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+An [Audio Source](/manual/audio/) component covers a sound that belongs to an
+entity. For a one-off, play it directly and get back a **handle** you can use to
+adjust or stop the voice while it runs.
+
+The audio engine is process-global in both languages. C++ reaches it through the
+`GAudioContext` pointer; C# goes through `World.Audio`, with a static `Sound`
+shorthand for the current world.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+#include "Audio/AudioGlobals.h"
+
+CAudioStream* Shot = ...;
+FAudioHandle Handle = GAudioContext->PlayAudio2D(Shot->GetAudioData());
+```
+
+`GAudioContext` is null before the audio device comes up and when audio is
+disabled, so null-check it outside the normal frame path. Every play call takes
+a `TSharedPtr<FAudioData>`, which the asset hands out through `GetAudioData()`;
+the bytes are kept alive for the life of the voice, so the asset can unload
+mid-playback.
+
+</TabItem>
+<TabItem label="C#">
+
+```csharp
+CAudioStream Shot = Asset.Load<CAudioStream>("/Game/Content/Audio/Shot");
+Sound.Play(Shot);
+```
+
+Sounds are fire-and-forget, you only need the returned handle if you want to
+change or stop the sound afterward.
+
+</TabItem>
+</Tabs>
+
+## 2D and spatialized
+
+A **2D** sound plays at full volume regardless of position, use it for UI, music,
+and non-diegetic effects. A **3D** sound is attenuated by distance from the
+listener, fading between `MinDistance` (full volume) and `MaxDistance` (silent).
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+// UI / music.
+GAudioContext->PlayAudio2D(Music->GetAudioData(), 0.6f, 1.0f, /*bLooping*/ true);
+
+// Positional gunshot that falls off between 2m and 40m.
+GAudioContext->PlayAudioAtLocation(
+    Shot->GetAudioData(), Location, 1.0f, 1.0f, /*MinDistance*/ 2.0f, /*MaxDistance*/ 40.0f);
+```
+
+`PlaySound2D` and `PlaySoundAtLocation` are the same two calls against a loose
+file path instead of an asset.
+
+</TabItem>
+<TabItem label="C#">
+
+```csharp
+// UI / music.
+World.Audio.Play2D(Music, Volume: 0.6f, Loop: true);
+
+// Positional gunshot that falls off between 2m and 40m.
+World.Audio.PlayAtLocation(Shot, Transform.GetWorldLocation(), MinDistance: 2.0f, MaxDistance: 40.0f);
+```
+
+Every parameter after the sound is optional (`Volume` 1, `Pitch` 1, `Loop`
+false, `MinDistance` 1, `MaxDistance` 50). A null or unloaded sound returns an
+invalid handle and plays nothing.
+
+</TabItem>
+</Tabs>
+
+## Full control
+
+Both languages have a parameter struct covering everything a voice can be
+configured with at start: [bus](/manual/audio/mixing/), attenuation, cone,
+priority, fades, and delay. C++ calls it `FAudioPlayParams` and default-builds
+it; C# calls it `FSoundPlayParams` and starts from `Default()`.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+FAudioPlayParams Params;
+Params.Bus                     = EAudioBus::Ambient;
+Params.bSpatialized            = true;
+Params.Position                = Location;
+Params.bLooping                = true;
+Params.Priority                = 40;
+Params.FadeInSeconds           = 1.5f;
+Params.Attenuation.MaxDistance = 30.0f;
+Params.Attenuation.Model       = EAudioAttenuationModel::Linear;
+
+FAudioHandle Wind = GAudioContext->PlayAudio(Loop->GetAudioData(), Params);
+```
+
+</TabItem>
+<TabItem label="C#">
+
+```csharp
+FSoundPlayParams Params = FSoundPlayParams.Default();
+Params.Bus = EAudioBus.Ambient;
+Params.Spatialized = true;
+Params.Position = Transform.GetWorldLocation();
+Params.Looping = true;
+Params.Priority = 40;
+Params.FadeInSeconds = 1.5f;
+Params.Attenuation.MaxDistance = 30.0f;
+Params.Attenuation.Model = EAudioAttenuationModel.Linear;
+
+PlayingSound Wind = Sound.PlayEx(Loop, Params);
+```
+
+For a quick one-shot on a specific bus without building a struct,
+`Sound.PlayOnBus(Click, EAudioBus.UI)`.
+
+</TabItem>
+</Tabs>
+
+| Field | C++ | Does |
+| --- | --- | --- |
+| `Volume`, `Pitch` | same | Multipliers, 1 is unchanged. |
+| `Looping` | `bLooping` | Restart on completion. |
+| `Spatialized` | `bSpatialized` | Attenuate and pan by `Position`. |
+| `StartPaused` | `bStartPaused` | Create the voice without starting it. |
+| `Position`, `Direction` | same | World position and cone forward axis. |
+| `Bus` | same | Mix group. |
+| `Priority` | same | 0 to 255. Low priority voices are evicted first at the voice cap. |
+| `FadeInSeconds` | same | Ramp up from silence. |
+| `StartDelaySeconds` | same | Schedule the voice to begin later. |
+| `UseOcclusion` | `bUseOcclusion` | Build the voice's filter up front if you plan to occlude it. |
+| `Attenuation` | same | Falloff, cone, doppler. See [Attenuation](/manual/audio/#attenuation). |
+
+:::note
+The C# struct drops the `b` prefix on its booleans. Otherwise the two structs
+carry the same fields in the same units.
+:::
+
+## Steering a playing sound
+
+C++ operates on the `FAudioHandle` through the context. C# also returns a
+`PlayingSound` wrapper that carries its world, so it keeps working after the
+callback that created it returns. Every call is safe on a stale or invalid
+handle, it simply does nothing.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+FAudioHandle Engine = GAudioContext->PlayAudioAtLocation(Loop->GetAudioData(), Location, 1.0f, 1.0f, 1.0f, 50.0f, true);
+
+// Later, as the car revs and moves:
+GAudioContext->SetPitch(Engine, 1.0f + Throttle);
+GAudioContext->SetPosition(Engine, Location);
+GAudioContext->SetVelocity(Engine, Velocity);   // drives doppler
+
+// When it stops:
+GAudioContext->StopSound(Engine, EAudioStopMode::FadeOut, 0.5f);
+```
+
+</TabItem>
+<TabItem label="C#">
+
+```csharp
+PlayingSound Engine = Sound.PlayAt(Loop, Location, Loop: true);
+
+// Later, as the car revs and moves:
+Engine.Pitch = 1.0f + Throttle;
+Engine.Position = Transform.GetWorldLocation();
+Engine.Velocity = Velocity;   // drives doppler
+
+// When it stops:
+Engine.Stop(FadeOut: true);
+```
+
+</TabItem>
+</Tabs>
+
+| C# member | C++ | Effect |
+| --- | --- | --- |
+| `Volume`, `Pitch`, `Pan` | `SetVolume`, `SetPitch`, `SetPan` | Live multipliers. |
+| `Position`, `Velocity` | `SetPosition`, `SetVelocity` | Move a spatialized voice. Velocity drives doppler. |
+| `Looping`, `Paused`, `Bus` | `SetLooping`, `SetPaused`, `SetBus` | Toggle looping, pause without losing position, move to another bus. |
+| `IsPlaying`, `State` | `IsPlaying`, `GetVoiceState` | Whether the mixer still holds the voice. |
+| `PlaybackFrame` | `GetPlaybackFrame` | Current position in PCM frames. |
+| `SetAttenuation(atten)` | same | Replace the whole 3D setup. |
+| `SetOcclusion(amount, lowPass, volume)` | same | Muffle by hand, 0 clear to 1 blocked. |
+| `FadeTo(volume, seconds)` | same | Ramp to a new volume. |
+| `Stop(fadeOut, fadeSeconds)` | `StopSound(handle, mode, seconds)` | Stop, optionally with a fade. |
+
+The C# `AudioHandle` carries `Generation` / `Index` to identify the voice, and
+`IsValid` is `false` if the sound failed to start (no data, audio disabled, or
+the voice cap was hit).
+
+## Filters and occlusion
+
+Components can occlude themselves automatically (see
+[Occlusion](/manual/audio/#occlusion)). For voices you started yourself you
+supply the value, which is also how you get effects that aren't occlusion at all.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+// Muffle everything while the player is underwater.
+GAudioContext->SetLowPassCutoff(Handle, 800.0f);
+
+// Open it back up.
+GAudioContext->SetLowPassCutoff(Handle, 0.0f);
+```
+
+</TabItem>
+<TabItem label="C#">
+
+```csharp
+// Muffle everything while the player is underwater.
+World.Audio.SetLowPassCutoff(Handle, 800.0f);
+
+// Open it back up.
+World.Audio.SetLowPassCutoff(Handle, 0.0f);
+```
+
+</TabItem>
+</Tabs>
+
+`SetOcclusion` applies both a low-pass and a volume drop scaled by the amount,
+and expects a value you've already smoothed. Jumping it from 0 to 1 in one frame
+will be audible.
+
+:::note
+For sounds that should follow an entity automatically, an `SAudioSourceComponent`
+authored on the entity plays, positions, and occludes itself with no code at all.
+Play directly when you want to trigger and steer one-off sounds.
+:::

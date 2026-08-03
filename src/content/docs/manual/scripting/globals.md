@@ -96,7 +96,7 @@ engine.Stop(fadeOut: true);
 
 `Sound.Play` / `Sound.PlayAt` return a `PlayingSound` whose `Volume`, `Pitch`,
 `Position`, and `Looping` are settable, plus `Stop()`. (This is the static, code-
-first counterpart to the [`World.Audio`](/manual/scripting/audio/) facade.)
+first counterpart to the [`World.Audio`](/manual/audio/playback/) facade.)
 
 ## Debug
 

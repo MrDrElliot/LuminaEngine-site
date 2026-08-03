@@ -3,10 +3,12 @@ title: Audio
 description: Sound sources, the listener, 3D attenuation, and occlusion.
 ---
 
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
 Lumina plays sound through two components, a **source** that emits and a
 **listener** that hears. Every voice routes through a [mix bus](/manual/audio/mixing/)
 so groups of sounds can be balanced together, and one-off sounds can be fired
-straight [from script](/manual/scripting/audio/).
+straight [from code](/manual/audio/playback/).
 
 ## Audio Source
 
@@ -29,7 +31,20 @@ transform drives distance attenuation, panning, and doppler.
 | Play On Ready | Start playing as soon as the entity is set up. |
 | Cull Beyond Max Distance | Don't start a voice the listener can't hear anyway. |
 
-From script the source's fields are settable, and it exposes a few methods.
+The component's fields are settable at runtime, and it exposes a few methods.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+SAudioSourceComponent& Source = Context.Get<SAudioSourceComponent>(Entity);
+Source.Volume = 0.5f;
+Source.bLooping = true;
+Source.Play();
+```
+
+</TabItem>
+<TabItem label="C#">
 
 ```csharp
 SAudioSourceComponent Source = Registry.Get<SAudioSourceComponent>(Entity);
@@ -37,6 +52,11 @@ Source.Volume = 0.5f;
 Source.bLooping = true;
 Source.Play();
 ```
+
+</TabItem>
+</Tabs>
+
+The methods are identical in both languages.
 
 | Method | Effect |
 | --- | --- |
@@ -136,3 +156,9 @@ for synths, engine sounds, or network voice. Set its sample rate and channel
 count, call `Start()`, then push interleaved float samples with
 `QueueSamples()`. It carries the same Bus and Attenuation properties as a
 regular source.
+
+## Next
+
+- **[Playing sounds](/manual/audio/playback/)**, firing and steering one-off voices from code.
+- **[Mixing & Buses](/manual/audio/mixing/)**, mix groups, an options menu, and reverb.
+- **[Audio Settings](/manual/audio/settings/)**, project-wide defaults.

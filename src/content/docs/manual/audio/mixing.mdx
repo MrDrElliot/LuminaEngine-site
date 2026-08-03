@@ -3,6 +3,8 @@ title: Mixing & Buses
 description: Mix groups, volume multipliers, an options menu, and reverb.
 ---
 
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
 Every voice routes through a **bus**, a mix group with its own volume and mute.
 Buses are how you give players a Music slider that doesn't touch gunfire, or duck
 the world under dialogue.
@@ -19,8 +21,8 @@ the world under dialogue.
 | Ambient | Beds, room tone, weather. |
 
 The five named buses all feed Master, so Master's volume scales the whole mix.
-Pick a bus per source with its **Bus** property, per script call with
-`FSoundPlayParams.Bus`, or move a live voice with `SetBus`.
+Pick a bus per source with its **Bus** property, per play call with the play
+params' `Bus` field, or move a live voice with `SetBus`.
 
 ## Volume multipliers
 
@@ -28,10 +30,24 @@ A bus volume is a plain multiplier, `1.0` is unchanged and `0.0` is silent. The
 starting values ship in the [audio settings](/manual/audio/settings/), and
 anything can change them at runtime.
 
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+GAudioContext->SetBusVolume(EAudioBus::Music, 0.4f);
+GAudioContext->SetBusMuted(EAudioBus::Voice, true);
+```
+
+</TabItem>
+<TabItem label="C#">
+
 ```csharp
 Sound.SetBusVolume(EAudioBus.Music, 0.4f);
 Sound.SetBusMuted(EAudioBus.Voice, true);
 ```
+
+</TabItem>
+</Tabs>
 
 Volume changes are ramped rather than applied instantly, so dragging a slider
 doesn't click.
@@ -40,6 +56,37 @@ doesn't click.
 
 This is the whole pattern. Read the current values to populate your sliders,
 write them back as the player drags, and persist once when they hit Apply.
+
+The difference between the two languages is only in the last step. C# has a
+single `SaveMixSettings()` call; in C++ you copy the live volumes into
+`CAudioSettings` and ask the config system to write it, which is exactly what
+that C# call does internally.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+// Populate.
+const float Music = GAudioContext->GetBusVolume(EAudioBus::Music);
+const float Sfx   = GAudioContext->GetBusVolume(EAudioBus::SFX);
+
+// Live preview while dragging.
+GAudioContext->SetBusVolume(EAudioBus::Music, MusicSlider);
+GAudioContext->SetBusVolume(EAudioBus::SFX, SfxSlider);
+
+// Apply.
+CAudioSettings* Settings = GetMutableDefault<CAudioSettings>();
+for (uint32 Index = 0; Index < NumAudioBuses; ++Index)
+{
+    const EAudioBus Bus = (EAudioBus)Index;
+    Settings->SetBusVolume(Bus, GAudioContext->GetBusVolume(Bus));
+}
+
+GConfig->SaveSettings(CAudioSettings::StaticClass());
+```
+
+</TabItem>
+<TabItem label="C#">
 
 ```csharp
 // Populate.
@@ -54,8 +101,11 @@ Sound.SetBusVolume(EAudioBus.SFX, SfxSlider);
 Sound.SaveMixSettings();
 ```
 
-`SaveMixSettings()` writes the current bus volumes into the project's
-`AudioSettings.json`, so they come back on the next launch.
+</TabItem>
+</Tabs>
+
+Either way the values land in the project's `AudioSettings.json`, so they come
+back on the next launch.
 
 :::note
 The full set is also on `World.Audio` (`SetBusVolume`, `GetBusVolume`,
@@ -68,6 +118,23 @@ shorthand for the current world.
 There's no automatic sidechain, but a duck is a few lines: drop the bus you want
 out of the way, restore it when the important sound finishes.
 
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+FAudioPlayParams Params;
+Params.Bus = EAudioBus::Voice;
+
+FAudioHandle Line = GAudioContext->PlayAudio(Dialogue->GetAudioData(), Params);
+GAudioContext->SetBusVolume(EAudioBus::Music, 0.25f);
+
+// When GAudioContext->IsPlaying(Line) goes false, put it back.
+GAudioContext->SetBusVolume(EAudioBus::Music, 1.0f);
+```
+
+</TabItem>
+<TabItem label="C#">
+
 ```csharp
 PlayingSound Line = Sound.PlayOnBus(Dialogue, EAudioBus.Voice);
 Sound.SetBusVolume(EAudioBus.Music, 0.25f);
@@ -76,10 +143,35 @@ Sound.SetBusVolume(EAudioBus.Music, 0.25f);
 Sound.SetBusVolume(EAudioBus.Music, 1.0f);
 ```
 
+</TabItem>
+</Tabs>
+
 ## Reverb
 
 The engine has one shared reverb return. Buses send into it, so you can wet the
 world without touching UI or music.
+
+C# takes the four reverb parameters as arguments; C++ fills in an
+`FAudioReverbParams` struct with the same four fields.
+
+<Tabs syncKey="lang">
+<TabItem label="C++">
+
+```cpp
+GAudioContext->SetBusReverbSend(EAudioBus::SFX, 0.35f);
+GAudioContext->SetBusReverbSend(EAudioBus::Ambient, 0.5f);
+
+FAudioReverbParams Reverb;
+Reverb.RoomSize = 0.8f;
+Reverb.Damping  = 0.4f;
+Reverb.Width    = 1.0f;
+Reverb.WetLevel = 0.5f;
+
+GAudioContext->SetReverbParams(Reverb);
+```
+
+</TabItem>
+<TabItem label="C#">
 
 ```csharp
 World.Audio.SetBusReverbSend(EAudioBus.SFX, 0.35f);
@@ -88,6 +180,9 @@ World.Audio.SetBusReverbSend(EAudioBus.Ambient, 0.5f);
 // Room size, damping, stereo width, wet level.
 World.Audio.SetReverb(0.8f, 0.4f, 1.0f, 0.5f);
 ```
+
+</TabItem>
+</Tabs>
 
 | Parameter | Does |
 | --- | --- |
@@ -100,8 +195,8 @@ Sends default to 0 and the reverb network isn't built until something asks for
 it, so a project that never uses reverb pays nothing for it.
 
 Because the parameters are live, reverb zones are just a trigger volume that
-calls `SetReverb` on enter. Starting values for the sends and the reverb shape
-live in the [audio settings](/manual/audio/settings/).
+sets them on enter. Starting values for the sends and the reverb shape live in
+the [audio settings](/manual/audio/settings/).
 
 :::caution
 The send is per bus, not per voice, and there's a single reverb instance. Two
