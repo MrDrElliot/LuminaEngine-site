@@ -22,7 +22,7 @@ tear it off into its own window. The default layout has these pieces.
 | Menu | Holds |
 | --- | --- |
 | **File** | **Settings** (below), New Project, Reload Project Module, Package Project. |
-| **Tools** | Every utility window, including profilers, the asset registry, input actions, the plugin browser, and more, see [Tools & Profilers](/manual/editor/tools/). |
+| **Tools** | Every utility window, including profilers, the asset registry, the plugin browser, and more, see [Tools & Profilers](/manual/editor/tools/). |
 | **Help** | Links to Discord and the docs. |
 
 ## Settings

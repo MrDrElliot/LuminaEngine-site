@@ -8,7 +8,6 @@ The **Tools** menu opens standalone utility windows. Here are the everyday ones.
 | Tool | What it does |
 | --- | --- |
 | **Asset Registry** | Every known asset, its load state, size, and dependencies. |
-| **Input Actions** | Define named input actions and their key or pad bindings, see [Scripting › Input](/manual/scripting/input/). |
 | **Console Variables** | Browse and set engine CVars, and run console commands. |
 | **Object Browser** | Inspect every live engine object in memory. |
 | **Plugin Browser** | Enable or disable plugins for the project. |
@@ -38,5 +37,6 @@ to the running editor process and set breakpoints in your script `.cs` files.
 ## Settings
 
 Editor, project, and engine settings are not in this menu, they live under
-**File > Settings**. See the [Editor Overview](/manual/editor/) for what it
-covers.
+**File > Settings**. That is also where [input actions](/manual/scripting/input/#defining-actions)
+are defined, under **Engine > Input**. See the [Editor Overview](/manual/editor/)
+for what it covers.

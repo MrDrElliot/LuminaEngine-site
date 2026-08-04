@@ -16,7 +16,7 @@ If you are looking for something to contribute, this is the list.
 | Topic | Where the source is | What a page needs to cover |
 | --- | --- | --- |
 | **User Interface (authoring)** | `Runtime/UI`, `Editor/.../RmlUiEditor` | Authoring RmlUi documents and stylesheets in the editor, the world widget component versus screen-space UI, UI material brushes, and world text. [The C# API](/manual/scripting/ui/) is documented; the authoring side is not. |
-| **Input settings** | `Runtime/Input`, `Runtime/Config/InputSettings` | Defining actions and bindings in project settings, input contexts, and input modes. [The C# API](/manual/scripting/input/) is documented; the settings side is not. |
+| **Input modes and contexts** | `Runtime/Input/InputMode.h`, `InputContext`, `InputViewport` | How UI versus Game input mode and mouse capture are chosen, and how input is routed per viewport. Actions and their bindings are covered in [Input](/manual/scripting/input/). |
 | **Project and editor settings** | `Runtime/Config`, `Editor/Source/Settings` | What each settings class controls, where values are stored, and which ones require a restart. |
 | **Foliage** | `Runtime/World/Entity/Components/FoliageComponent.h`, `Editor/.../FoliageEditMode` | Painting instanced foliage, density and scale, and how foliage re-projects after terrain edits. Currently only mentioned in passing on the [Terrain](/manual/terrain/) page. |
 | **Blackboards (authoring)** | `Runtime/Assets/AssetTypes/Blackboard`, `Editor/.../Blackboard` | Authoring a blackboard asset and its keys. [The C# API](/manual/scripting/blackboard/) is documented; the asset editor is not. |
