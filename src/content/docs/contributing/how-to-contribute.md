@@ -70,8 +70,9 @@ Rebase on the latest `main` before opening a pull request.
 - Prefer the engine's containers, allocators, and math types over the standard
   library equivalents in engine code.
 - Constrain templates with concepts.
-- Mark thread affinity in the name when it is not obvious: `_GameThread`,
-  `_RenderThread`.
+- Mark affinity in the name when it is not obvious: `_GameThread` for a hard
+  game-thread requirement, `_Extract` / `_Render` for which half of the frame a
+  render-side function belongs to.
 - Reflected structs get the `S` prefix and a `GENERATED_BODY()`; the generated
   header include goes **last**. See
   [Reflection and Code Generation](/internals/reflection-codegen/).

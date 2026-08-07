@@ -108,7 +108,6 @@ whole engine. Abridged, with the reason each step sits where it does:
 | `FConsoleRegistry::LoadFromConfig` | Console variable values from config, before subsystems read them. |
 | `Audio::Initialize`, `Network::Initialize`, `Task::Initialize`, `Physics::Initialize` | Core services. Audio is skipped when headless. |
 | `LoadModulesForPhase(Core)` | Plugins that extend those services. |
-| `FPhysicsThread` start | Physics runs on its own thread from here on. |
 | `FRenderManager::Initialize` | Creates the RHI device, swapchain, shader library, material manager. Skipped when headless. |
 | `DotNet::Initialize` | Boots CoreCLR. Non-fatal if the runtime is absent. |
 | `ProcessNewlyLoadedCObjects` | Registers reflected types that came in with the modules loaded so far. |
@@ -145,7 +144,6 @@ profilers BeginFrame
 Audio::Update, Network::Update
   (skipped entirely while the window is minimized)
   stage FrameStart
-    WaitForPhysics + DispatchPhysicsEvents
     MainThread::ProcessQueue
     ProcessPendingOpenLevel, ProcessPendingTravel
     FRenderManager::FrameStart          ImGui::NewFrame
@@ -155,15 +153,15 @@ Audio::Update, Network::Update
   stage Paused
   stage PrePhysics
   stage DuringPhysics
+  FWorldManager::TickPhysics           step + dispatch contact events
   stage PostPhysics
   stage FrameEnd
     FWorldManager::UpdateWorlds
     editor: DeveloperToolUI EndFrame
     RmlUi::TickEditorContexts
     FWorldManager::ExtractWorlds        game -> render snapshot
-    FRenderManager::FrameEnd            enqueue render-thread work
+    FRenderManager::FrameEnd            record, composite, present
     DotNet::Tick
-    FWorldManager::KickPhysics          physics for next frame starts now
 profilers EndFrame
 MarkFrameEnd
 frame rate limiter
@@ -176,10 +174,10 @@ declares which stages it runs in and at what priority:
 
 | Stage | Intended use |
 | --- | --- |
-| `FrameStart` | Input, travel, per-frame setup. Physics results from last frame are already joined. |
+| `FrameStart` | Input, travel, per-frame setup. |
 | `Paused` | Runs only while the world is paused. Editor tooling uses it to keep ticking. |
-| `PrePhysics` | Gameplay that wants to write transforms before the physics kick. |
-| `DuringPhysics` | Work that can overlap the physics job. |
+| `PrePhysics` | Gameplay that wants to write transforms before the step. |
+| `DuringPhysics` | Also runs before the step. The name is inherited from the old async layout. |
 | `PostPhysics` | Reactions to physics output. |
 | `FrameEnd` | Extraction, rendering hand-off, anything that must be last. |
 
@@ -188,10 +186,9 @@ Priorities are `EUpdatePriority` values (`Highest` = 0 through `Low` = 192, and
 declares its participation with an `FUpdatePriorityList`, built from
 `RequiresUpdate(Stage)` or `RequiresUpdate(Stage, Priority)` entries.
 
-Physics is deliberately one frame behind: `KickPhysics` fires at the end of
-`FrameEnd`, and the results are joined at the start of the next frame's
-`FrameStart`. That is why gameplay reads physics state from the previous
-simulation step.
+The physics step runs between the `DuringPhysics` and `PostPhysics` stages,
+synchronously on the game thread, so `PostPhysics` sees the step that just ran.
+See [Threading Model](/internals/threading-model/).
 
 ### Frame rate limiting
 
@@ -232,14 +229,14 @@ moves it into the new world's net system.
 reordering these tends to produce use-after-free at exit.
 
 1. `FCoreDelegates::OnPreEngineShutdown`.
-2. `FlushRenderingCommands()` then `RHI::WaitDeviceIdle()`, then `RmlUi::Shutdown()`.
-   Nothing may destroy a GPU resource before the device is idle.
+2. `RHI::WaitDeviceIdle()`, then `RmlUi::Shutdown()`. Nothing may destroy a GPU
+   resource before the device is idle.
 3. Editor: deinitialize and delete the development tool UI.
 4. `DestroyGameInstance()`.
 5. Delete `GWorldManager`. Worlds must die before the object system.
 6. `ShutdownCObjectSystem()`.
 7. `DotNet::Shutdown()`.
-8. Delete `GRenderManager`, then stop and delete `GPhysicsThread`.
+8. Delete `GRenderManager`.
 9. `Physics::Shutdown`, `Audio::Shutdown`, `Network::Shutdown`, `Task::Shutdown`.
    The task system goes last because earlier shutdowns may still schedule work.
 10. `FPluginManager::ShutdownAllPlugins`, `FModuleManager::UnloadAllModules`.
@@ -255,6 +252,6 @@ threading.
 | --- | --- |
 | Null `CClass*` in a module's static initializer | `ProcessNewlyLoadedCObjects` has not run for that module's phase yet. Move the work into `StartupModule` or a later phase. |
 | A core delegate callback never fires | `OnPreEngineInit` / `OnPostEngineInit` are broadcast-and-clear. The subscription was made after the broadcast. |
-| Hang at exit with the render drain named in the watchdog dump | A render command is waiting on something the game thread will never signal. See [Frame Pipeline](/internals/frame-pipeline/). |
+| Hang at exit inside `FrameEnd` in the watchdog dump | Recording or presentation is waiting on something that will never be signalled. See [Frame Pipeline](/internals/frame-pipeline/). |
 | Editor will not close | Something left `bEngineReadyToClose` false. `FEngine::Update` sets it true at the top of every frame, so the culprit cleared it during this frame's stages. |
 | Crash destroying a GPU resource at shutdown | Destruction ran before `WaitDeviceIdle`, or after the RHI device was freed. |

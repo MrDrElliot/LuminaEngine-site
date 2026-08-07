@@ -51,8 +51,8 @@ the same world from another camera.
 | Pass | What it does |
 | --- | --- |
 | RmlUi world widgets | Rasterizes world-space UI documents into their own render targets before anything samples them. |
-| `ResetPass_RenderThread` | Clears per-frame counters and indirect args. |
-| `CompileDrawCommands_RenderThread` | Buffer resizes and uploads for the draw commands the game thread compiled. |
+| `ResetPass_Render` | Clears per-frame counters and indirect args. |
+| `CompileDrawCommands_Render` | Buffer resizes and uploads for the draw commands extract compiled. |
 | `TexturePaintPass` | Applies queued render-target painting (terrain and texture painting tools). |
 | `CullPassEarly` | Frustum and cone culling for every view, plus Hi-Z occlusion for the camera against **last frame's** depth pyramid. Meshlets the stale pyramid hides are **deferred, not dropped**. Writes the mesh-task `GroupCountX` straight into `{0,1,1}`-seeded indirect args. |
 | `SkinningPass` | Compute skinning for skeletal meshes into pre-skinned vertex buffers. |
@@ -175,7 +175,7 @@ Two halves, run before the passes:
 
 - `CompileDrawCommands_GameThread` does the ECS reads and the parallel `Process*`
   tasks, plus cull and shadow setup.
-- `CompileDrawCommands_RenderThread` resizes buffers and records the uploads.
+- `CompileDrawCommands_Render` resizes buffers and records the uploads.
 
 `ResolveDirtyMeshComponents` is a serial pre-pass so the parallel gather stays
 pure reads, and it is skipped entirely when nothing changed.

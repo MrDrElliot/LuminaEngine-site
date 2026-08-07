@@ -151,10 +151,9 @@ thread watches for `HangWatchdog::Heartbeat()`, which the main thread calls at t
 top of every `FEngine::Update`. If the heartbeat stops advancing, the watchdog
 dumps every thread's callstack.
 
-Subsystems with no dedicated thread register a reporter so they still show up in
-a dump. `FRenderThread` does this: its drain rides a pool worker, so the watchdog
-cannot find it by thread, but the reporter logs the drain's flags, counters, and
-the name of the in-flight command.
+Subsystems whose work rides a pool worker rather than a thread of their own can
+register a reporter so they still show up in a dump, since the watchdog cannot
+find them by thread.
 
 ## Threading primitives
 

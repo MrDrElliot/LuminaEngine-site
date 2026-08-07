@@ -1,20 +1,26 @@
 ---
 title: Frame Pipeline
-description: Extract, the render drain, frames in flight, and how a world reaches the screen.
+description: Extract, recording, frames in flight, and how a world reaches the screen.
 ---
 
-Lumina separates the game thread's view of the world from the renderer's view of
-it with a per-frame **extract** step. The game thread writes a snapshot; the
-render side reads it. Nothing in a render pass ever reads live ECS state.
+Lumina separates the world's live state from what a render pass may read with a
+per-frame **extract** step. Extract writes a snapshot; recording reads only that
+snapshot. Nothing in a render pass ever reads live ECS state.
+
+Both halves run on the game thread inside `FrameEnd`, one after the other. The
+split is not a thread boundary — it is what lets several worlds record
+concurrently, and what keeps passes off the ECS.
 
 ```
-Game thread (FrameEnd)                Render drain (a pool job)
-  CWorld::Extract          ---->        RHI::Core::BeginFrame(slot)
-    fill FrameRing[slot]                IRenderScene::PrepareRender   (serial)
-  FRenderManager::FrameEnd              IRenderScene::RenderView      (per scene)
-    ENQUEUE_RENDER_COMMAND              editor UI / game composite
-                                        RHI::Core::Present
-                                        SignalFrameConsumed(slot)
+FrameEnd (game thread)
+  FWorldManager::ExtractWorlds
+    CWorld::Extract                  fill this frame's snapshot
+  FRenderManager::FrameEnd
+    RHI::Core::BeginFrame(slot)      wait the frame timeline semaphore
+    FWorldManager::RenderWorlds
+      IRenderScene::PrepareRender    every scene, serial
+      IRenderScene::RenderView       per scene, parallel when >1 world
+    acquire swapchain / composite / present
 ```
 
 ## Frames in flight
@@ -47,24 +53,19 @@ consumed fence: if the render side has not released the slot yet, extract waits.
 Everything a pass needs must be in the snapshot. A pass that reaches back into
 the ECS is reading data the game thread may be mutating concurrently.
 
-## The render command queue
+## FrameEnd
 
-`FRenderManager::FrameEnd` builds the ImGui snapshot on the game thread and then
-enqueues one render command containing the whole frame:
+`FRenderManager::FrameEnd` advances the frame index, builds the ImGui draw data,
+and then runs the frame inline:
 
 ```cpp
-ENQUEUE_RENDER_COMMAND(RenderFrame)([this, ThisFrameIndex, Snapshot]() mutable
-{
-    RHI::Core::BeginFrame(ThisFrameIndex);
-    GWorldManager->RenderWorlds(ThisFrameIndex);
-    // acquire, composite, present
-});
+RHI::Core::BeginFrame(ThisFrameIndex);      // frame timeline fence for this slot
+ApplyPendingResize();
+GWorldManager->RenderWorlds(ThisFrameIndex);
+// acquire, composite, present
 ```
 
-The command runs on the render drain: a single auto-arming pool job, strictly
-FIFO, never more than one at a time. See
-[Threading Model](/internals/threading-model/) for the mechanics and the
-no-park rule.
+See [Threading Model](/internals/threading-model/) for what may touch what.
 
 ## RenderWorlds
 
@@ -76,12 +77,8 @@ no-park rule.
    IBL cubemaps at a new resolution.
 2. **`RenderView(FrameIndex)` per scene.** Each scene opens its own command list,
    so scenes can record concurrently. With more than one live world (the editor's
-   multi-view case) this runs under `Task::ParallelFor`; with a single world it
-   takes the identical serial path with no task overhead. The console variable
-   gating it is checked per frame.
-
-`SignalFrameConsumed(FrameIndex)` runs after each scene's record and releases the
-snapshot slot back to extract.
+   multi-view case) this runs under `Task::ParallelFor` (`r.ParallelWorldRender`);
+   with a single world it takes the identical serial path with no task overhead.
 
 ## Presentation
 
@@ -103,13 +100,13 @@ After the worlds have recorded:
    This must finish before the slot is released because it reads that slot's
    captures.
 
-## The ImGui snapshot ring
+## ImGui draw data
 
-ImGui builds draw data on the game thread, but recording happens on the render
-drain a frame later. `BuildFrame_GameThread(slot)` copies the draw data into a
-per-slot snapshot; `SignalSnapshotSlotConsumed(slot)` releases it. The snapshot
-must be released on **every** path out of the render command, including the
-swapchain-out-of-date early return, or the ring stalls.
+`ImGuiRenderer->BuildFrame()` produces the frame's `ImDrawData` at the top of
+`FRenderManager::FrameEnd`, and it is recorded later in the same function. Since
+recording no longer happens a frame later on another thread, the draw data does
+not need to be snapshotted into a ring — it is consumed before control returns to
+the update loop.
 
 ## The render scene interface
 
@@ -123,7 +120,7 @@ defaults to "not supported" so a minimal renderer stays minimal.
 | --- | --- | --- |
 | `Init()` | Game | Two-phase construction. Required here because it makes virtual calls and hands `this` to systems, neither of which works from a constructor. |
 | `Extract(ViewVolume, PostProcess)` | Game | Fill the frame slot's snapshot. |
-| `RenderView(FrameIndex)` | Render | Record and submit. |
+| `RenderView(FrameIndex)` | Recording | Record and submit. Reads only the snapshot. |
 | `Resize(NewSize)` | Game | Recreate render targets. |
 | `GetRenderExtent()` | Game | Current render target size. |
 
@@ -190,14 +187,12 @@ batching several of them stalls hard.
 
 ## Flushing
 
-`FlushRenderingCommands()` blocks the game thread until the queue drains. It is
-correct for level travel, screenshots, resource resizes, and shutdown, and wrong
-for anything per frame, because it serializes the two halves of the engine.
-`FRenderCommandFence` is the targeted alternative.
-
-`FWorldManager::CreateWorldContext` calls `FlushRenderingCommands` before pushing
-into the context list, so the render side never observes a half-constructed
-context.
+There is nothing to flush: recording and submission finish inside `FrameEnd`
+before the update loop continues, so any code running in an update stage is
+already outside the render half of the frame. What still matters is the **GPU**,
+which is up to `kFramesInFlight` frames behind — anything that destroys a
+resource the GPU may still be reading goes through the deferred-release lists
+below, or `WaitIdle` for the heavyweight cases (renderer teardown, resize).
 
 ## Common failure modes
 

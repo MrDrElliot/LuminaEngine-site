@@ -42,26 +42,25 @@ so world and gameplay code can build them without including Jolt.
 
 ## Where physics sits in the frame
 
-Physics is **one frame behind gameplay**, deliberately:
+The step is **synchronous, on the game thread**, sitting between the two stages
+named for it:
 
 ```
-FrameStart
-  FWorldManager::WaitForPhysics()        join last frame's step
-  FWorldManager::DispatchPhysicsEvents() collision events reach the game thread
-  ... update stages, gameplay reads physics state ...
-FrameEnd
-  FWorldManager::KickPhysics()           enqueue this frame's step
+PrePhysics stage       set up, apply forces, move kinematics
+  FWorldManager::TickPhysics()
+    CWorld::TickPhysics()              IPhysicsScene::Update(DeltaTime)
+    CWorld::DispatchPhysicsEvents()    contact events reach gameplay
+PostPhysics stage      read this frame's results
 ```
 
-`FPhysicsThread` is a facade with the same `Enqueue` / `Flush` API it had when it
-was a real OS thread. Each `Enqueue` submits a **pool job**; `Flush` waits the job
-counter, assist-waiting on the calling thread. There is no dedicated physics
-thread any more. See [Threading Model](/internals/threading-model/).
+There is no physics thread. See [Threading Model](/internals/threading-model/)
+for why the async version was removed.
 
-The kick-at-end, join-at-start contract is enforced by the **caller**, not by the
-class. That ordering is what guarantees no game-thread ECS access overlaps the
-simulation, and it is why gameplay always reads physics results from the previous
-step.
+`DuringPhysics` is a stage name inherited from the async layout; it runs *before*
+the step, alongside `PrePhysics`. Read results in `PostPhysics` or later.
+
+Jolt still parallelises the step internally through the engine job pool, so a
+synchronous call is not a single-core call.
 
 `IPhysicsScene` exposes the step in four parts (`PreUpdate`, `Update(DeltaTime)`,
 `PostUpdate`, plus `Simulate` / `StopSimulate` to gate whether stepping happens at

@@ -3,9 +3,10 @@ title: Threading Model
 description: Which threads exist, what each may touch, and where the hand-offs are.
 ---
 
-Lumina has fewer OS threads than its subsystem list suggests. What used to be a
-dedicated render thread, a dedicated physics thread, and a dedicated audio update
-thread are now **jobs on the fiber pool**. The threads that actually exist are:
+Lumina has far fewer OS threads than its subsystem list suggests. There is no
+render thread and no physics thread: rendering and physics both run on the game
+thread, and the work inside them fans out to **jobs on the fiber pool**. The
+threads that actually exist are:
 
 | Thread | Count | Owner |
 | --- | --- | --- |
@@ -36,10 +37,11 @@ order. Use it from a worker when you need to touch main-thread-only state.
 
 ## Job workers and fibers
 
-Worker threads drain lock-free MPMC queues, one per priority
-(`High` / `Normal` / `Low`). Each job runs on a pooled user-mode fiber. When a
-job waits on a counter it does **not** block its worker: the fiber parks and the
-worker picks up other runnable work. The fiber resumes later, possibly on a
+Each worker owns a set of lock-free MPMC queues, one per priority band
+(`High` / `Normal` / `Low` / `Background`), drains its own first, and steals from
+other workers when they run dry. Each job runs on a pooled user-mode fiber. When
+a job waits on a counter it does **not** block its worker: the fiber parks and
+the worker picks up other runnable work. The fiber resumes later, possibly on a
 different worker.
 
 Two consequences you must design around:
@@ -59,57 +61,56 @@ Non-worker threads (main, and any thread registered with
 keeps the system deadlock-free when the awaited signal itself depends on other
 jobs.
 
-## The render drain
+## Rendering
 
-There is no render OS thread. `FRenderThread` owns a strict-FIFO queue of
-commands enqueued from the game thread, and drains them on a single
-**auto-arming pool job**. Only one drain runs at a time, so FIFO ordering and
-single-threaded recording and submission are preserved, but the work rides a
-worker instead of occupying a dedicated thread.
+There is no render thread, and no render command queue. `FRenderManager::FrameEnd`
+runs on the game thread and does the whole frame inline: fence the frame slot,
+record every world, acquire the swapchain, composite, present.
 
-```cpp
-ENQUEUE_RENDER_COMMAND(UploadThing)([Snapshot = Move(Snapshot)]() mutable
-{
-    // runs on the render drain
-});
-```
+What is parallel is the **recording**, not the submission point.
+`FWorldManager::RenderWorlds` calls `PrepareRender` for every scene serially,
+then records each scene's `RenderView` — under `Task::ParallelFor` when more than
+one world is live (the editor's multi-view case), serially otherwise. Each scene
+owns its own command list, which is what makes that safe.
 
-Rules:
+The naming convention follows the *phase*, not a thread:
 
-- `FRenderThread::IsInRenderStage()` tells you whether you are inside the drain.
-  The old thread-id-based `Threading::IsRenderThread()` check is meaningless now
-  that the drain rides a pool worker.
-- The drain is marked with `Jobs::SetThreadNoParkGuard`. If a render command
-  parks a fiber, the scheduler logs a loud error naming the guard. Parking
-  strands the serial pump and can resume it on a different thread, breaking its
-  thread-local state. The park still proceeds; the guard is a tripwire, not a
-  block.
-- When the system is down (before `Start`, after `Stop`), `Enqueue` runs the
-  command inline on the caller.
-- `FlushRenderingCommands()` blocks until the queue drains. It is reserved for
-  level travel, screenshots, resource resizes, and shutdown. Calling it per frame
-  serializes the game and render halves.
-- `FRenderCommandFence` is the finer-grained version: `BeginFence()` captures
-  the current queue counter, `Wait()` blocks until the drain reaches it.
+| Suffix | Meaning |
+| --- | --- |
+| `_Extract` | Runs during extract. Reads live ECS, writes the snapshot. |
+| `_Render` | Runs during recording. Reads only the snapshot, records commands. |
 
-Because a waiting external thread can become the drainer (the assist path), a
-stranded armed drain job cannot lock out a `Flush`. The scheduler tracks
-"armed" and "running" separately for exactly this reason.
+`CompileDrawCommands_Extract` and `CompileDrawCommands_Render` are the pair to
+look at. A `_Render` function that reaches back into the ECS is a bug even though
+both now run on the same thread, because recording may be running for several
+worlds at once.
 
 ## Physics
 
-`FPhysicsThread` is a facade with the same `Enqueue` / `Flush` API it had when it
-was a real thread. Each `Enqueue` submits a pool job; `Flush` waits the job
-counter, assist-waiting on the calling thread.
+There is no physics thread and no async physics. `FWorldManager::TickPhysics()`
+steps every live world and dispatches that world's contact events immediately
+after, synchronously on the game thread, from a block sitting **between the
+DuringPhysics and PostPhysics stages**.
 
-The frame contract is unchanged and is enforced by the caller, not by the class:
+So `PostPhysics` reads the step that just ran, in the same frame, and contact
+events land before it.
 
-- `FWorldManager::KickPhysics()` fires at the end of `FrameEnd`.
-- `FWorldManager::WaitForPhysics()` joins at the start of the next
-  `FrameStart`, immediately followed by `DispatchPhysicsEvents()`.
+Jolt still parallelises the step internally: with
+`Physics.Jolt.UseEngineJobSystem` (default on) its jobs go to the same worker
+pool, so a synchronous call still uses every core. Because those callbacks are
+raised from Jolt's own jobs, `FJoltPhysicsScene` still *records* contacts and
+sleep/wake transitions into staging buffers and drains them after `Update()`
+returns rather than dispatching inline — the queue just no longer outlives the
+frame that filled it.
 
-So physics results are always one frame old from gameplay's point of view, and
-no game-thread ECS access overlaps the simulation.
+:::note[Removed 2026-08-07]
+Physics used to run one frame behind, kicked at the end of `FrameEnd` and joined
+at the top of the next `FrameStart`. That bought overlap only with the frame tail
+(the `Core.MaxFPS` limiter sleep and the window poll), which is time you only have
+when you are *not* CPU-bound, and the join assist-waited anyway. It cost a frame
+of latency and a hard "no game-thread ECS access in the kick/join window"
+contract, so it was deleted.
+:::
 
 ## Audio
 
@@ -130,10 +131,8 @@ A dedicated thread started before anything else in `LuminaMain`. The main thread
 calls `HangWatchdog::Heartbeat()` at the top of every `FEngine::Update`. If the
 heartbeat stops advancing, the watchdog dumps every thread's callstack.
 
-Because the render drain has no dedicated thread, a stall dump cannot show it.
-`FRenderThread` registers a reporter that logs the drain's flags, counters, and
-the debug name of the in-flight command, so a hung render command is still
-identifiable.
+Because rendering happens inline on the game thread, a stall inside it shows up
+directly in the main thread's callstack in the dump.
 
 ## Ownership rules
 
@@ -142,7 +141,7 @@ identifiable.
 | GLFW window, `RHI::CreateSurface` | Main thread only |
 | ECS registry (`CWorld` entity access) | Main thread during update stages; parallel jobs only through the system's declared access set |
 | ImGui context | Main thread between `FrameStart` and `FrameEnd` |
-| RHI command recording and submission | Render drain only |
+| RHI command recording and submission | Game thread inside `FRenderManager::FrameEnd`; per-world recording may run on workers, one command list each |
 | RHI resource creation | Any thread; shared creation paths are internally locked |
 | `CObject` creation and destruction | Main thread |
 | Asset registry reads | Any thread; writes are locked |
@@ -165,7 +164,7 @@ pointer across a frame boundary is a use-after-free. See
 | Symptom | Cause |
 | --- | --- |
 | Crash or corruption right after a `WaitForCounter` | A cached worker index, or `thread_local` state assumed to survive the wait. |
-| "No-park guard" error in the log | A render command waited on a counter. Restructure so the wait happens on the game thread before enqueuing. |
+| "No-park guard" error in the log | A fiber parked on a thread that had marked itself a serial pump with `Jobs::SetThreadNoParkGuard`. Restructure so the wait happens outside the guarded region. |
 | Deadlock during a large scene load | A wait loop with no assist. External-thread waits must go through `WaitForCounter` or `AssistOneJob`, never a bare spin. |
 | Random crash creating a window or surface from a job | GLFW calls are main-thread only. |
-| Physics reads look one frame stale | They are. That is the design; use the dispatched physics events for edge-triggered reactions. |
+| Physics reads look stale in `PrePhysics` or `DuringPhysics` | Those stages run *before* the step. Read results in `PostPhysics` or later. |

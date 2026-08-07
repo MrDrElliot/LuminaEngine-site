@@ -125,8 +125,8 @@ which drives managed load order.
 `DotNet::ReloadScripts()` unloads the current generation and loads a new one.
 The ordering is delicate:
 
-- Managed render scenes are torn down **first**, which flushes the render thread,
-  so nothing dispatches into a dead load context.
+- Managed render scenes are torn down **first**, so nothing dispatches into a
+  dead load context.
 - Script systems are removed from every world's system set before the unload, so
   stale GC handle slots are never ticked.
 - **Every static holder of a user type or a GC handle must be cleared during

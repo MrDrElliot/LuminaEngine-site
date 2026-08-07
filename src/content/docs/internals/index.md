@@ -46,21 +46,22 @@ LuminaMain (Launch.cpp)
 
 ```
 FEngine::Update
-  FWorldManager::WaitForPhysics        join last frame's physics
   FWorldManager::UpdateWorlds          per stage: FrameStart .. FrameEnd
     CWorld::Update                     entity systems, scripts, transforms
-  CWorld::Extract                      game -> render snapshot (FrameEnd)
-  FRenderManager::FrameEnd             enqueue the render-thread pipeline
-  FWorldManager::KickPhysics           fire physics for next frame
+  FWorldManager::TickPhysics           step + contact events (between the
+                                       DuringPhysics and PostPhysics stages)
+  CWorld::Extract                      live state -> render snapshot (FrameEnd)
+  FRenderManager::FrameEnd             record and present, inline
 ```
 
-and the render side:
+and the render half, which runs inside that last call on the same thread:
 
 ```
-FRenderThread drain (a job on a pool worker)
+FRenderManager::FrameEnd
   RHI::Core::BeginFrame(slot)          wait the frame timeline, recycle lists
   IRenderScene::PrepareRender          serial, device-wide reconciliation
   IRenderScene::RenderView             per scene, records + submits
+                                       (parallel across worlds when >1 is live)
   ImGui / RmlUi composite
   RHI::Core::Present                   acquire, blit, present
 ```
@@ -73,7 +74,7 @@ FRenderThread drain (a job on a pool worker)
 | `Engine/Source/Runtime/Containers` | EASTL aliases, `FString`, `FName`, and the engine-specific container types |
 | `Engine/Source/Runtime/Memory` | Allocator facade over rpmalloc, frame and linear allocators, memory tracking |
 | `Engine/Source/Runtime/TaskSystem` | Fiber job scheduler, `ParallelFor`, task graph, futures, fiber-aware sync |
-| `Engine/Source/Runtime/Renderer` | RHI declaration, Vulkan backend, shader compiler and cache, material manager, render thread |
+| `Engine/Source/Runtime/Renderer` | RHI declaration, Vulkan backend, shader compiler and cache, material manager |
 | `Engine/Source/Runtime/World` | `CWorld`, the EnTT registry facade, entity systems, and the render scene |
 | `Engine/Source/Runtime/Assets` | Asset registry, asset manager, asset types |
 | `Engine/Source/Runtime/Scripting` | .NET host, interop surface, script structs |
@@ -110,7 +111,7 @@ FRenderThread drain (a job on a pool worker)
 | [Audio Internals](/internals/audio-internals/) | The audio context, command queue, voices, buses, spatialization |
 | [RHI](/internals/rhi/) | The graphics abstraction |
 | [Vulkan Backend](/internals/vulkan-backend/) | Device, queues, memory, descriptors, swapchain |
-| [Frame Pipeline](/internals/frame-pipeline/) | Render thread, extract, frames in flight |
+| [Frame Pipeline](/internals/frame-pipeline/) | Extract, recording, frames in flight |
 | [Render Passes](/internals/render-passes/) | The scene renderer, pass by pass |
 | [Shaders](/internals/shaders/) | Slang compilation, cache, conventions |
 | [Scripting Host](/internals/scripting-host/) | CoreCLR hosting and interop |
@@ -128,5 +129,5 @@ FRenderThread drain (a job on a pool worker)
 - `G` prefix for globals (`GEngine`, `GRenderManager`, `GWorldManager`).
 - Allman braces, PascalCase members, no Hungarian notation beyond the prefixes
   above except `b` for booleans.
-- `_GameThread` / `_RenderThread` suffixes mark functions with a hard thread
-  affinity.
+- `_Extract` / `_Render` suffixes mark which half of the frame a render-side
+  function belongs to; `_GameThread` marks a hard game-thread affinity.

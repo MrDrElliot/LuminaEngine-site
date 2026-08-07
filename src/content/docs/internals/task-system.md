@@ -15,9 +15,20 @@ when building a new primitive.
 
 ## The scheduler
 
-One worker thread per core (`hardware_concurrency() - 1` by default) drains
-lock-free MPMC queues, one per priority. Each job runs on a pooled user-mode
-fiber.
+One worker thread per core (`hardware_concurrency() - 1` by default). Each job
+runs on a pooled user-mode fiber.
+
+Work is **sharded per worker**: every worker owns one lock-free MPMC queue per
+priority band, drains its own first, and steals from other workers when they run
+dry. A burst submit is spread across those queues at enqueue time
+(`DistributeJobs`) so every worker has local work immediately instead of every
+consumer funnelling through one shared queue. The owner dequeues through a home
+consumer token; thieves dequeue tokenless.
+
+Idle workers are not spinning. Each parks on its own futex (`std::atomic::wait`)
+and a submitter wakes as many as it has jobs for, targeted through an idle
+bitmask — so a fan-out wakes idle workers in parallel rather than filing them
+one at a time through a single condition variable.
 
 When a job waits on a counter, the fiber **parks** and the worker switches to
 other runnable work. The fiber resumes later, possibly on a different worker.
@@ -73,6 +84,21 @@ Jobs::FreeCounter(Counter);
 - `WaitForCounter` parks on a worker and assist-waits on an external thread.
 - `WaitForAll()` blocks until every job submitted so far has completed.
 
+### Pools and allocation
+
+Counters and fibers come from fixed pools sized at `Initialize`: 8192 counters,
+256 work fibers with a 512 KB reserved stack each by default. The free lists for
+both are **bounded lock-free rings** (`TBoundedMPMCQueue`, a Vyukov ring),
+allocated once at startup and never again — they cannot hold more than the pool
+they hand out from, so an unbounded queue there would buy nothing but allocation
+and a per-thread producer on every thread that ever touched them.
+
+The job queues themselves stay unbounded, because a submit burst has no such
+ceiling.
+
+Steady-state job submission and completion therefore allocate nothing. If the
+memory profiler shows allocations under `Jobs::`, something has changed.
+
 ### Fiber park and resume
 
 `ParkFiber` / `ResumeFiber` are the foundation everything else is built on.
@@ -97,9 +123,9 @@ fiber-aware primitives branch on `IsWorkerThread()` and assist-wait with
 `AssistOneJob()` instead.
 
 `SetThreadNoParkGuard(Name)` marks the calling thread as running a serial pump
-that must never yield. The render drain sets it. A park while the guard is
-active logs a loud error naming the guard; the park still proceeds, so it is a
-tripwire rather than a block.
+that must never yield — a loop whose correctness depends on staying on one thread
+for its whole duration. A park while the guard is active logs a loud error naming
+the guard; the park still proceeds, so it is a tripwire rather than a block.
 
 ## ParallelFor
 
@@ -131,8 +157,30 @@ count, capped at `Task::kMaxChunks` (256).
 version: it returns an `FTaskHandle` (a shared `FTaskCompletion` flag) that you
 can poll with `IsCompleted()` or block on with `Wait()`.
 
-Priorities are `ETaskPriority::High` / `Medium` / `Low`, mapping one to one onto
-`Jobs::EJobPriority`.
+Priorities are `ETaskPriority::High` / `Medium` / `Low`, mapping onto the
+matching `Jobs::EJobPriority` bands.
+
+### Priority bands
+
+`Jobs::EJobPriority` has four bands, most urgent first:
+
+| Band | Meaning |
+| --- | --- |
+| `High` | Latency-critical work on the frame's critical path. |
+| `Normal` | The default. |
+| `Low` | Runs when nothing more urgent is queued. |
+| `Background` | Throughput work that must never be charged to somebody else's latency. |
+
+The first three are urgency hints *within* the pool — an idle worker will happily
+run a `Low` job, and a thread assist-waiting on an unrelated counter will happily
+inline one. `Background` is different in exactly one way: **an assist-wait never
+dequeues from it** (`kMaxAssistPriority` is `Low`), so a terrain build or an asset
+cook can never end up executing inside a frame's wait.
+
+Use `Background` for work nothing in the current frame depends on and whose
+duration dwarfs a frame. Do **not** use it for a fan-out the submitting thread is
+about to wait on: that thread would spin instead of helping, since refusing to
+inline `Background` is the whole point.
 
 ## Task graph
 
@@ -219,4 +267,5 @@ of `RunJob`, and show up in both the profiler and Tracy.
 | Deadlock with idle cores | A bare spin wait on an external thread. Use `WaitForCounter` or `AssistOneJob` so the waiter helps drain. |
 | Deadlock re-entering a lock | `FFiberMutex` is not recursive. |
 | A continuation runs on an unexpected thread | Continuations are jobs. They run on a worker, not on whichever thread called `SetValue`. |
-| "No-park guard" error | A fiber parked on a thread running a serial pump, almost always the render drain. |
+| "No-park guard" error | A fiber parked on a thread that had marked itself a serial pump with `SetThreadNoParkGuard`. |
+| An assist-wait spins with work queued | The queued work is `Background`, which assist-waits refuse by design. Submit at `Low` or above if the waiter should help. |

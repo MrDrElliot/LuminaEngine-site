@@ -78,9 +78,9 @@ and fog:
   module stack.
 - **Particle Render**, the draw.
 
-Per-emitter GPU and simulation state lives on the render thread inside the render
-scene, and the game thread publishes a per-frame snapshot of simulation
-properties after resolving parameter bindings. That means gameplay never touches
+Per-emitter GPU and simulation state lives inside the render scene, and the game
+thread publishes a per-frame snapshot of simulation properties after resolving
+parameter bindings. That means gameplay never touches
 GPU particle state directly.
 
 See [Render Passes](/internals/render-passes/) for where these sit in the frame.

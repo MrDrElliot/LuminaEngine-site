@@ -180,9 +180,8 @@ Edits route through `PostPropertyChange(FProperty*)` on the object.
 
 - `Runtime/Tools/UI/ImGui` holds the platform-agnostic layer, `ImGuiX` helpers,
   and the Vulkan renderer (`Vulkan/VulkanImGuiRender.cpp`).
-- Draw data is built on the game thread and recorded on the render drain a frame
-  later through a **snapshot ring**, one slot per frame in flight. Every exit
-  path from the render command must release its slot.
+- Draw data is built at the top of `FRenderManager::FrameEnd` and recorded later
+  in that same call, so it never has to be snapshotted for another thread.
 - Multi-viewport is supported: a dragged-out tool window gets its own swapchain,
   rendered and presented after the main present.
 - DPI scaling comes from `FWindow::GetContentScale()`.

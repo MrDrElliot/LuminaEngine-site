@@ -235,10 +235,9 @@ void      SubmitAndWait(FCmdListH CL);
 
 `SubmitAndWait` submits on the graphics queue and blocks until **only that
 submission** completes, by waiting its own frame-timeline value. Use it for
-one-off captures. Do **not** use `Submit` followed by `WaitDeviceIdle` from
-inside a render command: `WaitDeviceIdle` blocks on unrelated in-flight frame
-work while holding the cooperative drain, which hangs the next
-`FlushRenderingCommands`.
+one-off captures. Do **not** use `Submit` followed by `WaitDeviceIdle` mid-frame:
+`WaitDeviceIdle` blocks on unrelated in-flight frame work, stalling the whole
+frame instead of just your submission.
 
 Command list recording is single threaded per list. Multiple scenes may record
 concurrently because each opens its own list; shared resource creation inside the
@@ -356,7 +355,7 @@ device local and host visible and larger than the legacy 256 MB BAR window.
 | --- | --- |
 | GPU reads garbage from a buffer freed last frame | `RHI::Free` instead of `Core::DeferredFree`. |
 | Validation error about a destroyed image still in a descriptor | A heap slot was freed before the frames referencing it retired. |
-| Hang on the next `FlushRenderingCommands` | `WaitDeviceIdle` called from inside a render command. Use `SubmitAndWait`. |
+| Frame-long stall after a one-off submit | `WaitDeviceIdle` used where `SubmitAndWait` was meant. |
 | Transient allocation failure mid-frame | Geometry or large buffers pushed through the transient ring. |
 | Crash creating a surface | `CreateSurface` called off the main thread. |
 | Mesh shader pipeline handle is invalid | `SupportsMeshShaders()` is false on this device. |

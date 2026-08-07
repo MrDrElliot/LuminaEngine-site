@@ -182,8 +182,8 @@ frame, so every `Begin` needs its `End` on every path including early returns.
 - `CrashHandler::Install()` is the first call in `LuminaMain`; it writes a
   minidump plus a symbolized callstack to `CrashDumps/`.
 - `HangWatchdog` dumps every thread's callstack when the main thread's heartbeat
-  stops. Subsystems without a dedicated thread (the render drain) register a
-  reporter so they still appear.
+  stops. Work that rides a pool worker rather than a thread of its own can
+  register a reporter so it still appears.
 
 Both are covered in [Platform Layer](/internals/platform/).
 
