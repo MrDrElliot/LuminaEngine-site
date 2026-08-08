@@ -77,7 +77,25 @@ through an `EnableIfPresent` helper, so the engine degrades instead of failing.
 | `VK_EXT_device_fault` | Vendor-agnostic fault info on `VK_ERROR_DEVICE_LOST`. |
 | `VK_KHR_unified_image_layouts` | Removes most layout transition bookkeeping. |
 | `VK_EXT_memory_priority` plus `VK_EXT_pageable_device_local_memory` | VMA allocation priority and pageable device-local memory. |
-| `VK_EXT_mesh_shader` | Mesh and task pipelines. Gated again on the `meshShader` feature. |
+| `VK_EXT_mesh_shader` | Required. See below. Absence aborts with a message. |
+
+`VK_EXT_mesh_shader` sits in this table because it goes through the same
+`EnableIfPresent` path, but it is **not optional**. It is the only geometry path
+the renderer has. Device selection aborts when the extension is missing, when the
+`meshShader` feature is false, or when any of these limits comes up short:
+
+| Limit | Minimum | Comes from |
+| --- | --- | --- |
+| `maxMeshWorkGroupSize[0]`, `maxMeshWorkGroupInvocations` | 32 | `MESHLET_MESH_GROUP_SIZE` |
+| `maxMeshOutputVertices` | 64 | `MESHLET_MAX_VERTICES` |
+| `maxMeshOutputPrimitives` | 64 | `MESHLET_MAX_TRIANGLES` |
+| `maxTaskWorkGroupSize[0]`, `maxTaskWorkGroupInvocations` | 32 | `MeshletCullTask.slang` workgroup size |
+| `maxTaskPayloadSize`, `maxTaskPayloadAndSharedMemorySize` | 4096 | `kMaxTaskPayloadBytes` |
+
+The dialog names which of the three checks failed and which hardware generations
+qualify, because "device unsuitable" on its own sends people to the wrong place.
+The measured limits are also logged on every successful startup, which is the
+fastest way to tell a driver problem from a hardware one.
 
 `VK_KHR_unified_image_layouts` is additionally gated on the **validation layer
 version**: it is only enabled when no validation layer is present or the layer is
@@ -96,7 +114,13 @@ Three logical queues (`Graphics`, `Compute`, `Transfer`) are resolved from the
 device's queue families. **Aliasing is expected**: if there is no dedicated
 compute or transfer family, both fall back to the graphics queue and share its
 family index. Backend code must not assume a submission on the transfer queue
-runs concurrently with graphics work.
+runs concurrently with graphics work. `RHI::SupportsAsyncCompute()` and
+`RHI::SupportsAsyncTransfer()` report whether a given queue is real, and callers
+that care about overlap are expected to ask.
+
+This is a common source of vendor-specific bugs: on a device where the transfer
+queue aliases graphics, an ordering mistake between the two is invisible, and the
+same build faults on a device that has a dedicated transfer family.
 
 `RHINative.h` exposes the graphics queue and its family index to native-access
 clients (ImGui backends, capture tools).

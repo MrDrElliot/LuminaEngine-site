@@ -137,7 +137,9 @@ Notable includes:
 | `SceneGlobals.slang` | The per-view and per-scene constant layout. |
 | `Common.slang` | Math and utility helpers. |
 | `Culling.slang` | Frustum, cone, and Hi-Z occlusion tests. |
-| `MeshletGeometry.slang` | Meshlet decode shared by the vertex and mesh shader paths. |
+| `MeshletGeometry.slang` | Meshlet decode, shared by the task and mesh stages of every geometry pass. |
+| `MeshletCullCore.slang` | The per-meshlet cull body, inlined into every pass's task stage. |
+| `AppendBuffer.slang` | The GPU append protocol used by every producer that reserves into a bounded region. |
 | `SurfaceShading.slang` | The PBR shading model. |
 | `IBL.slang` / `IBLRuntime.slang` | Image-based lighting, bake side and runtime side. |
 | `ShadowSampling.slang` | Cascade and cube shadow lookups. |
@@ -187,7 +189,7 @@ template depends on the material's domain and the pass:
 
 | Template | Used by |
 | --- | --- |
-| `MeshletVertex.slang`, `MeshletMesh.slang`, `MeshletVisBuffer.slang`, `MeshletVisBufferVS.slang` | Geometry, vertex and mesh shader paths. |
+| `MeshletMesh.slang`, `MeshletVisBuffer.slang` | Geometry. Mesh stage only; the vertex-emulation templates were removed when mesh shaders became a requirement. |
 | `VisBufferMaskedPixel.slang` | Masked materials during the VisBuffer pass. |
 | `DeferredMaterial.slang` | The tile-binned deferred shading lane. |
 | `BasePixelPass.slang` | Forward-shaded surfaces. |

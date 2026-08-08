@@ -12,6 +12,65 @@ backend today, Vulkan (`Renderer/API/Vulkan/VulkanRHI.cpp`). The enum reserves
 There is **no OpenGL backend**, and there is no render graph. Passes are recorded
 by hand into command lists, in an explicit order, with explicit barriers.
 
+## Present and future
+
+Most graphics abstractions are shaped by hardware that no longer exists. Binding
+slots, vertex input layouts, and per-draw descriptor sets are concessions to
+fixed-function stages that a modern GPU emulates rather than implements. Lumina
+targets the hardware as it is now, and as it is clearly heading, instead of a
+lowest common denominator.
+
+Everything below is core Vulkan or an extension that has shipped on every vendor
+for years. None of it is a fast path with a fallback beside it. There is one way
+to draw geometry, one way to reach a texture, and one way to reach a buffer.
+
+- **Bindless everywhere.** Descriptor indexing replaced descriptor sets. A
+  texture is an integer.
+- **Buffer device address everywhere.** A shader chases pointers the way C++
+  does, so a GPU struct can point at another buffer. This is what lets the cull
+  pipeline stay GPU-resident: the CPU never has to learn what the GPU decided.
+- **Mesh and task shaders are the only geometry path.** Not an optimization, the
+  pipeline. See [Mesh shaders are required](#mesh-shaders-are-required).
+- **Dynamic state over permutations.** Cull mode, front face, and depth state
+  are set on the command list, so one pipeline covers what would otherwise be
+  four.
+- **Timeline semaphores only.** A binary semaphore models the frame as a chain
+  of handoffs. A timeline models it as a value anyone can wait on, which is what
+  a job system actually needs.
+
+The direction that points is GPU-driven work: the GPU decides what to draw, sizes
+its own dispatches, and writes its own indirect arguments. Lumina's scene cull
+already works this way, and the API shape is what makes that unremarkable instead
+of a special case. Every per-draw payload is already a device address, so moving
+a decision from the CPU to the GPU does not change a signature.
+
+## Mesh shaders are required
+
+`VK_EXT_mesh_shader` is a hard requirement. Device selection rejects a GPU that
+lacks the extension, lacks the `meshShader` feature, or reports limits below what
+the geometry path needs, and it says so in a dialog instead of failing later in a
+confusing way. There is no vertex and index path to fall back to.
+
+The limits checked at startup:
+
+| Limit | Minimum |
+| --- | --- |
+| `maxMeshWorkGroupSize[0]`, `maxMeshWorkGroupInvocations` | 32 |
+| `maxMeshOutputVertices` | 64 |
+| `maxMeshOutputPrimitives` | 64 |
+| `maxTaskWorkGroupSize[0]`, `maxTaskWorkGroupInvocations` | 32 |
+| `maxTaskPayloadSize`, `maxTaskPayloadAndSharedMemorySize` | 4096 |
+
+In practice that means NVIDIA Turing (GTX 16 series, RTX 20 series) or newer, AMD
+RDNA2 (RX 6000) or newer, or Intel Arc.
+
+How the renderer uses them is covered in [Meshlet Pipeline](/internals/meshlet-pipeline/).
+
+Requiring them removes a class of problem rather than adding one. There is a
+single meshlet format, a single cull, and a single set of entry points, so a bug
+cannot be present on one path and absent on the other, and no pass gets written
+twice.
+
 ## Shape of the API
 
 ```cpp
@@ -198,9 +257,9 @@ depth and stencil formats, and the color target list (each with its own
 `FBlendDesc`). There is **no vertex input layout**: vertices are pulled from
 buffers through device addresses in the shader.
 
-Mesh shader pipelines require `RHI::SupportsMeshShaders()`; the call returns an
-invalid handle otherwise. The task stage is optional (an empty source means a
-mesh-only pipeline).
+There is no support query to guard `CreateMeshShaderPipeline` with. A device that
+could fail it never finished startup, so the call is unconditional. The task
+stage is optional: an empty source means a mesh-only pipeline.
 
 Depth and stencil state is a separate object (`CreateDepthStencil`) bound with
 `CmdSetDepthStencilState`, because the engine reuses one pipeline across
@@ -231,7 +290,19 @@ void      Submit(FCmdListH CL, EQueueType Type = EQueueType::Graphics);
 void      SubmitAndWait(FCmdListH CL);
 ```
 
-`EQueueType` is `Graphics`, `Transfer`, or `Compute`.
+`EQueueType` is `Graphics`, `Transfer`, or `Compute`. Whether those are distinct
+hardware queues depends on the device, so ask before you rely on overlap:
+
+```cpp
+bool SupportsAsyncCompute();
+bool SupportsAsyncTransfer();
+```
+
+When either returns false the logical queue aliases graphics and shares its
+family index, and a submission on it will not run concurrently. Uploads use the
+transfer queue when one exists, which is why buffer and image uploads flush
+separately: an image upload includes a layout transition, and a layout transition
+is a write the transfer queue must not claim on an exclusive resource.
 
 `SubmitAndWait` submits on the graphics queue and blocks until **only that
 submission** completes, by waiting its own frame-timeline value. Use it for
@@ -248,9 +319,13 @@ RHI is internally locked.
 Semaphores are timeline semaphores:
 
 ```cpp
-FSemaphoreH CreateSemaphore(uint64 InitialValue);
+FSemaphoreH CreateTimelineSemaphore(uint64 InitialValue);
 void        WaitSemaphore(FSemaphoreH Semaphore, uint64 Value);
+uint64      GetSemaphoreValue(FSemaphoreH Semaphore);
 ```
+
+`GetSemaphoreValue` reads the current value without blocking, which is how the
+upload path tests whether a slot has been consumed before deciding to wait on it.
 
 `FSemaphoreInfo { Semaphore, Value, Stage }` is what you pass to `Submit` as a
 wait or a signal.
@@ -339,7 +414,8 @@ swapchain and skip the frame.
 ```cpp
 FGPUDeviceInfo GetDeviceInfo();                  // name, API version string, vendor ID, discrete
 void           GetGPUMemoryStats(FGPUMemoryStats& Out);
-bool           SupportsMeshShaders();
+bool           SupportsAsyncCompute();
+bool           SupportsAsyncTransfer();
 ICrashTracker& GetCrashTracker();
 void           HandleDeviceLost();
 ```
@@ -358,5 +434,6 @@ device local and host visible and larger than the legacy 256 MB BAR window.
 | Frame-long stall after a one-off submit | `WaitDeviceIdle` used where `SubmitAndWait` was meant. |
 | Transient allocation failure mid-frame | Geometry or large buffers pushed through the transient ring. |
 | Crash creating a surface | `CreateSurface` called off the main thread. |
-| Mesh shader pipeline handle is invalid | `SupportsMeshShaders()` is false on this device. |
+| Startup aborts with "Vulkan Device Unsuitable" | The GPU is below the [mesh shader requirement](#mesh-shaders-are-required). |
 | Write-after-write hazard between two copies | Missing `Barriers::TransferToTransfer` between them. |
+| Transfer-queue work appears to run in lockstep with graphics | `SupportsAsyncTransfer()` is false, so the queue aliases graphics. |

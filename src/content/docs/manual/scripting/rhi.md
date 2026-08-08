@@ -420,18 +420,10 @@ small batch of vertices and primitives per workgroup. There is no vertex buffer
 and no index buffer; the mesh stage produces geometry directly. This suits
 GPU-driven workloads like meshlet rendering and procedural geometry.
 
-Mesh shaders need recent hardware (NVIDIA Turing and later, AMD RDNA2 and later)
-and the `VK_EXT_mesh_shader` device extension, so always check support first:
-
-```csharp
-if (!RHI.SupportsMeshShaders())
-{
-    return;   // fall back to a vertex pipeline, or skip the effect
-}
-```
-
-`CreateMeshShaderPipeline` also returns an invalid handle when mesh shaders are
-unsupported, so a guarded call is safe either way.
+You do not need to check for support. Mesh shaders are a hard engine requirement,
+and a device that cannot run them is rejected during startup, so by the time your
+script executes the feature is guaranteed present. The engine needs NVIDIA Turing
+or newer, AMD RDNA2 or newer, or Intel Arc.
 
 ### Creating a mesh pipeline
 

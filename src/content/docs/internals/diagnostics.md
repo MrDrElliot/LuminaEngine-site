@@ -28,7 +28,7 @@ formats and dispatches to sinks. Formatting and I/O stay off the calling thread.
 build; `LOG_INFO` compiles away. The formatting syntax is `std::format`:
 
 ```cpp
-LOG_DISPLAY("Mesh/task shaders: {}", bSupported ? "supported" : "unavailable");
+LOG_DISPLAY("Async transfer queue: {}", bDedicated ? "dedicated" : "aliased");
 ```
 
 `Logging::GLevelThreshold` is an atomic checked before any formatting work, so a

@@ -153,6 +153,7 @@ export default defineConfig({
           label: 'Engine Internals',
           items: [
             { label: 'Overview', slug: 'internals' },
+            { label: 'Meshlet Pipeline', slug: 'internals/meshlet-pipeline' },
             { label: 'Application Lifecycle', slug: 'internals/application-lifecycle' },
             { label: 'Modules & Plugins', slug: 'internals/modules-and-plugins' },
             { label: 'Threading Model', slug: 'internals/threading-model' },

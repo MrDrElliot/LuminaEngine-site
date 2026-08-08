@@ -27,10 +27,22 @@ The **Vulkan SDK** is optional. It is only needed for the validation layers in
 Debug builds; the engine bundles its own Vulkan headers and the loader ships with
 your GPU drivers.
 
-You also need a GPU and driver supporting **Vulkan 1.4**. The engine rejects
-anything older at startup with an explicit message, so update your drivers if you
-see it. Mesh and task shaders are used when available and skipped when they are
-not.
+You also need a GPU and driver supporting **Vulkan 1.4** and **mesh shaders**
+(`VK_EXT_mesh_shader`). Both are hard requirements. The renderer draws all
+geometry through mesh and task shaders, with no vertex and index path to fall
+back to, so a device that cannot run them is rejected at startup with an explicit
+message rather than failing later.
+
+In practice that means:
+
+| Vendor | Minimum |
+| --- | --- |
+| NVIDIA | Turing (GTX 16 series, RTX 20 series) or newer |
+| AMD | RDNA2 (RX 6000) or newer |
+| Intel | Arc |
+
+If you see the rejection dialog, update your drivers first. Mesh shader support
+arrived in drivers well after the hardware did.
 
 <Aside type="note">
 `Setup.bat` checks all of this before it builds anything and prints exactly what
