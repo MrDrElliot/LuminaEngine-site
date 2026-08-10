@@ -55,6 +55,7 @@ export default defineConfig({
             { label: 'Worlds & Coordinates', slug: 'manual/worlds-and-coordinates' },
             { label: 'Prefabs', slug: 'manual/prefabs' },
             { label: 'Terrain', slug: 'manual/terrain' },
+            { label: 'Splines', slug: 'manual/splines' },
           ],
         },
         {
