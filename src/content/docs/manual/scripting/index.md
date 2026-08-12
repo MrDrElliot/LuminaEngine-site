@@ -76,6 +76,12 @@ public sealed class Orbit : EntityScript
 }
 ```
 
+`[Property]` exposes a field in the editor, and its initializer is the field's
+**default**: `Radius` starts at 4 on every new instance, and the Details panel's
+reset returns to it. See
+[Editable properties](/manual/scripting/entities-components/#editable-properties)
+for the types a property can be.
+
 `EntityScript` gives every script a few members, ready to use before the first
 hook runs.
 

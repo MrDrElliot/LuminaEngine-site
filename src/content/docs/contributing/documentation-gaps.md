@@ -31,6 +31,17 @@ If you are looking for something to contribute, this is the list.
 | --- | --- | --- |
 | **UI internals** | `Runtime/UI`, `RmlUiBridge`, `RmlUiRenderer` | The RmlUi integration: document and context lifetime, the world widget render path, material brushes, and the editor context tick. |
 
+## Documented behavior the engine no longer has
+
+Removed from the docs because the feature is not currently reachable, rather than
+because the page was missing. Restore the documentation when the gap closes.
+
+| Topic | What happened |
+| --- | --- |
+| **`[Instanced]` script properties** | A `[Property]`'s value lives in native memory and the C# side reaches it through an accessor. `FInstancedStruct` properties are appended natively (`Scripting::AppendScriptPropertiesToClass`), but a script cannot yet declare or read one, so the "Instanced properties" section was removed from [Entities & Components](/manual/scripting/entities-components/). The C++ workflow on the [Reflection](/manual/reflection/) page is unaffected. |
+| **Nested C# structs as script properties** | Same cause. The native planner mints a sub-struct for one, but there is no C# marshalling for it, so it is a `LUM0101` build error. |
+| **Non-blittable list and map elements** | `NativeList<T>` and `NativeMap<K, V>` require unmanaged element types, so `NativeList<string>` is not expressible. The native container supports string elements already; only the C# view is missing. |
+
 ## Deferred
 
 | Topic | Status |

@@ -138,8 +138,8 @@ Read the stored value with `Command.GetPtr<SWaitCommand>()` (null unless the
 stored type is `SWaitCommand` or derived), and replace it with
 `Command.InitializeAs<SWaitCommand>()`. The value serializes inline by the
 chosen struct's name. The base `SCommand` only needs `REFLECT()` +
-`GENERATED_BODY()`. The same workflow is available to C# scripts through the
-`[Instanced]` attribute; see [Instanced properties](/manual/scripting/entities-components/#instanced-properties).
+`GENERATED_BODY()`. This is a C++ workflow; a C# script cannot declare an
+instanced property today.
 
 ### Container properties
 

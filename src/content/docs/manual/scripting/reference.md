@@ -81,11 +81,17 @@ timings show up in the editor's **Gameplay Profiler** with no extra code;
 Use these as `[Property]` field types to get an asset picker in the editor, then
 resolve them in code. They live in `Lumina`.
 
+The two **soft** types store a virtual path, so the reference survives a save and
+a reload without loading the asset, and resolves when you ask for it.
+`TObjectPtr<T>` is a **hard** reference: it holds the object itself and keeps it
+alive, which is what you want for a reference to something already loaded, or to
+an object that has no asset path at all.
+
 | Type | Use |
 | --- | --- |
-| `FSoftObjectPath` | An untyped reference by path; `Exists()`, `Load<T>()`, `LoadAsync<T>(cb)` |
-| `TSoftObjectPtr<T>` | A typed soft reference; `Get()`, `LoadAsync(cb)` |
-| `TObjectPtr<T>` | A typed strong reference holding the resolved object; `Value` |
+| `FSoftObjectPath` | An untyped **soft** reference by path; `Exists()`, `Load<T>()`, `LoadAsync<T>(cb)` |
+| `TSoftObjectPtr<T>` | A typed **soft** reference; `Get()`, `LoadAsync(cb)` |
+| `TObjectPtr<T>` | A typed **hard** reference to a live object, which keeps it alive; `Value` |
 
 ```csharp
 [Property(Tooltip = "Played on pickup")]
@@ -117,11 +123,11 @@ Declared in `LuminaSharp`, applied to script members or classes.
 
 | Attribute | On | Effect |
 | --- | --- | --- |
-| `[Property]` | field/property | Exposes it in the editor and serializes it. Keys are `Category`, `Tooltip`, `Name`, `Min`, `Max`, `Units`, `Color`. |
-| `[Serialize]` | field/property | Persists it without showing it in the inspector. |
-| `[Hide]` | field/property | Never serialized or shown. |
-| `[Alias("OldName")]` | field/property/class | A prior name so saved data survives a rename. Repeatable. |
-| `[SkipHotReload]` | field/property/class | Resets to default on a C# hot reload instead of carrying the old value. |
+| `[Property]` | field | Exposes it in the editor and serializes it. Keys are `Category`, `Tooltip`, `Name`, `Min`, `Max`, `Units`, `Color`. A field, not a property; see [Editable properties](/manual/scripting/entities-components/#editable-properties). |
+| `[Serialize]` | field | Persists it without showing it in the inspector. |
+| `[Hide]` | field | Never serialized or shown. |
+| `[Alias("OldName")]` | field/class | A prior name so saved data survives a rename. Repeatable. |
+| `[SkipHotReload]` | field/class | Resets to default on a C# hot reload instead of carrying the old value. |
 | `[RequireComponent]` | component-typed field | Resolves and caches the component before `OnReady` (adding it if missing). |
 | `[EntitySystem]` | class (on `EntitySystem`) | Declares a [world system](/manual/scripting/world-systems/)'s `Stage` and `Priority`. |
 | `[UpdatePhase]` | class (on `EntityScript`) | Runs an [entity system](/manual/scripting/entity-systems/)'s `OnUpdate` in `EScriptPhase.PrePhysics` (default) or `PostPhysics`. |

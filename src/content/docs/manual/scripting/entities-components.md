@@ -134,8 +134,7 @@ camera follow another entity, add an `SCameraFollowComponent` and set its target
 Expose a field to the editor with the `[Property]` attribute. It appears in the
 entity's **C# Script** section in the Details panel, and you read or write it
 like any field. The field's **type** picks the widget: a numeric drag, a vector
-or color picker, an enum dropdown, an asset or entity picker, a nested struct, a
-resizable list, and so on.
+or color picker, an enum dropdown, an asset or entity picker, a list.
 
 ```csharp
 [Property(Category = "Movement", Min = 0, Max = 20, Units = "m/s", Tooltip = "Top speed.")]
@@ -147,6 +146,91 @@ public float Speed = 5.0f;
 [Property] public TSoftObjectPtr<CStaticMesh> Mesh;
 [Property] public Entity Target;
 ```
+
+### The initializer is the default
+
+`= 5.0f` is not just a starting value for one instance, it is the property's
+**default**. The engine records it once per script type, and every new instance
+of that script starts from it. The Details panel's reset control returns the
+field to exactly that value.
+
+Change a default and existing entities keep whatever they were authored with.
+Only entities that never overrode the field pick up the new value.
+
+### Where the value lives
+
+A script property's value lives in **native memory**, not in a C# field. The
+engine gives your script type a real reflected property, and the `[Property]`
+field you wrote becomes an accessor over it.
+
+You do not have to do anything about this, and reading or writing the field is
+an ordinary field access. It is worth knowing because it is why a script
+property needs no save or sync code: the inspector, scene saving, undo, prefab
+overrides, and network replication all read the same storage your script does,
+so they always agree.
+
+Two consequences show up in what you can declare.
+
+### Supported types
+
+| Type | Notes |
+| --- | --- |
+| `float`, `double`, `bool`, `int`, `uint`, `long`, `byte`, ... | Every numeric type, plus `bool`. |
+| An `enum` | Draws a dropdown. |
+| `string` | |
+| `FVector2` / `FVector3` / `FVector4` / `FQuat` / `FTransform` | Any engine math type. |
+| `Entity` | Draws an entity picker. |
+| `FSoftObjectPath`, `TSoftObjectPtr<T>` | Soft asset references, resolved on demand. See [Asset references](/manual/scripting/reference/#asset-references). |
+| `TObjectPtr<T>` | A hard reference to a live object, which keeps it alive. |
+| A class deriving `NativeObject` | A direct reference to a `CObject`, for example `CTexture`. |
+| `NativeList<T>` | A list of any value type above. |
+| `NativeMap<K, V>` | A key/value map of any value types above. |
+
+Anything else is a build error naming the field, rather than a property that
+silently never appears. A plain C# class or struct of your own is not currently
+supported as a `[Property]` type.
+
+### Lists and maps
+
+A list is a `NativeList<T>` and a map is a `NativeMap<K, V>`. Both are **views**
+over the container the engine owns, so you declare them without an initializer
+and use them like an `IList<T>` and an `IDictionary<K, V>`.
+
+```csharp
+[Property] public NativeList<float> Cooldowns;
+[Property] public NativeMap<int, float> WeightByTier;
+
+public override void OnReady()
+{
+    Cooldowns.Clear();
+    Cooldowns.Add(1.5f);
+    Cooldowns[0] = 2.0f;
+
+    WeightByTier.Set(1, 0.5f);
+    if (WeightByTier.TryGetValue(1, out float Weight))
+    {
+        // ...
+    }
+
+    foreach (var Pair in WeightByTier)
+    {
+        // Pair.Key, Pair.Value
+    }
+}
+```
+
+In the Details panel a list adds a numbered row per element, and a map adds one
+row per entry with the key on the left and the value on the right, each with Add,
+Clear, and per-row remove controls.
+
+Because the container is a view, assigning the property itself is meaningless and
+the compiler rejects both `= new NativeList<float>()` and a later assignment. Add
+to it, clear it, or remove from it instead.
+
+Write a map entry with `Set`, not `Map[key] = value`. Assigning through a
+property that returns a struct does not compile, and a map cannot work around it
+the way a list does: a list hands back its element by reference, but doing that
+for a map would mean *reading* an absent key silently inserted it.
 
 Every `[Property]` key is optional.
 
@@ -168,91 +252,10 @@ Related attributes control persistence and hot reload.
 | `[Alias("OldName")]` | A prior member name, so a saved value still loads after you rename the field. Repeatable. |
 | `[SkipHotReload]` | Resets the field to its default on a C# hot reload instead of carrying the old value. Also valid on the script class to reset all of its properties. |
 
-## Collections
+If a `[Property]` is rejected, the compile error says which field and why.
 
-A `List<T>` or `T[]` field is a resizable list, and a `Dictionary<K, V>` field is
-a key/value map. Both edit in the Details panel: a list adds a numbered row per
-element, a map adds one row per entry with the **key** on the left and the
-**value** on the right, each with Add, Clear, and per-row remove controls.
-
-```csharp
-[Property] public List<float> Cooldowns;
-[Property] public Dictionary<string, int> Ammo;
-```
-
-The element, key, and value can be any type that works as a plain `[Property]`: a
-number, `bool`, `string`, enum, vector, a reflected struct (edits inline as a
-nested table), or an asset or entity reference. A map **key** must additionally be
-a value the inspector can edit inline, a number, `string`, or enum; a struct key
-is shown read-only. **Map keys are unique**, editing one to a key that already
-exists reverts with a warning.
-
-A collection cannot nest directly as a map value (for example
-`Dictionary<string, List<int>>` is skipped); wrap it in a reflected struct
-instead. Put `[Instanced]` on a `Dictionary<K, V>` to make each **value** an
-instanced object with its own type picker, the same way it works on a list.
-
-## Instanced properties
-
-An **instanced** property holds an owned instance of a type you pick in the
-inspector. Mark a `[Property]` field with `[Instanced]` and the Details panel
-shows a type picker of the concrete classes that derive from the field's
-declared type. Choose one and its own `[Property]` members edit inline, right
-below the picker. It is the value-type analog of swapping in a different
-behavior object per entity.
-
-```csharp
-// A family of behaviors. The field is typed as the base (here an interface).
-public interface ICommand { }
-
-public sealed class AttackCommand : ICommand
-{
-    [Property(Min = 0)] public float Damage = 10.0f;
-    [Property] public string Target = "Enemy";
-}
-
-public sealed class WaitCommand : ICommand
-{
-    [Property(Min = 0, Units = "s")] public float Seconds = 1.0f;
-}
-
-public sealed class Enemy : EntityScript
-{
-    // The picker offers AttackCommand and WaitCommand; the chosen one edits inline.
-    [Property(Category = "AI"), Instanced] public ICommand Command;
-}
-```
-
-The declared type can be an interface, an abstract class, or a concrete base
-class. When it is concrete, the base type is itself one of the choices.
-
-:::note
-Instancing is **opt-in only**. A field is never instanced unless it carries
-`[Instanced]`, whatever its declared type. A plain interface- or
-abstract-typed `[Property]` without it is skipped (it has no inline editor).
-:::
-
-A candidate type must be **default-constructible** (have a public parameterless
-constructor) so the editor and the loader can create it. The chosen value
-persists and round-trips by the concrete type's name, so it survives save,
-reload, and hot reload even though the rest of the picker is rebuilt each time.
-
-### Lists of instanced objects
-
-Put `[Instanced]` on a `List<T>` (or `T[]`) and each element becomes its own
-instanced object: every entry has its own type picker and its own inline editor,
-so a single list can mix concrete types. The attribute applies to the elements,
-not the list.
-
-```csharp
-public sealed class Enemy : EntityScript
-{
-    // A list where each element picks its own command type and edits inline.
-    [Property(Category = "AI"), Instanced] public List<ICommand> Commands;
-}
-```
-
-Add, remove, and reorder elements with the usual list controls. Each element
-follows the same rules as a single instanced field: the candidate type must be
-default-constructible, and the value round-trips by the concrete type's name
-through save, reload, and hot reload.
+| Error | Cause |
+| --- | --- |
+| `LUM0101` | The field's type cannot be a script property. See the table above. |
+| `LUM0102` | A `NativeList<T>` was given an initializer. Fill it in `OnReady` instead. |
+| `LUM0103` | The member is a `partial` property. Declare it as a plain field. |
