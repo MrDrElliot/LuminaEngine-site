@@ -3,11 +3,19 @@ title: Platform Layer
 description: Windowing, input routing, filesystem, process, and crash handling.
 ---
 
-Lumina targets **Windows only** today. The platform layer is thin and mostly
+Lumina targets **Windows and Linux**. The platform layer is thin and mostly
 lives in `Runtime/Platform`, `Runtime/Core/Windows`, and `Runtime/Input`.
-Generic declarations sit in `Platform/GenericPlatform.h` and `Platform/Platform.h`
-with Windows implementations under `Platform/Windows`, so a port has a seam to
-work against, but no second implementation exists.
+Generic declarations sit in `Platform/GenericPlatform.h` and `Platform/Platform.h`,
+with per-platform implementations under `Platform/Windows` and `Platform/Linux`.
+
+The split is narrower than the directory listing suggests. Windowing, input and
+the filesystem are portable already, because they go through GLFW and
+`std::filesystem` rather than through the OS directly, so what actually needs a
+second implementation is process spawning (`WindowsPlatformProcess.cpp` /
+`LinuxPlatformProcess.cpp`) and crash handling (`WindowsCrashHandler.cpp` /
+`LinuxCrashHandler.cpp`). Crash *reporting* to a hosted service is Windows-only;
+on Linux the handler still writes a local report to `Binaries/<Platform>/CrashDumps`
+and says so at startup.
 
 ## Windowing
 

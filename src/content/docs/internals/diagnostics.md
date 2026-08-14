@@ -169,7 +169,7 @@ sites in one Memory tool. See [Memory](/internals/memory/).
 | **Validation layers** | Compiled in through `LUMINA_WITH_VALIDATION` and passed as `FDeviceDesc::bValidation`. `VK_EXT_debug_utils` is enabled in every non-Shipping build. |
 | **Debug markers** | `RHI::CmdBeginMarker` / `CmdEndMarker`, used by `SCENE_GPU_SCOPE`. Every pass is named in captures and crash dumps. |
 | **RenderDoc** | `Renderer/RenderDocImpl.cpp` integrates the in-application API for programmatic captures. |
-| **Nsight Aftermath** | Enabled through `VK_NV_device_diagnostics_config` on NVIDIA. The Aftermath DLL is copied next to the executable by the Runtime module. |
+| **Nsight Aftermath** | Enabled through `VK_NV_device_diagnostics_config` on NVIDIA. The Aftermath DLL is copied next to the executable by the Runtime module. Windows only in practice; see below. |
 | **Device fault** | `VK_EXT_device_fault` gives vendor-agnostic fault data on `VK_ERROR_DEVICE_LOST`. |
 | **Nsight Perf** | An engine plugin (`Engine/Plugins/NsightPerf`) that requests its own device extensions through the native-access hook. |
 | **Shader debug info** | Raised to `STANDARD` on non-AMD, non-Shipping builds for source-level debugging. |
@@ -177,10 +177,22 @@ sites in one Memory tool. See [Memory](/internals/memory/).
 An **unbalanced debug marker** corrupts the label stack for the rest of the
 frame, so every `Begin` needs its `End` on every path including early returns.
 
+The two vendor-specific tools, **Nsight Aftermath** and **Radeon GPU Detective**,
+auto-enable on a machine whose display adapter matches their vendor. That probe
+(`HostCapabilities`) is implemented with a WMI query and returns nothing on
+non-Windows hosts, so on Linux both features stay off regardless of the GPU
+fitted. For Aftermath that is moot — the SDK vendored here is a Windows import
+library and DLL — but Radeon GPU Detective needs no SDK, so on Linux it is off
+because it was never asked about rather than because it could not work.
+Everything else in the table above is portable and behaves the same on both
+hosts.
+
 ## Crash and hang
 
 - `CrashHandler::Install()` is the first call in `LuminaMain`; it writes a
-  minidump plus a symbolized callstack to `CrashDumps/`.
+  minidump plus a symbolized callstack to `CrashDumps/`. Hosted crash reporting
+  is Windows only; on Linux the handler still writes the local report and says so
+  at startup.
 - `HangWatchdog` dumps every thread's callstack when the main thread's heartbeat
   stops. Work that rides a pool worker rather than a thread of its own can
   register a reporter so it still appears.

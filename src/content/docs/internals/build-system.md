@@ -10,19 +10,31 @@ what needs recompiling, and the IDE projects.
 There is no CMake and no Premake. Visual Studio is used as a compiler and a place to
 debug, not as the build system.
 
+LBT drives both supported hosts from the same rules files. It locates MSVC and the
+Windows SDK on Windows, and GCC or Clang on Linux, then emits the right flags for
+whichever it found. Nothing in a `.Build.cs` has to name a compiler.
+
 ## Building
 
 From the engine root:
 
-```bat
-LuminaBuild.bat Build Lumina -TargetType=Editor -Configuration=Development
+```bash
+LuminaBuild.bat  Build Lumina -TargetType=Editor -Configuration=Development   # Windows
+./LuminaBuild.sh Build Lumina -TargetType=Editor -Configuration=Development   # Linux
 ```
 
-Or generate a solution and press F5:
+Then run it. On Windows you can generate a solution and press F5; on either host,
+`Run` launches the target LBT just built:
 
-```bat
-GenerateProjectFiles.bat
+```bash
+GenerateProjectFiles.bat                                # Windows: writes Lumina.sln
+./LuminaBuild.sh Run Lumina -TargetType=Editor          # either host
 ```
+
+`Run` resolves the executable through the same rules the build used, so it launches the
+configuration you name rather than whatever was built last, and for a game target it
+launches the editor with your project already open. Anything after a bare `--` is
+forwarded to the launched process untouched.
 
 Useful options:
 
@@ -30,10 +42,12 @@ Useful options:
 | --- | --- |
 | `-Configuration=Debug\|Development\|Shipping` | Which configuration to build |
 | `-TargetType=Editor\|Game\|Program` | Editor build, standalone game, or a tool |
+| `-Platform=Windows64\|Linux64` | Defaults to the host |
 | `-Project=<path>` | Build a game project instead of the engine |
 | `-Clean` | Delete outputs first |
 | `-NoUnity` | Compile every file separately, see [Unity builds](#unity-builds) |
 | `-DryRun` | List what would rebuild without doing it |
+| `-MaxParallel=<n>` | Concurrent actions. Defaults to the core count, lowered to fit available memory. |
 
 ## The three things you declare
 
@@ -196,8 +210,9 @@ the name.
 
 A project builds against the engine tree rather than a prebuilt copy:
 
-```bat
-LuminaBuild.bat Build MyGame -Project=C:\Path\To\MyGame
+```bash
+LuminaBuild.bat  Build MyGame -Project=C:\Path\To\MyGame   # Windows
+./LuminaBuild.sh Build MyGame -Project=/path/to/MyGame     # Linux
 ```
 
 Your modules build into your project's `Binaries` and `Intermediates`. Engine modules stay
@@ -206,7 +221,12 @@ per project. The first build on a fresh clone pays for the engine; every project
 reuses it.
 
 In the generated solution your code appears under `Games/<Project>/Source` and
-`Games/<Project>/Plugins`, with the engine's own projects kept separate.
+`Games/<Project>/Plugins`, with the engine's own projects kept separate. On Linux there is
+no solution; the compile database written into your project root covers the same sources.
+
+A game target builds a shared library the editor loads, not an executable, so its rules
+point Run and Debug at the editor with `--Project` set. `LuminaBuild.sh Run MyGame` and F5
+in the generated solution therefore launch the same thing.
 
 ## Unity builds
 
@@ -246,7 +266,23 @@ See [Reflection & Codegen](/internals/reflection-codegen/) for what the generato
 ## Adding files
 
 Add a `.cpp` or `.h` anywhere under a module and it is picked up on the next build. Re-run
-`GenerateProjectFiles.bat` only when you want the IDE's file list to catch up.
+`GenerateProjectFiles.bat` (Windows) or `./GenerateProjectFiles.sh` (Linux) only when you
+want your editor's file list or completion to catch up.
+
+## IDE integration
+
+What LBT generates depends on the host it runs on.
+
+| Host | Artefact | Read by |
+| --- | --- | --- |
+| Windows | `Lumina.sln` plus a `.vcxproj` per target, and `compile_commands.json` | Visual Studio, Rider |
+| Linux | `compile_commands.json` at the workspace root | clangd, VS Code, Rider, CLion |
+
+No solution is generated on Linux. Nothing there can build a `.vcxproj` — MSBuild cannot
+evaluate the platform toolset it names — so generating one only invites someone to open it
+and conclude the workspace is broken. The compile database is written on both hosts, from
+the same toolchain call the build itself uses, so what a tool sees is what the compiler
+sees.
 
 ## When something goes wrong
 

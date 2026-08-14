@@ -3,13 +3,14 @@ title: Your First Project
 description: Create a project from the editor's project browser and launch it.
 ---
 
-import { Steps, Aside } from '@astrojs/starlight/components';
+import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 A Lumina project is separate from the engine source. Each project is a small
 C++ module that links against the engine build shared by every project, and
 loads at runtime. You do not copy template files by hand. The editor scaffolds
-the project, fills in its name and identifiers, and generates its Visual Studio
-solution for you.
+the project, fills in its name and identifiers, and generates its project files
+for you: a Visual Studio solution on Windows, a `compile_commands.json` on
+Linux.
 
 ## The project browser
 
@@ -42,17 +43,26 @@ project, reopen a recent one, or browse for an existing `.lproject` file.
 
    The editor copies the Blank template into `<Location>/<Name>`, fills in the
    project name, a new GUID, and your engine path, then runs LuminaBuildTool to
-   generate `<Name>.sln`. Watch the editor's output log for progress.
+   generate the project files. On Windows that is `<Name>.sln`; on Linux it is a
+   `compile_commands.json` in the project root. Watch the editor's output log
+   for progress.
 
-4. **Open the solution**
+4. **Open it**
 
-   When the **Project Created** dialog reports the solution is ready, click
-   **Open Solution**. The engine editor closes and `<Name>.sln` opens in
-   Visual Studio.
+   On **Windows**, when the **Project Created** dialog reports the solution is
+   ready, click **Open Solution**. The engine editor closes and `<Name>.sln`
+   opens in Visual Studio.
+
+   On **Linux** there is no solution to open. Open the project folder in your
+   editor of choice, which will pick up the generated `compile_commands.json`
+   for completion, and build from a terminal as below.
 
 </Steps>
 
 ## Build and run your project
+
+<Tabs syncKey="os">
+<TabItem label="Windows">
 
 <Steps>
 
@@ -83,12 +93,61 @@ Rider users: the template ships `.run/Launch Editor.run.xml` and
 next to the Run button.
 </Aside>
 
+</TabItem>
+<TabItem label="Linux">
+
+Run these from anywhere; `-Project` is what ties them to your project.
+
+<Steps>
+
+1. **Build**
+
+   ```sh
+   "$LUMINA_DIR/LuminaBuild.sh" Build MyGame -TargetType=Editor -Project=/path/to/MyGame
+   ```
+
+   <Aside type="note">
+   The first build of a project also builds the matching engine libraries if
+   they are missing. That is a one-time cost: the engine target is declared as a
+   requirement of every game target, and its output lives in the engine tree and
+   is shared by every project.
+   </Aside>
+
+   This compiles your game module into `Binaries/Linux64/libMyGame-Development.so`
+   inside your project.
+
+2. **Run**
+
+   ```sh
+   "$LUMINA_DIR/LuminaBuild.sh" Run MyGame -TargetType=Editor -Project=/path/to/MyGame
+   ```
+
+   A game target builds a library rather than an executable, so `Run` does what
+   F5 does on Windows: it launches the **engine editor** with `--Project` already
+   pointed at your project. That is declared by the target rules, so both routes
+   launch the same thing.
+
+</Steps>
+
+From now on, **those two commands are your full build-and-run loop.** The
+engine's own targets are only needed to work on the engine itself.
+
+<Aside type="tip">
+To debug, run the editor under `gdb` with the same arguments the target rules
+use: `gdb --args "$LUMINA_DIR/Binaries/Linux64/Lumina-Development" --Project=/path/to/MyGame/MyGame.lproject`.
+Breakpoints in your game module resolve once it loads.
+</Aside>
+
+</TabItem>
+</Tabs>
+
 ## Project layout
 
 ```
 MyGame/
 ├── MyGame.lproject          Project descriptor (name, GUID, version, plugins)
 ├── GenerateProject.bat      Regenerate the .sln after adding or removing modules or plugins
+├── GenerateProject.sh       The same on Linux, writing compile_commands.json instead
 ├── .run/                    Rider run configurations
 ├── Config/
 │   └── GameSettings.json    Per-project settings (startup maps and project settings)
@@ -141,15 +200,17 @@ it. **Stop** returns to the editor world.
 
 | Change | What to do |
 | --- | --- |
-| Edit a `.cpp` or `.h` | Press **F5**. Visual Studio rebuilds the DLL and relaunches the editor. |
-| Add a new `.cpp` or `.h` | Press **F5**. Sources under your module are discovered at build time. Run `GenerateProject.bat` when you want the IDE's file list to catch up. |
+| Edit a `.cpp` or `.h` | **Windows:** press **F5**. **Linux:** re-run `LuminaBuild.sh Build`, then `Run`. Either rebuilds the game module and relaunches the editor. |
+| Add a new `.cpp` or `.h` | The same. Sources under your module are discovered at build time, so nothing needs regenerating to compile them. Run `GenerateProject.bat` / `GenerateProject.sh` when you want your editor's file list or completion to catch up. |
 | Edit a C# script | Save the file. Scripts recompile and hot-reload in the running editor. |
 | Import an asset | Drop the file into `Game/Content/`. It appears in the Content Browser. |
 
 <Aside type="note">
 Prefer the command line? You can also scaffold a project by copying
-`Templates/Blank/` yourself and running its `GenerateProject.bat`. The editor's
-**Create New Project** does exactly this, so it is the recommended path.
+`Templates/Blank/` yourself and running its `GenerateProject.bat` or
+`GenerateProject.sh`. The editor's **Create New Project** does exactly this, so
+it is the recommended path. Every generated project ships both scripts, so a
+project created on one platform still works on the other.
 </Aside>
 
 ---

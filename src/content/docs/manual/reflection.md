@@ -241,7 +241,7 @@ code is always in sync with your headers. The output lands in
 
 :::note
 When you **add or remove** a reflected header, regenerate the project
-(`GenerateProject.bat`, or `GenerateProjectFiles.bat` for the engine) so the new
+(`GenerateProject.bat` / `.sh`, or `GenerateProjectFiles.bat` / `.sh` for the engine) so the new
 file is picked up, then build. Editing an existing reflected header just needs a
 rebuild. If the editor reports a missing `*.generated.h`, build again, the
 prebuild sometimes needs a second pass.

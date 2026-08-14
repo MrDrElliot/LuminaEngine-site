@@ -85,7 +85,8 @@ reflection step reads the same list. Regenerate project files only when you want
 the IDE's file list to catch up:
 
 ```bash
-GenerateProjectFiles.bat
+GenerateProjectFiles.bat      # Windows: rewrites Lumina.sln
+./GenerateProjectFiles.sh     # Linux:   rewrites compile_commands.json
 ```
 
 See [Build System](/internals/build-system/).
@@ -94,7 +95,10 @@ See [Build System](/internals/build-system/).
 
 Before opening a pull request:
 
-- Compiles without warnings on MSVC.
+- Compiles without warnings on MSVC, and on GCC 13+ if you are working on Linux.
+  A change that touches the platform layer, the build tool, or third-party
+  integration should be built on both before it is opened; most other changes
+  cannot break one host without breaking the other.
 - Follows the naming and style conventions above.
 - No raw owning `CObject*`.
 - Threading assumptions stated and correct. If your code runs on a job, it does
@@ -111,7 +115,8 @@ The Tests target is not part of a normal solution build. Build it when your
 change has test coverage:
 
 ```bash
-LuminaBuild.bat Build Tests
+LuminaBuild.bat Build Tests      # Windows
+./LuminaBuild.sh Build Tests     # Linux
 ```
 
 ## Commit messages
