@@ -19,7 +19,7 @@ Reflector (a prebuild target, built first)
   |
 LuminaBuildTool's reflection step
   writes <Intermediate>/Reflection_Files.json (per-module header lists + include dirs)
-  runs Reflector.exe     -> Intermediates/Reflection/<Module>/*.generated.{h,cpp}
+  runs the Reflector     -> Intermediates/Reflection/<Module>/*.generated.{h,cpp}
                             Intermediates/Reflection/<Module>/ReflectionUnity_N.gen.cpp
                             Intermediates/CSharpBindings/**/*.generated.cs
   |

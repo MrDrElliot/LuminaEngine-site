@@ -26,7 +26,7 @@ For the user-facing view of panels and workflows see the
 | `GetCurrentEditorWorld()` | The active editor world. |
 | `CreateProject(...)` | Creates a project on disk from the Blank template, returns the generated `.lproject` path or a human-readable error. |
 | `CreatePlugin(...)` | Scaffolds a project-local plugin from the Plugin template: the `.lplugin` descriptor plus a Runtime and an Editor module, each with its own `.Build.cs`. Requires a loaded project, and project files must be regenerated afterward. |
-| `GenerateProjectFiles(Dir)` | Runs the project's `GenerateProject.bat` on a worker thread, streaming LuminaBuildTool's output into the editor log. |
+| `GenerateProjectFiles(Dir)` | Runs the project's `GenerateProject.bat` (Windows) or `GenerateProject.sh` (Linux) on a worker thread, streaming LuminaBuildTool's output into the editor log. Every generated project ships both. |
 
 The canonical new-project path is the editor's own project browser: launch with
 no project, the Open Project dialog appears, Create New Project copies the Blank

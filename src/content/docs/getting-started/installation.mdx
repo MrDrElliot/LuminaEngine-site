@@ -1,18 +1,23 @@
 ---
 title: Installation
-description: Clone the repository, run Setup.bat, and build the editor.
+description: Clone the repository, run setup, and build the editor on Windows or Linux.
 ---
 
-import { Steps, Aside } from '@astrojs/starlight/components';
+import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 This page builds the engine itself. Once it is running you will create a game
 project from inside the editor, covered in
 [Your First Project](/getting-started/first-project/).
 
+Lumina builds on **Windows** (10 1803 or newer, x64) and **Linux** (x64). Pick
+your platform in the tabs below; the choice follows you down the page.
+
 ## Prerequisites
 
-Lumina builds on **Windows** (10 1803 or newer, x64). Install these first. Both
-are free.
+<Tabs syncKey="os">
+<TabItem label="Windows">
+
+Install these first. Both are free.
 
 - **Visual Studio 2026 (18.0 or newer)** with the **Desktop development with C++**
   and **.NET desktop development** workloads. The C# scripting layer targets
@@ -23,15 +28,48 @@ are free.
 - **.NET 10 SDK (x64).** Compiles the engine's C# layer (LuminaSharp) and your
   game scripts. [Download](https://dotnet.microsoft.com/download/dotnet/10.0).
 
-The **Vulkan SDK** is optional. It is only needed for the validation layers in
-Debug builds; the engine bundles its own Vulkan headers and the loader ships with
-your GPU drivers.
+</TabItem>
+<TabItem label="Linux">
 
-You also need a GPU and driver supporting **Vulkan 1.4** and **mesh shaders**
-(`VK_EXT_mesh_shader`). Both are hard requirements. The renderer draws all
-geometry through mesh and task shaders, with no vertex and index path to fall
-back to, so a device that cannot run them is rejected at startup with an explicit
-message rather than failing later.
+- **GCC 13 or newer**, or Clang against a libstdc++ that new. The floor is
+  `<format>`. The tree is built and tested with GCC 13-15; newer pre-release
+  compilers tend to reject vendored third-party code for reasons that are not
+  bugs in this engine, so pin a stable one if a build fails inside `External/`
+  or `ThirdParty/`.
+- **.NET 10 SDK.** Compiles the engine's C# layer (LuminaSharp) and your game
+  scripts. [Download](https://dotnet.microsoft.com/download/dotnet/10.0).
+- **X11 development packages.** GLFW links these directly, so without them the
+  build gets a long way and then fails at link rather than at configure time.
+- **The Vulkan loader and a driver**, at run time. These are not needed to
+  compile: the Vulkan headers are vendored and entry points are resolved with
+  `dlopen`, so a machine with no driver at all still builds a working editor it
+  cannot launch.
+
+On Debian or Ubuntu:
+
+```sh
+# build
+sudo apt-get install -y g++-13 pkg-config libx11-dev libxrandr-dev \
+    libxinerama-dev libxcursor-dev libxi-dev libxkbcommon-dev
+# run
+sudo apt-get install -y libvulkan1 mesa-vulkan-drivers vulkan-tools
+```
+
+<Aside type="note">
+A Wayland session works. GLFW runs through XWayland, which is why the X11
+packages are required rather than the Wayland ones.
+</Aside>
+
+</TabItem>
+</Tabs>
+
+### GPU requirements
+
+These apply on both platforms. You need a GPU and driver supporting **Vulkan 1.4**
+and **mesh shaders** (`VK_EXT_mesh_shader`). Both are hard requirements. The
+renderer draws all geometry through mesh and task shaders, with no vertex and
+index path to fall back to, so a device that cannot run them is rejected at
+startup with an explicit message rather than failing later.
 
 In practice that means:
 
@@ -41,18 +79,28 @@ In practice that means:
 | AMD | RDNA2 (RX 6000) or newer |
 | Intel | Arc |
 
-If you see the rejection dialog, update your drivers first. Mesh shader support
-arrived in drivers well after the hardware did.
+If you see the rejection message, update your drivers first. Mesh shader support
+arrived in drivers well after the hardware did. The message names every GPU it
+considered and why each was refused, so compare that list against
+`vulkaninfo --summary`: a card missing from it entirely is a driver the Vulkan
+loader cannot see, not a card below the floor.
+
+The **Vulkan SDK** is optional on both platforms. It is only needed for the
+validation layers in Debug builds; the engine bundles its own Vulkan headers and
+the loader ships with your GPU drivers.
 
 <Aside type="note">
-`Setup.bat` checks all of this before it builds anything and prints exactly what
-is missing, so a fresh clone fails fast with a clear message instead of a cryptic
+Setup checks all of this before it builds anything and prints exactly what is
+missing, so a fresh clone fails fast with a clear message instead of a cryptic
 error deep in the build. Everything else (the compilers, shader tools, and
 runtime listed under [External dependencies](#external-dependencies)) is fetched
 for you.
 </Aside>
 
 ## Build the editor
+
+<Tabs syncKey="os">
+<TabItem label="Windows">
 
 <Steps>
 
@@ -112,13 +160,112 @@ for you.
 
 </Steps>
 
+</TabItem>
+<TabItem label="Linux">
+
+<Steps>
+
+1. **Clone the repository**
+
+   ```sh
+   git clone https://github.com/MrDrElliot/LuminaEngine
+   cd LuminaEngine
+   ```
+
+2. **Run setup**
+
+   Run this from the repository root.
+
+   ```sh
+   ./Setup.sh
+   ```
+
+   This is a one-shot setup for a fresh clone. It verifies your prerequisites
+   (including the Vulkan runtime and your GPU's mesh shader support), builds
+   LuminaBuildTool, downloads and extracts the prebuilt dependency bundle (see
+   [External dependencies](#external-dependencies)), configures the git hooks,
+   and offers to add `LUMINA_DIR` to your shell profile.
+
+   Linux has no user environment store to persist a variable to, which is why
+   that last step is a prompt rather than something setup does silently. It is
+   declined by default under `-Yes` and in any non-interactive run.
+
+3. **Build**
+
+   ```sh
+   ./LuminaBuild.sh Build Lumina -TargetType=Editor
+   ```
+
+   The reflection generator is a prerequisite of that target and builds itself
+   first, so this is the only command you need.
+
+   Two flags decide what you get. `-Configuration` picks the compile:
+
+   - **Development** (the default), for day-to-day work. Fast, with Tracy and
+     logging enabled.
+   - **Debug**, for full debugger support. Significantly slower to compile and run.
+   - **Shipping**, for packaging. Strips profiling and verbose logging.
+
+   `-TargetType` decides what gets built: **Editor** includes all editor
+   tooling, and **Game** is a runtime-only build with no editor.
+
+4. **Run**
+
+   ```sh
+   ./LuminaBuild.sh Run Lumina -TargetType=Editor
+   ```
+
+   `Run` locates the binary through the same rules the build used, so it always
+   launches the configuration you name rather than whatever was built last. It
+   takes the same `-TargetType` and `-Configuration` flags as `Build`, and
+   anything after a bare `--` is forwarded to the editor untouched.
+
+   The executable is at `Binaries/Linux64/Lumina-Development` if you would
+   rather launch it directly. It finds the engine relative to itself, so it does
+   not care what directory you run it from.
+
+   On first launch the editor has no project loaded, so it opens its project
+   browser. Continue to [Your First Project](/getting-started/first-project/).
+
+5. **Set up code completion**
+
+   ```sh
+   ./GenerateProjectFiles.sh
+   ```
+
+   This writes a `compile_commands.json` at the repository root, describing how
+   every source in the workspace is compiled. No solution is generated on Linux,
+   because nothing there can open one.
+
+   Point your editor at the repository root and it picks the database up:
+   **clangd** and the VS Code clangd extension find it with no configuration,
+   and **Rider** or **CLion** offer it when you open the folder.
+
+</Steps>
+
+</TabItem>
+</Tabs>
+
 ## External dependencies
 
-The first run of `Setup.bat` downloads one prebuilt bundle, **`External.zip`
-(~671 MB)**, from this repository's
-[GitHub Releases](https://github.com/MrDrElliot/LuminaEngine/releases) (the
-`external-deps` tag) and extracts it into `External/`. It is a release asset, not
-a committed file, so it stays out of git history.
+The first run of setup downloads one prebuilt bundle for your platform from this
+repository's [GitHub Releases](https://github.com/MrDrElliot/LuminaEngine/releases)
+(the `external-deps` tag) and extracts it into `External/`. It is a release
+asset, not a committed file, so it stays out of git history.
+
+| Host | Asset | Download |
+| --- | --- | --- |
+| Windows | `External-Win64.zip` | ~192 MB |
+| Linux | `External-Linux64.tar.gz` | ~186 MB |
+
+Both unpack to roughly 671 MB. The Linux bundle is a tarball rather than a zip
+because its payload depends on symlinks and executable bits, and zip preserves
+neither: Slang and libclang ship versioned filenames with the plain name
+symlinked onto them, and `slangc`, the Tracy tools and the .NET host all need to
+be executable.
+
+The two bundles are built to coexist in one `External/` tree, so a machine that
+builds for both platforms installs both and neither overwrites the other.
 
 <Aside type="caution">
 Setup reaches out to the internet to fetch this bundle. Before downloading
@@ -143,27 +290,42 @@ in [`DEPENDENCIES.md`](https://github.com/MrDrElliot/LuminaEngine/blob/main/DEPE
 To verify the download yourself, compare its hash against the one in
 `Engine/Tools/LuminaBuildTool/Modes/SetupMode.cs`.
 
+<Tabs syncKey="os">
+<TabItem label="Windows">
+
 ```bat
-powershell -NoProfile -Command "(Get-FileHash External.zip -Algorithm SHA256).Hash"
+powershell -NoProfile -Command "(Get-FileHash External-Win64.zip -Algorithm SHA256).Hash"
 ```
 
-To run setup without the prompt (for CI), pass `Setup.bat --yes`. If you would
-rather not download the bundle at all, fetch each library from its upstream and
-lay it out under `External/` yourself; `DEPENDENCIES.md` lists the exact paths.
+</TabItem>
+<TabItem label="Linux">
+
+```sh
+sha256sum External-Linux64.tar.gz
+```
+
+</TabItem>
+</Tabs>
+
+To run setup without the prompt (for CI), pass `--yes`. If you would rather not
+download the bundle at all, fetch each library from its upstream and lay it out
+under `External/` yourself; `DEPENDENCIES.md` lists the exact paths.
 
 <Aside type="tip">
 If the automatic download fails (a firewall, proxy, or antivirus blocking it),
-download `External.zip` from the
+download your platform's asset from the
 [`external-deps` release](https://github.com/MrDrElliot/LuminaEngine/releases/tag/external-deps)
-manually, extract it so you have an `External/` folder in the repository root,
-then run `GenerateProjectFiles.bat`.
+manually and extract it so you have an `External/` folder in the repository root.
 </Aside>
 
 ## After pulling
 
 Source files are discovered at build time, so a plain pull just needs a rebuild.
-Regenerate the solution when modules or plugins were added or removed, or to
-refresh the file list the IDE shows.
+Regenerate project files when modules or plugins were added or removed, or to
+refresh what your editor sees.
+
+<Tabs syncKey="os">
+<TabItem label="Windows">
 
 ```bat
 GenerateProjectFiles.bat
@@ -171,6 +333,19 @@ GenerateProjectFiles.bat
 
 If you still see unexpected errors, delete `Binaries/` and `Intermediates/`,
 then run `GenerateProjectFiles.bat` again.
+
+</TabItem>
+<TabItem label="Linux">
+
+```sh
+./GenerateProjectFiles.sh
+```
+
+If you still see unexpected errors, delete `Binaries/` and `Intermediates/`,
+then run `./GenerateProjectFiles.sh` again.
+
+</TabItem>
+</Tabs>
 
 ## Build features
 
@@ -180,23 +355,55 @@ Aftermath, verbose logging) are configured in
 `auto`, `on`, or `off`; `auto` lets the engine decide per configuration. You can
 override any of them for a single build from the command line, like this.
 
+<Tabs syncKey="os">
+<TabItem label="Windows">
+
 ```bat
 LuminaBuild.bat Build Lumina -Tracy=off -Validation=on -VerboseLogging=off
 ```
 
+</TabItem>
+<TabItem label="Linux">
+
+```sh
+./LuminaBuild.sh Build Lumina -Tracy=off -Validation=on -VerboseLogging=off
+```
+
+</TabItem>
+</Tabs>
+
 ## Troubleshooting
+
+### Both platforms
+
+| Symptom | Fix |
+| --- | --- |
+| *"No GPU meeting the renderer's requirements was found"* | The message lists every GPU it rejected and why. If every one says `no VK_EXT_mesh_shader`, the hardware is below the [GPU floor](#gpu-requirements). If a GPU you expected is missing from the list entirely, the Vulkan loader is not seeing its driver; compare against `vulkaninfo --summary`. |
+| *".NET 10 SDK not installed"* | Install the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), then run `dotnet --list-sdks` and confirm a `10.x` entry appears. |
+| *SHA-256 mismatch, setup aborts* | The download was corrupted or intercepted. Delete the archive and re-run setup, or grab it manually from the [releases page](https://github.com/MrDrElliot/LuminaEngine/releases/tag/external-deps). |
+| *Dependency download fails or hangs* | A firewall, proxy, or antivirus is blocking it. Download the archive manually and extract it into the repo root (see [above](#external-dependencies)). |
+| *"wrong engine" errors, or it links a different clone* | A stale `LUMINA_DIR`. Re-run setup from the correct clone, then restart your IDE so it picks up the new value. |
+
+### Windows
 
 | Symptom | Fix |
 | --- | --- |
 | *`NETSDK1209`, or "Visual Studio is too old for net10.0"* | You are on Visual Studio 2022 or older. Install **Visual Studio 2026 (18.0+)**. A standalone .NET SDK will not fix this, because Visual Studio uses its own bundled MSBuild. |
-| *".NET 10 SDK not installed"* | Install the [.NET 10 SDK (x64)](https://dotnet.microsoft.com/download/dotnet/10.0), then run `dotnet --list-sdks` and confirm a `10.x` entry appears. |
 | *`dotnet` works in a terminal but Visual Studio still cannot build net10.0* | Visual Studio builds with its own MSBuild, not the one on `PATH`. The fix is the Visual Studio 2026 install above, not the standalone SDK. |
-| *`External.zip` SHA-256 mismatch, setup aborts* | The download was corrupted or intercepted. Delete `External.zip` and re-run `Setup.bat`, or grab it manually from the [releases page](https://github.com/MrDrElliot/LuminaEngine/releases/tag/external-deps). |
-| *Dependency download fails or hangs* | A firewall, proxy, or antivirus is blocking it. Download `External.zip` manually and extract it into the repo root (see [above](#external-dependencies)). |
-| *"wrong engine" errors, or it links a different clone* | A stale `LUMINA_DIR`. Re-run `Setup.bat` from the correct clone, then restart Visual Studio so it picks up the new value. |
 | *Missing v143 toolset* | Visual Studio Installer, Individual Components, **MSVC v143 Build Tools**. |
 | *"Cannot find .generated.h"* | Build again. Visual Studio sometimes needs a second pass to pick up generated files. |
 | *"Application control policy blocked this file"* | Disable **Windows 11 Smart App Control**. |
+
+### Linux
+
+| Symptom | Fix |
+| --- | --- |
+| *`error: the .NET SDK is required`, but you installed it* | `dotnet-install.sh` puts it in `$HOME/.dotnet` and persists nothing. The engine's scripts look there anyway, but your own shell will not until you add it to `PATH`. |
+| *A build failure inside `External/` or `ThirdParty/`* | Usually a compiler newer than the tree has been built with. Pin a stable one: `sudo apt-get install -y g++-15 && export CXX=g++-15 CC=gcc-15`. |
+| *Link failure on `stdc++_libbacktrace` or `stdc++exp`* | The archive behind `std::stacktrace` was renamed in GCC 14, and the toolchain probes for whichever one your compiler ships. If it fails anyway, the compiler is probably not the one you think it is; check `CXX`. |
+| *The build uses fewer cores than the machine has* | Deliberate, and the reason is logged. Parallelism is capped to fit available memory, because overcommitting it gets the desktop session killed rather than the build. Override with `-MaxParallel=<n>`. |
+| *A hybrid-graphics laptop starting on the wrong GPU* | The discrete GPU is preferred whenever it enumerates. If it does not appear in `vulkaninfo --summary`, the proprietary driver is not loaded, and no engine setting works around that. |
+| *`LUMINA_DIR` unset in new shells* | Setup only offers to write it to your profile, and never does so unattended. Add `export LUMINA_DIR="/path/to/LuminaEngine"` to your shell profile yourself. |
 
 Still stuck? [Open an issue](https://github.com/MrDrElliot/LuminaEngine/issues)
 or ask on [Discord](https://discord.gg/xQSB7CRzQE).
