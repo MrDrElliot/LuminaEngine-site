@@ -38,6 +38,83 @@ FVector3 Dir = (Sum - P).Normalized();
 Colors are `FVector4` (RGBA, components 0–1). Scalar helpers (`Sin`, `Clamp`,
 `Lerp`, `Tau`) come from `System.MathF`.
 
+## Strings and names
+
+Two engine string types are available to scripts, and they answer different
+questions.
+
+| Type | Use |
+| --- | --- |
+| `string` | Ordinary text. Stored as an engine `FString`. |
+| `FString` | The same storage, spelled as the engine type. Required inside a container, where a `string` cannot go. |
+| `FName` | An interned name: an id, not text. Cheap to compare and copy, case insensitive. |
+
+`FString` converts to and from `string` implicitly, so it reads like text
+wherever you use it.
+
+```csharp
+FString Text = "hello";          // implicit
+string Back = Text;              // implicit
+int Length = Text.Length;
+```
+
+`FName` is the right type for an identifier you compare a lot, like a slot or a
+tag. Comparison is an id check, so it never walks the characters.
+
+```csharp
+FName Slot = new FName("Head");
+
+if (Slot == new FName("HEAD"))   // true, interning is case insensitive
+{
+    // ...
+}
+
+string AsText = Slot.ToString(); // resolves the id back to text
+bool Empty = FName.None.IsNone;  // the empty name
+```
+
+## Containers
+
+`TVector<T>` and `THashMap<K, V>` mirror the engine's own containers. As a
+`[Property]` they are **views** over storage the engine owns; see
+[Lists and maps](/manual/scripting/entities-components/#lists-and-maps) for what
+`T` may be and how the Details panel draws them.
+
+```csharp
+TVector<float> Values = Cooldowns;
+
+Values.Add(1.5f);
+Values.Insert(0, 0.5f);
+Values.RemoveAt(0);
+Values.Clear();
+
+int Index = Values.IndexOf(1.5f);
+bool Present = Values.Contains(1.5f);
+
+foreach (float V in Values) { }
+```
+
+| Member | Notes |
+| --- | --- |
+| `Count`, `Clear()`, `Add`, `Insert`, `RemoveAt`, `Remove`, `IndexOf`, `Contains` | The usual `IList<T>` surface. |
+| `List[i]` | By reference, so `List[i] = value` works. Plain-value elements only. |
+| `Get(i)` / `Set(i, value)` | Works for every element type, including `FString` and `TObjectPtr<T>`. |
+| `AsSpan()` | The storage as a `Span<T>`, for plain-value elements. A mutation invalidates it. |
+
+```csharp
+THashMap<int, float> Weights = WeightByTier;
+
+Weights.Set(1, 0.5f);                                  // insert or assign
+bool Found = Weights.TryGetValue(1, out float Weight);
+bool Has = Weights.ContainsKey(1);
+Weights.Remove(1);
+
+foreach (var Pair in Weights) { /* Pair.Key, Pair.Value */ }
+```
+
+A view does not own its storage, so do not hold one past the frame you got it
+in, and treat any index or enumerator as invalid after you change the container.
+
 ## `Entity`
 
 A lightweight handle to an entity (the C# mirror of `entt::entity`).
@@ -81,11 +158,11 @@ timings show up in the editor's **Gameplay Profiler** with no extra code;
 Use these as `[Property]` field types to get an asset picker in the editor, then
 resolve them in code. They live in `Lumina`.
 
-The two **soft** types store a virtual path, so the reference survives a save and
-a reload without loading the asset, and resolves when you ask for it.
+The two **soft** types store a virtual path and resolve when you ask.
 `TObjectPtr<T>` is a **hard** reference: it holds the object itself and keeps it
-alive, which is what you want for a reference to something already loaded, or to
-an object that has no asset path at all.
+alive, which is what you want for something already loaded, or for an object
+that has no asset path at all. For when to choose which, see
+[Hard vs soft references](/manual/assets/references/#hard-vs-soft-references).
 
 | Type | Use |
 | --- | --- |

@@ -233,10 +233,13 @@ public sealed class Spinner : EntityScript
 ## Hot reload
 
 When you save a script while the editor is running, it **recompiles in place**.
-The engine tears down the old managed instances, loads the new assembly,
-and rebinds each entity (running `OnAttach` and `OnReady` again on the new
-version). Your `[Property]` values set in the editor survive. They are stored on
-the component and reconciled against the script's current fields, so they hold up
-even as you add, remove, or rename fields. Ordinary runtime state held in instance
-fields is reset. Hot reload is ideal for tuning; it just does not preserve a
-script's accumulated state.
+The engine tears down the old managed instances, loads the new assembly, and
+rebinds each entity, running `OnAttach` and `OnReady` again on the new version.
+
+Your `[Property]` values set in the editor survive, including as you add, remove,
+and retype fields. Renaming a field keeps its value only if you give it
+`[Alias("OldName")]`, because values are matched by name. Ordinary runtime state
+held in instance fields is reset.
+
+Full details, including renaming the script class itself, are in
+**[Hot Reload](/manual/scripting/hot-reload/)**.

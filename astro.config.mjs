@@ -54,6 +54,7 @@ export default defineConfig({
             { label: 'Entities & Components', slug: 'manual/ecs' },
             { label: 'Worlds & Coordinates', slug: 'manual/worlds-and-coordinates' },
             { label: 'Prefabs', slug: 'manual/prefabs' },
+            { label: 'Prefab Variants', slug: 'manual/prefab-variants' },
             { label: 'Terrain', slug: 'manual/terrain' },
             { label: 'Splines', slug: 'manual/splines' },
           ],
@@ -74,6 +75,17 @@ export default defineConfig({
                 { label: 'Best Practices', slug: 'manual/materials/best-practices' },
               ],
             },
+          ],
+        },
+        {
+          label: 'User Interface',
+          items: [
+            { label: 'Overview', slug: 'manual/ui' },
+            { label: 'RML Syntax', slug: 'manual/ui/rml' },
+            { label: 'RCSS Styling', slug: 'manual/ui/rcss' },
+            { label: 'The UI Editor', slug: 'manual/ui/editor' },
+            { label: 'World Widgets', slug: 'manual/ui/world-widgets' },
+            { label: 'Driving UI from C#', slug: 'manual/scripting/ui' },
           ],
         },
         {
@@ -113,6 +125,7 @@ export default defineConfig({
             { label: 'Overview', slug: 'manual/scripting' },
             { label: 'Entity Systems', slug: 'manual/scripting/entity-systems' },
             { label: 'Entities & Components', slug: 'manual/scripting/entities-components' },
+            { label: 'Hot Reload', slug: 'manual/scripting/hot-reload' },
             { label: 'The World API', slug: 'manual/scripting/world' },
             { label: 'Globals & Helpers', slug: 'manual/scripting/globals' },
             { label: 'World Systems', slug: 'manual/scripting/world-systems' },
@@ -145,6 +158,7 @@ export default defineConfig({
           items: [
             { label: 'Overview', slug: 'manual/assets' },
             { label: 'Importing', slug: 'manual/assets/importing' },
+            { label: 'Managing Assets', slug: 'manual/assets/managing' },
             { label: 'Textures', slug: 'manual/assets/textures' },
             { label: 'Referencing Assets', slug: 'manual/assets/references' },
             { label: 'Cooking & Packaging', slug: 'manual/assets/packaging' },

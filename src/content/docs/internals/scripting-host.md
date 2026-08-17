@@ -136,6 +136,58 @@ The ordering is delicate:
 `GetScriptGeneration()` returns the current generation number. Anything caching
 managed pointers keys off it.
 
+### Rebuilding a class whose properties changed
+
+A C# script's `[Property]` members are appended to its minted `CClass` as real
+`FProperty`s, in a trailing block past the C++ shim. The class is reused by name
+across reloads and keeps its identity, but `StaticAllocateObject` bakes
+`Class->GetSize()` into every object when it is created, so a changed property
+set cannot be patched in place.
+
+`Scripting::MigrateMintedClassLayout` rebuilds the block: retire the layout
+record, discard the CDO, `CStruct::Unlink`, restore the shim's size, re-append,
+create a fresh CDO. It **refuses while live instances exist**, because they are
+laid out at the old size.
+
+So `FScriptableRegistry::RefreshMintedClasses` runs a round trip.
+
+1. Compare each type's new schema against the block it was built from,
+   `ScriptClassLayoutMatches`. A reload that changed no layout does nothing here,
+   which is the common case.
+2. `EntityScripts::Evacuate` serializes every affected entity's
+   `SEntityScriptComponent` and drops its scripts.
+3. Rebuild the layouts.
+4. Apply the C# declared defaults to the new CDOs.
+5. `EntityScripts::Restore`, **after** the defaults, so a property added by this
+   reload comes back carrying its initializer rather than zero.
+
+The carrier is `SEntityScriptComponent::Serialize`, unchanged and already used
+for scene saving: class name plus tagged properties per script. Being name-keyed
+is what makes the round trip a migration rather than a copy.
+
+Old layout records are retired to a graveyard rather than freed, and the old
+`FProperty`s are not freed either. They point into that record's element
+descriptions, so retiring the pair together means a stale cached pointer is
+merely stale, never dangling.
+
+### Renames
+
+Property renames ride the tagged serializer's `Aliases` metadata, which the C#
+`[Alias]` list is folded into.
+
+Class renames go through a redirect registry on `FScriptableRegistry`:
+`RegisterClassRedirect`, `ResolveClass`, `GatherRenamedClasses`. It maps name to
+name rather than name to `CClass*`, because a redirect is registered before its
+target has necessarily been minted. `ResolveClass` consults redirects **before**
+the name itself: during the reload that renames a type both classes briefly
+exist, and preferring the live old class would strand instances on it.
+
+`SEntityScriptComponent`'s load path resolves through the registry, so a scene
+saved before a rename loads too.
+
+The pairs come from C# through `EnumerateScriptableAliases`, a separate managed
+export from `EnumerateScriptables` because that sink's arity is part of the ABI.
+
 ## Cooked games
 
 A packaged game does not run Roslyn.

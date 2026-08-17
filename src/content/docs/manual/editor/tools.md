@@ -32,7 +32,8 @@ to the running editor process and set breakpoints in your script `.cs` files.
 
 ## Packaging
 
-**File > Package Project** builds a distributable of your game.
+**File > Package Project** builds a distributable of your game. See
+[Cooking & Packaging](/manual/assets/packaging/).
 
 ## Settings
 

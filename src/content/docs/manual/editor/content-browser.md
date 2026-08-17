@@ -3,8 +3,10 @@ title: Content Browser
 description: Browsing, creating, and importing your project's assets.
 ---
 
-The Content Browser shows everything under your project's `Game/Content/`
-folder, mounted as **`/Game`**. Toggle it with **Ctrl+Space**.
+The Content Browser shows your project's content, which lives under
+`Game/Content/` and is addressed as **`/Game/Content/`**. Toggle it with
+**Ctrl+Space**. Engine and plugin content appear under their own mounts, see
+[Content paths](/manual/assets/#content-paths).
 
 ## Browsing
 
@@ -29,3 +31,12 @@ appears right away. For import options and texture color space, see the
 
 - **Drag a mesh or prefab** into the viewport or outliner to spawn an entity from it.
 - **Drag an asset onto a property** in the Details panel to assign it, for example a mesh onto a Static Mesh slot, or a material onto a material slot.
+
+## Managing assets
+
+Right-click an asset for the operations that change it: **Rename** (F2),
+**Duplicate**, **Replace References...**, and **Delete**. Renaming and moving
+are safe, deleting something that is still in use prompts you first.
+
+For what each one does and how to avoid breaking references, see
+[Managing Assets](/manual/assets/managing/).

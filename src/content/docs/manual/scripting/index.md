@@ -143,8 +143,10 @@ entity with no `OnUpdate` is never ticked.
 | `OnDetach()` | Once, when the entity is destroyed or the script is removed. |
 
 For the full picture (when each runs, the physics phase it runs in, what is
-per-entity, how to run scripts in parallel, and how hot reload behaves) see
-**[Entity Systems](/manual/scripting/entity-systems/)**.
+per-entity, and how to run scripts in parallel) see
+**[Entity Systems](/manual/scripting/entity-systems/)**. For what survives when
+you save a script while the editor is running, see
+**[Hot Reload](/manual/scripting/hot-reload/)**.
 
 ## Attaching a script
 

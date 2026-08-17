@@ -14,13 +14,25 @@ to open it. Each asset type has its own editor.
 | **Static Mesh** | Inspect geometry, LODs, and material slots. |
 | **Skeletal Mesh** / **Skeleton** | Preview a rigged mesh, inspect the bone hierarchy. |
 | **Animation** | A timeline for clips, keyframes, and notifies. |
+| **Animation Montage** | Assemble clips into a playable montage. |
+| **Blend Space** | Blend clips across one or two input axes. |
 | **Animation Graph** | A state and blend graph that drives a character's pose. |
 | **Particle System** | Node-graph particle effects with a preview. |
 | **Geometry Collection** | Fracture a mesh into chunks for [destruction](/manual/physics/materials-destruction/). |
 | **Physics Material** | Friction, restitution, and density, see [Physics](/manual/physics/materials-destruction/). |
+| **Physics Asset** | Bodies and joints for ragdolls. |
+| **Collision Shape** | An authored collision primitive set. |
 | **Blackboard** | Named, typed keys for AI and animation, see [Blackboards](/manual/scripting/blackboard/). |
-| **Data Asset** / **Schema** | Author a data asset and the schema that defines its fields. |
+| **Data Asset** | Author a data asset's fields. |
+| **Data Table** | Rows of a structured type. |
+| **Curve** | An editable value curve. |
+| **Audio Stream** | Preview and configure an imported sound. |
 | **Prefab** | Edit a saved entity hierarchy. |
-| **Script** (`.cs`) | C# entity scripts, edit them in your IDE; they compile and hot-reload on save. See [Scripting](/manual/scripting/). |
-| **UI** (`.rml` / `.rcss`) | A markup and stylesheet editor with a live preview, see [Scripting › User Interface](/manual/scripting/ui/). |
 | **Texture** / **Font** | Preview images and typefaces. |
+
+Two file types open in an editor without being assets:
+
+| File | Editor |
+| --- | --- |
+| **UI** (`.rml` / `.rcss`) | A markup and stylesheet editor with a live preview, see [User Interface](/manual/ui/). |
+| **Script** (`.cs`) | Opens in your IDE. Scripts compile and hot-reload on save, see [Scripting](/manual/scripting/). |

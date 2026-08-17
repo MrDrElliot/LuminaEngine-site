@@ -33,7 +33,7 @@ what ships.
 | **[Navigation](/manual/navigation/)** | Baking a navmesh and driving agents along paths. |
 | **[Networking](/manual/networking/)** | Net modes, roles, replication, and hosting a session. |
 | **[Audio](/manual/audio/)** | Sources, buses, mixing, and audio settings. |
-| **[Asset Pipeline](/manual/assets/)** | Importing, textures, references, cooking, and packaging. |
+| **[Assets](/manual/assets/)** | What assets are, importing, managing them safely, references, cooking, and packaging. |
 | **[Reflection](/manual/reflection/)** | Making your own types visible to the editor, serialization, and scripts. |
 | **[Logging](/manual/logging/)** | Log levels, the console, and where log output goes. |
 

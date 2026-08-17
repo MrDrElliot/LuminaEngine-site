@@ -15,7 +15,7 @@ If you are looking for something to contribute, this is the list.
 
 | Topic | Where the source is | What a page needs to cover |
 | --- | --- | --- |
-| **User Interface (authoring)** | `Runtime/UI`, `Editor/.../RmlUiEditor` | Authoring RmlUi documents and stylesheets in the editor, the world widget component versus screen-space UI, UI material brushes, and world text. [The C# API](/manual/scripting/ui/) is documented; the authoring side is not. |
+| **UI material brushes and world text** | `Runtime/UI`, `World/Entity/Components/TextComponent.h` | Using a material as a UI brush, and MSDF world-space text. The rest of the UI stack is now covered by the [User Interface](/manual/ui/) section. |
 | **Input modes and contexts** | `Runtime/Input/InputMode.h`, `InputContext`, `InputViewport` | How UI versus Game input mode and mouse capture are chosen, and how input is routed per viewport. Actions and their bindings are covered in [Input](/manual/scripting/input/). |
 | **Project and editor settings** | `Runtime/Config`, `Editor/Source/Settings` | What each settings class controls, where values are stored, and which ones require a restart. |
 | **Foliage** | `Runtime/World/Entity/Components/FoliageComponent.h`, `Editor/.../FoliageEditMode` | Painting instanced foliage, density and scale, and how foliage re-projects after terrain edits. Currently only mentioned in passing on the [Terrain](/manual/terrain/) page. |
@@ -40,7 +40,7 @@ because the page was missing. Restore the documentation when the gap closes.
 | --- | --- |
 | **`[Instanced]` script properties** | A `[Property]`'s value lives in native memory and the C# side reaches it through an accessor. `FInstancedStruct` properties are appended natively (`Scripting::AppendScriptPropertiesToClass`), but a script cannot yet declare or read one, so the "Instanced properties" section was removed from [Entities & Components](/manual/scripting/entities-components/). The C++ workflow on the [Reflection](/manual/reflection/) page is unaffected. |
 | **Nested C# structs as script properties** | Same cause. The native planner mints a sub-struct for one, but there is no C# marshalling for it, so it is a `LUM0101` build error. |
-| **Non-blittable list and map elements** | `NativeList<T>` and `NativeMap<K, V>` require unmanaged element types, so `NativeList<string>` is not expressible. The native container supports string elements already; only the C# view is missing. |
+| **Strings and asset references in maps** | Lists now cover every element type (`TVector<T>` of a plain value, an `FString`, an `FName`, or a `TObjectPtr<T>`). Still missing: a map with a string or object key or value, and a list or map of asset references. The native containers support all of them already (`FScriptArrayElementDesc` drives element lifecycle through the element's own FProperty), so this is C#-side view work only: `THashMap<K, V>` does not route its slots through `ElementMarshal` the way `TVector<T>` does. |
 
 ## Deferred
 

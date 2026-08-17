@@ -13,12 +13,9 @@ away.
 | Kind | Source formats | Becomes |
 | --- | --- | --- |
 | **Models** | `.gltf`, `.glb`, `.fbx`, `.obj` | Static Mesh, or Skeletal Mesh + Skeleton + Animations |
-| **Textures** | `.png`, `.jpg`, `.jpeg`, `.hdr` | Texture |
+| **Textures** | `.png`, `.jpg`, `.jpeg`, `.tga`, `.bmp`, `.dds`, `.hdr` | Texture |
+| **Audio** | `.wav` | Audio Stream |
 | **Fonts** | `.ttf`, `.otf` | Font |
-
-:::note
-Importing audio files is not available yet.
-:::
 
 ## Importing a model
 
@@ -45,7 +42,21 @@ mesh component's Material Overrides.
 
 ## Reimporting
 
-- **Textures** can be reimported in place. The Texture editor has a **Recook**
-  button that re-reads the source file, useful after you change the color space.
-- **Models** do not reimport in place yet. Dragging the source file in again
-  creates a new, separate asset rather than updating the existing one.
+Right-click an asset and choose **Reimport From File...** to swap its contents
+for a fresh read of a source file. The asset keeps its identity, so everything
+referencing it keeps working. This is what you want after editing the source in
+your DCC tool.
+
+Models, textures, audio, and fonts all support it.
+
+:::caution
+Do not reimport by dragging the source file in again. That creates a second,
+separate asset and leaves every existing reference on the old one.
+:::
+
+The Texture editor also has a **Recook** button, which re-reads the source
+without going through the dialog. It is useful after changing the color space.
+
+Skeletal meshes are a set: if you reimport the mesh after changing its rig,
+reimport its skeleton and clips from the same source too, so they stay
+consistent. See [Animation](/manual/animation/#importing).

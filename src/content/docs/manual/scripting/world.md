@@ -8,7 +8,7 @@ parts, **methods** on the world itself, and **subsystem** properties that group
 related functionality.
 
 ```csharp
-Entity Pickup = World.SpawnPrefab("/Game/Prefabs/Coin", new FVector3(0, 1, 0));
+Entity Pickup = World.SpawnPrefab("/Game/Content/Prefabs/Coin", new FVector3(0, 1, 0));
 World.Physics.AddImpulse(Pickup, new FVector3(0, 5, 0));   // a subsystem
 ```
 

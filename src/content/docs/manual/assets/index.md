@@ -1,81 +1,140 @@
 ---
-title: Asset Pipeline
-description: How content is stored, addressed, referenced, and shipped.
+title: Assets
+description: What an asset is, how it is identified, and how content is addressed.
 ---
 
 Everything you build a game from, meshes, textures, materials, prefabs, levels,
-is an **asset**. This section covers how assets are stored, how you bring content
-in, how assets point at each other, and how they are packaged for a shipped game.
+is an **asset**. This section covers what assets are, how to organize and change
+them safely, how they point at each other, and how they are packaged for a
+shipped game.
 
 ## What an asset is
 
-An asset is a piece of saved content. On disk, each one is a single **`.lasset`**
-file under your project's content folder. You never edit `.lasset` files by hand,
-you create and edit assets through the editor.
+An asset is a piece of saved content. On disk it is a single **`.lasset`** file
+under your project's content folder. You never edit a `.lasset` by hand, you
+create and edit assets through the editor.
+
+A `.lasset` file is a **package**. Most packages hold exactly one asset, which is
+why "asset" and "file" usually mean the same thing in practice. Some hold more:
+a material also stores its node graph inside its own package, a skeletal mesh
+import can bring a skeleton along. Those extra objects belong to the package and
+travel with it, they are not separate files you manage.
+
+## Identity: assets are found by id, not by path
+
+This is the single most important thing to understand about managing content.
+
+Every asset carries a **GUID**, a stable id assigned when it is created and
+stored inside the file. When one asset references another, it stores that id, not
+the path. The path is a label for humans and for the Content Browser.
+
+Two consequences follow, and they drive almost every rule on the
+[Managing Assets](/manual/assets/managing/) page.
+
+- **Renaming and moving an asset is safe.** Everything pointing at it keeps
+  working, because nothing was pointing at the old path in the first place.
+- **Copying a `.lasset` file outside the editor is not safe.** The copy carries
+  the same id as the original, and the engine treats an id as belonging to one
+  asset. Use **Duplicate** in the Content Browser instead, which mints a new id.
 
 ## Content paths
 
-Assets are addressed by **content path**, not by where they sit on your drive.
-The first segment of a path is a **mount**.
+Assets are addressed by **content path**, not by where the project sits on your
+drive. The first segment of a path is a **mount**.
 
 | Mount | Points at |
 | --- | --- |
-| **`/Game`** | Your project's `Game/Content/` folder. |
+| **`/Game`** | Your project's `Game/` folder. |
 | **`/Engine`** | The engine's built-in content. |
 | **`/Config`** | Your project's config. |
+| **`/Intermediates`** | Generated intermediate files. |
+| **`/<PluginName>`** | Content shipped by an enabled plugin. |
 
-So `/Game/Meshes/Cube` is the file `Game/Content/Meshes/Cube.lasset` in your
-project. Plugins mount their own content as well. Because everything is addressed
-by mount, paths keep working no matter where the project lives on disk.
+Your own content lives under `Game/Content/`, so its paths start with
+`/Game/Content/`. The asset at `Game/Content/Meshes/Cube.lasset` is addressed as:
+
+```
+/Game/Content/Meshes/Cube
+```
+
+Note that the content path has no `.lasset` extension. The extension is part of
+the file name, not part of the asset's address.
+
+Because everything is addressed through a mount, paths keep working no matter
+where the project lives on disk, and a packaged game resolves the same paths it
+used in the editor.
 
 ## Asset types
 
 The asset types you will work with.
 
-| Asset | What it is |
+Right-clicking in the [Content Browser](/manual/editor/content-browser/) offers a
+**New Asset** menu grouped by category. These are the types it can create.
+
+| Category | Assets |
 | --- | --- |
-| **Static Mesh** | A non-animated mesh, with material slots. |
-| **Skeletal Mesh** / **Skeleton** | A rigged mesh and its bone hierarchy. |
-| **Animation** | A skeletal animation clip. |
-| **Animation Graph** | A graph that drives a character's pose. |
-| **Texture** | A 2D image, see [Textures](/manual/assets/textures/). |
-| **Material** / **Material Instance** / **Material Function** | Surface shading. |
-| **Physics Material** | Friction, restitution, and density. |
-| **Particle System** | A particle effect. |
-| **Geometry Collection** | Pre-fractured pieces for destruction. |
-| **Prefab** | A saved entity hierarchy. |
-| **Data Asset** / **Schema** | Custom data and the shape that defines it. |
-| **Entity Component Type** | A data-authored component. |
-| **Blackboard** | Typed keys for AI and animation, see [Blackboards](/manual/scripting/blackboard/). |
-| **Font** | A typeface. |
-| **World** | A level. |
+| **World** | **World**, a level. **Texture**. |
+| **Mesh** | **Geometry Collection**, pre-fractured pieces for destruction. |
+| **Material** | **Material**, **Material Instance**, **Material Function**. See [Materials](/manual/materials/). |
+| **Textures** | **Texture Array**. |
+| **Render Target** | **Render Target**, a texture the renderer draws into. |
+| **Animation** | **Animation Graph**, **Animation Montage**, **Blend Space**, **Sequence**. |
+| **Physics** | **Physics Material** (friction, restitution, density), **Physics Asset** (bodies and joints for ragdolls), **Collision Shape**. |
+| **Effects** | **Particle System**. |
+| **Audio** | **Audio Stream**. |
+| **Data** | **Data Asset**, **Data Table**, **Curve**. |
+| **Gameplay** | **Prefab**, a saved entity hierarchy. **Blackboard**, typed keys for AI and animation. |
+| **UI** | **Font**. |
 
-You create most of these from the [Content Browser](/manual/editor/content-browser/)
-(right-click), and import meshes, textures, and fonts from source files.
+Some asset types are not created from scratch but come in through
+[importing](/manual/assets/importing/):
 
-## Deleting assets
+| Asset | Comes from |
+| --- | --- |
+| **Static Mesh** | A model with no skinning. |
+| **Skeletal Mesh** and **Skeleton** | A rigged model. |
+| **Animation** | One clip per animation in the source file. |
 
-Select an asset in the [Content Browser](/manual/editor/content-browser/) and press
-**Delete** (or right-click, Delete). Deletion is immediate and cannot be undone.
+Textures, fonts, and audio can be either created empty or imported.
 
-When you delete an asset, the following happens.
+### Files that are tracked but are not assets
 
-- It is removed from disk and from memory right away.
-- Every reference to it is cleared. Components, other assets, and open worlds that
-  pointed at it are set back to nothing, so you get an empty slot rather than a
-  dangling reference to a deleted asset.
-- If it is a **prefab**, its placed instances are removed from every open level.
-  Detached copies survive. See [Prefabs](/manual/prefabs/).
-- It does not show up in the unsaved-changes prompt when you close the editor.
+Some loose text files are tracked so that references to them survive a rename:
+RmlUi documents (`.rml`) and stylesheets (`.rcss`). They are not packages, so
+they get their id from a hidden sidecar file stored beside your content. Treat
+them like assets when moving things around, and let the editor do the moving.
 
-Two things you cannot delete.
+C# scripts are **not** tracked this way. They are compiled by the scripting host
+rather than referenced as assets. See [Scripting](/manual/scripting/).
 
-- A **World** that is currently open. Close it first.
-- Anything while the game is **playing or simulating**. Stop play first.
+## The life of an asset
+
+1. **Created** by a factory in the Content Browser, or **imported** from a source
+   file. See [Importing](/manual/assets/importing/).
+2. **Edited** in its asset editor, which marks it as having unsaved changes.
+3. **Saved** to its `.lasset`. See [Managing Assets](/manual/assets/managing/).
+4. **Referenced** by other assets, by components, and by scripts. See
+   [Referencing Assets](/manual/assets/references/).
+5. **Cooked** into a shipped build, following those references to decide what
+   gets included. See [Cooking & Packaging](/manual/assets/packaging/).
+
+## The asset registry
+
+The editor keeps an index of every asset in your project, built by reading file
+headers **without loading the assets themselves**. That index is what makes the
+Content Browser instant on a large project, and it is what knows which assets
+reference which.
+
+You do not interact with the registry directly, but it is the reason the editor
+can answer "what uses this?" before anything is loaded, which is what makes safe
+deletes and reference replacement possible.
+
+For the implementation, see [Assets](/internals/assets/) in Engine Internals.
 
 ## In this section
 
 - **[Importing](/manual/assets/importing/)**, bringing in models, textures, and fonts.
+- **[Managing Assets](/manual/assets/managing/)**, saving, renaming, deleting, and doing it safely.
 - **[Textures](/manual/assets/textures/)**, color space and compression.
 - **[Referencing Assets](/manual/assets/references/)**, pointing at assets from components and scripts.
 - **[Cooking & Packaging](/manual/assets/packaging/)**, building a shipped game.

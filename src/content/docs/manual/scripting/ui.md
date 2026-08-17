@@ -8,17 +8,25 @@ an HTML/CSS-style retained-mode UI library. You author the look as **`.rml`**
 markup and **`.rcss`** stylesheet assets, then load, show, and drive them from a
 script through `World.UI`. Documents render full-screen over the world's view.
 
+This page is the **C# side**: view-models, documents, elements, events, and
+cursor control. For the markup and styling themselves, see the
+[User Interface](/manual/ui/) section:
+
+- **[RML Syntax](/manual/ui/rml/)**, document structure, elements, templates, and every data binding.
+- **[RCSS Styling](/manual/ui/rcss/)**, selectors, units, fonts, layout, and which properties actually render.
+- **[The UI Editor](/manual/ui/editor/)**, building and previewing a document in the editor.
+
 :::note
 `World.UI` is screen-space UI for a world's viewport. For UI that lives *in* the
-world (a panel on a control console, a floating health bar), use a world-space
-`SWidgetComponent` instead.
+world (a panel on a control console, a floating health bar), use a
+[world widget](/manual/ui/world-widgets/) instead.
 :::
 
 ## Authoring a document
 
 An RML document is markup with an attached stylesheet. Create one from the
-Content Browser and edit it in the [UI asset editor](/manual/editor/asset-editors/).
-Here is a minimal menu.
+Content Browser and edit it in the [UI editor](/manual/ui/editor/). Here is a
+minimal menu.
 
 ```html
 <rml>
@@ -39,8 +47,15 @@ Here is a minimal menu.
 
 Elements are matched from script by their `id` (`#play`) or CSS classes, and
 `.rcss` styles them with familiar CSS-like properties (`color`, `width`,
-`background-color`, flexbox layout, transitions). See the
-[RmlUi RCSS reference](https://mikke89.github.io/RmlUiDoc/pages/rcss.html).
+`background-color`, flexbox layout, transitions). See
+[RCSS Styling](/manual/ui/rcss/) for what Lumina supports.
+
+:::caution[Style your containers]
+RmlUi has no default stylesheet, so a `<div>` starts as `display: inline` and a
+panel with a width will collapse. Every stylesheet needs
+`div { display: block; }`. This trips up nearly everyone once. See
+[the full explanation](/manual/ui/rcss/#the-one-rule-that-bites-everyone).
+:::
 
 ## Loading and showing
 
@@ -363,7 +378,9 @@ World.UI.SetCursorMode(UICursorMode.Normal);
 ## Full example
 
 This script loads a menu, wires two buttons back to C#, and mutates the live DOM
-in response, the end-to-end shape of a `World.UI` screen.
+in response, the end-to-end shape of a `World.UI` screen driven imperatively.
+Compare it to the [data-bound version](#data-binding-mvvm) above, which is what
+you should reach for first.
 
 ```csharp
 using System;
@@ -372,7 +389,7 @@ using Lumina;
 
 namespace Game;
 
-public sealed class MenuExample : EntityScript
+public sealed class ImperativeMenu : EntityScript
 {
     [Property(Tooltip = "RML document shown on screen.")]
     public string Document = "/Game/Content/UI/Menu.rml";
@@ -421,3 +438,17 @@ public sealed class MenuExample : EntityScript
     }
 }
 ```
+
+## Runnable examples
+
+The engine ships four working examples, each an `.rml` document under
+`Engine/Resources/Content/UI/Examples/` with a script beside it in
+`Engine/Resources/Scripts/`. Add a **C# Script** component to any entity, point
+it at the class, and press Play.
+
+| Script class | Shows |
+| --- | --- |
+| `Lumina.Examples.MenuExample` | Commands, a computed bound value, and toggling a class from a bound bool. |
+| `Lumina.Examples.HudExample` | One model driving three composed `<template>` widgets. |
+| `Lumina.Examples.SettingsExample` | Two-way form binding and a command taking an argument. |
+| `Lumina.Examples.RosterExample` | List binding with `data-for`. |

@@ -27,7 +27,7 @@ and sweep pass.
 | `FCObjectArray` | The global object table (`GObjectArray`): chunked, index-addressed, refcount-owning. |
 
 Object paths are `<package-path>.<object-name>`, for example
-`/Game/Materials/Rock.Rock`.
+`/Game/Content/Materials/Rock.Rock`.
 
 ## Declaring a class
 

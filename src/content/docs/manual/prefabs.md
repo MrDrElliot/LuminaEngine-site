@@ -89,8 +89,21 @@ Right-click an instance and choose **Detach from Prefab** to break the link. The
 instance becomes plain entities. It keeps its current values but no longer inherits
 from, or is affected by, the prefab. Detaching is one way.
 
+## Variants
+
+A prefab can also inherit from another prefab. A **variant** stores a link to a
+parent prefab plus the differences, so the parent stays the single source of
+truth for everything the variant does not change. See
+[Prefab Variants](/manual/prefab-variants/).
+
 ## Deleting a prefab
 
-Deleting a prefab asset removes its placed instances from every open level, the
-same as deleting any other asset clears references to it. **Detached** copies are
-no longer linked, so they survive. See [Deleting assets](/manual/assets/#deleting-assets).
+Deleting a prefab asset removes its placed instances from every open level.
+**Detached** copies are no longer linked, so they survive.
+
+As with any asset, if something still references the prefab you are asked what
+those references should point at instead. See
+[Deleting](/manual/assets/managing/#deleting).
+
+Deleting a prefab that other loaded prefabs inherit from is refused. See
+[Deleting](/manual/prefab-variants/#deleting).

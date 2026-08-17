@@ -203,12 +203,46 @@ Output:
 - The SPIR-V shader cache, so the packaged build never invokes Slang.
 - A `.pak` archive (`Runtime/Pak`), mounted at startup with a loose-file overlay.
 
-## Deleting assets
+## Deleting assets and fixing up references
 
-Deleting is not just removing a file. The editor nulls references to the deleted
-asset, removes prefab instances that depended on it, and the deletion does not
-appear in the save prompt. An open world cannot be deleted, and nothing can be
-deleted while playing.
+Deleting is not just removing a file. Every delete funnels through
+`FContentBrowserEditorTool::RequestDeletion`, which asks the registry for the
+referencers of everything in the delete set, minus edges internal to that set.
+
+If anything outside the set still points at it, a modal
+(`ReplaceReferencesModal`) offers a per-asset choice of a replacement or a null.
+The referencing packages are then rewritten and saved **before** the asset is
+removed. The same modal backs the standalone "Replace References..." action,
+which retargets without deleting.
+
+Below that, `CPackage::DestroyPackage` still nulls any remaining live references
+across the object graph, removes prefab instances, and clears the package's
+dirty flag so it cannot appear in the save prompt. An open world cannot be
+deleted, and nothing can be deleted while playing.
+
+### Why the fixup is an archive
+
+Referencer edges come from `FAssetData::Dependencies`, which the package saver
+builds in `FPackageSaver::operator<<(CObject*&)` during an ordinary `Serialize`
+traversal. So every edge the registry can report is, by construction, reachable
+by any other archive walking `Object->Serialize(Ar)`. `FObjectReferenceReplacerArchive`
+is that archive.
+
+A reflection property walk would be wrong here. World and prefab asset
+references live in entt components, reached through `CWorld::Serialize` ->
+`ECS::Utils::SerializeRegistry` -> `SerializeTaggedProperties`, not through
+reflected properties on the `CObject`. A walk over `CStruct` properties sees
+none of them.
+
+Soft references needed a separate hook, because `FSoftObjectPath` serializes as
+a raw `FString` plus `FGuid` with nothing for an archive to intercept.
+`FArchive::RewriteSoftAssetReference` sits beside `RegisterSoftAssetReference`
+and is called on the write side only; it defaults to returning false, so no
+other archive is affected.
+
+Replacement candidates are filtered to the original's class or a subclass.
+`FObjectProperty::Serialize` performs no type check on assignment, so a wider
+filter would be a latent crash rather than a warning.
 
 ## Common failure modes
 
@@ -219,5 +253,7 @@ deleted while playing.
 | Editor stalls during a bulk import | Missing `FScopedAssetRegistryBatch`, so every asset fired a broadcast. |
 | Deadlock in a registry listener | A listener re-entered the registry while the mutex was held. Broadcasts must fire outside the lock. |
 | Asset loads twice | Two different GUIDs for the same content, usually a copied file that kept its sidecar or was re-minted. |
+| An asset on disk is missing from the browser | Two `.lasset` files share a GUID, usually a file-level copy. `ProcessPackagePath` is keyed on GUID and the last one scanned wins. |
+| A reference survived a delete | The referencer's edge is not in the import table, so the registry never listed it. Check for a `FStructOps` custom serializer bypassing the property walk. |
 | Corrupt cooked texture | The source was not normalized to RGBA8 before basis_universal. |
 | Asset missing from a package | Marked transient or marked for destroy at save time. |
