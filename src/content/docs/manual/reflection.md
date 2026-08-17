@@ -13,7 +13,7 @@ your type once, and every one of those systems understands it with no extra glue
 
 Three macros do the work.
 
-- **`REFLECT(...)`** annotates a class, struct, or enum for reflection.
+- **`REFLECT(...)`** annotates a class, struct, enum, class template, or type alias.
 - **`GENERATED_BODY()`** goes inside the type and is replaced with the generated
   boilerplate (its `StaticClass()`/`StaticStruct()` accessor, constructors, and
   so on).
@@ -64,6 +64,69 @@ REFLECT()
 enum class EDoorState : uint8 { Closed, Opening, Open };
 ```
 
+If you only need the macros and not the whole object system (a low-level math
+header, for example), include `Core/Reflection/ReflectionMacros.h` instead of
+`ObjectMacros.h`. It is a leaf header with no dependencies, so it can be included
+from anywhere without creating a cycle.
+
+## Supported property types
+
+`PROPERTY(...)` accepts the following. Anything else is a build error, not a
+silent skip.
+
+### Scalars and text
+
+| Type | Notes |
+| --- | --- |
+| `bool` | |
+| `int8` `int16` `int32` `int64` | |
+| `uint8` `uint16` `uint32` `uint64` | |
+| `float` `double` | |
+| `FString`, `FFixedString` | Both reflect as a string property. |
+| `FName` | Interned name, reflects as its own property kind. |
+| A reflected `enum class` | Any underlying width is preserved, so a `uint8` enum stays one byte. |
+| `FEntity`, `entt::entity` | Reflects as a 32-bit integer, surfaces in C# as an `Entity` handle. |
+
+### Structs
+
+Any struct with `REFLECT()` + `GENERATED_BODY()`, including the built-in math
+types (`FVector2/3/4`, `FIntVector2/3`, `FUIntVector2/3`, `FQuat`, `FTransform`)
+and any instantiation of a reflected class template.
+
+### Object and type references
+
+| Type | Meaning |
+| --- | --- |
+| `TObjectPtr<T>` | Strong reference to a `CObject`. |
+| `TWeakObjectPtr<T>` | Weak reference. |
+| `TSubclassOf<T>` | A `CClass` picker constrained to `T` and its subclasses. |
+| `TSubStructOf<T>` | A `CStruct` picker constrained to `T`. |
+| `TSoftObjectPtr<T>`, `FSoftObjectPath` | Path reference resolved on demand, so the asset is not loaded with the owner. |
+
+A **raw pointer is not reflectable**. Use `TObjectPtr<T>`.
+
+### Value polymorphism
+
+`TInstancedStruct<TBase>` and bare `FInstancedStruct` own a struct instance whose
+concrete type is chosen per instance. See [Instanced struct
+properties](#instanced-struct-properties).
+
+### Containers
+
+| Type | Editor |
+| --- | --- |
+| `TVector<T>`, `TFixedVector<T>` | Resizable list with Add and Clear. |
+| `THashMap<K, V>` | Key/value map, keys must be unique. |
+| `TOptional<T>` | Value that may be unset. |
+
+The element, key, and value types can be anything in this section, so
+`TVector<TObjectPtr<CTexture>>` and `THashMap<FName, FVector3>` both work.
+
+### Delegates
+
+`TScriptDelegate<T>` and `FScriptDelegate` reflect so a script or the editor can
+bind to them.
+
 ## Properties
 
 `PROPERTY(...)` exposes a field. The specifiers control what each system may do
@@ -77,7 +140,13 @@ with it.
 | `Replicated` | Participates in [network replication](/manual/scripting/networking/). |
 | `EditorOnly` | Kept for editor tooling; stripped from cooked/packaged builds. |
 | `NoSerialize` | Not saved or loaded. |
-| `ScriptReadOnly` / `ScriptWritable` / `ScriptHidden` | Shape the C# wrapper independently of the editor flags. Make an editor-hidden field writable from script, or hide a public field from C#. |
+| `ScriptReadOnly` / `ScriptWritable` / `ScriptHidden` | Shape the C# wrapper independently of the editor flags. Make an editor-hidden field writable from script, or hide a public field from C#. `NotScriptable` is an alias for `ScriptHidden`. |
+| `Getter` / `Setter` | Route access through accessor functions. Bare `Getter` means `Get<Name>`, bare `Setter` means `Set<Name>`, or pass a name. |
+
+Some combinations contradict each other and are rejected at build time with
+`LRT1008`, which names the specifier to delete: `Editable` with `ReadOnly`,
+`ScriptReadOnly` with `ScriptWritable`, and `ScriptHidden` with either script
+access specifier.
 
 A specifier can take a value, and any `Key = Value` the macro doesn't recognize
 is stored as **metadata** the editor reads. The common editor hints follow.
@@ -85,9 +154,20 @@ is stored as **metadata** the editor reads. The common editor hints follow.
 | Metadata | Effect |
 | --- | --- |
 | `Category = "..."` | Group the property under a header in the Details panel. |
+| `DisplayName = "..."` | Override the label shown in the editor. |
 | `ClampMin` / `ClampMax` | Numeric bounds on the drag/slider. |
+| `Delta` | Drag sensitivity. |
 | `Units = "..."` | Unit suffix shown after the value (e.g. `"m/s"`). |
 | `Color` | Draw a color picker for a vector value. |
+| `Multiline` | Multi-line text box for a string. |
+| `DefaultCollapsed` | Start a nested struct or container collapsed. |
+| `NoDrag` / `NoResize` / `NoReorder` | Remove drag editing, or the resize and reorder controls on a container. |
+| `FilePath` | Draw a file browser for a string. |
+| `ToolTip = "..."` | Hover text. A `/** ... */` comment above the property becomes this automatically. |
+
+There are also pickers that constrain a value to something the owning asset
+knows about: `BonePicker`, `SocketPicker`, `CurvePicker`, `InputAction`,
+`ParameterPicker`, `ObjectParameterPicker`, and `RowType` for a data table row.
 
 ```cpp
 PROPERTY(Editable, Category = "Movement", ClampMin = 0, Units = "m/s")
@@ -145,9 +225,7 @@ instanced property today.
 
 A `TVector<T>` property is a resizable list, and a `THashMap<K, V>` property is a
 key/value map. Both are `Editable`, serialize by walking their elements, and get
-a built-in editor in the Details panel with no extra work. `T`, `K`, and `V` can
-be any reflected type: a scalar, string, `FName`, enum, struct, or object
-reference.
+a built-in editor in the Details panel with no extra work.
 
 ```cpp
 REFLECT(Component, Category = "Gameplay")
@@ -193,7 +271,11 @@ struct RUNTIME_API SDoorComponent
 ```
 
 `FUNCTION(Script, NoSuppressGCTransition)` is a variant for a function that may
-exceed the fast managed→native budget (e.g. one that walks a hierarchy).
+exceed the fast managed to native budget (e.g. one that walks a hierarchy).
+
+An argument whose type is not reflectable is dropped with a warning and the
+function is skipped by the C# binder, because a generated thunk would call it
+with too few arguments. Fix the argument type rather than ignoring the warning.
 
 ## Type specifiers
 
@@ -204,12 +286,124 @@ exceed the fast managed→native budget (e.g. one that walks a hierarchy).
 | `Component` | The struct is an ECS component (shows up in the Add Component menu and gets a C# wrapper). |
 | `System` / `Event` | Register the struct as an ECS system or an event type. |
 | `Category = "..."` | The component's group in the Add Component menu. |
-| `BitMask` | (Enums) treat the enum as flags. |
-| `MinimalAPI` | Export only the reflection plumbing across modules, not the whole type. |
+| `BitMask` | (Enums) treat the enum as flags, so the editor draws checkboxes. |
+| `MinimalAPI` | Export `StaticStruct()`/`StaticClass()` across module boundaries without force-exporting the whole type. |
+| `Scriptable` | (Classes) reflected virtuals become overridable from C#. |
+| `ReflectedName = "..."` | Register the type under a different name. See [Reflecting a type under another name](#reflecting-a-type-under-another-name). |
+| `NoCSharp` | Do not emit a C# type for this. |
+| `CSharpValueMirror` | LuminaSharp hand-writes a blittable value mirror; bind properties of this type by value. |
 
-There are also opt-outs for the C# layer (`NoCSharp` / `ManualStub`) for types
-whose bindings are hand-written instead of generated (the core math types use
-these).
+`NoCSharp` and `CSharpValueMirror` are normally used together, and only by the
+core math types whose C# side is hand-written to match an exact byte layout.
+
+## Reflecting a type under another name
+
+`ReflectedName` registers a type under a name other than its C++ identifier. The
+engine uses this for `FTransform`, whose real type is the SIMD-backed
+`VTransform`.
+
+```cpp
+REFLECT(ReflectedName = "FTransform")
+struct alignas(16) VTransform
+{
+    GENERATED_BODY()
+    ...
+};
+```
+
+The type registers, serializes, and appears in the editor as `FTransform`, while
+the generated code still uses `VTransform` wherever a real C++ declaration is
+required.
+
+The property-level counterpart is `ReflectAs`, which reflects a member **as a
+different struct type** at the same offset. `VTransform` stores three 16-byte
+SIMD vectors, but presents them as the scalar types a user expects:
+
+```cpp
+PROPERTY(Script, Editable, ReflectAs = "FVector3")
+SIMD::VFloat4 Location;
+
+PROPERTY(Script, Editable, ReflectAs = "FQuat")
+SIMD::VFloat4 Rotation;
+```
+
+The offset stays the real member's, so nothing about the layout is written by
+hand. `ReflectAs` only reinterprets one struct as another; using it on a
+non-struct member is an error.
+
+## Reflecting an alias
+
+`REFLECT()` also works on a type alias, which reflects whatever record the alias
+names, under the alias's own name. This is how the math types reflect: `FVector3`
+is `TVec<float, 3>`, and the reflector walks the real template members rather
+than a hand-written description of them.
+
+```cpp
+REFLECT(NoCSharp, CSharpValueMirror)
+using FVector3 = TVec<float, 3>;
+```
+
+The aliased type's members still need `PROPERTY()` markers, and members inside an
+anonymous union are supported, which is what lets `TVec` expose `x`, `y`, `z`
+without also reflecting its `r`/`g`/`b` and `Data` aliases.
+
+An alias never requires its target to be complete, so a template used nowhere
+else is never instantiated and the reflector cannot see its members. That is
+reported as `LRT2006`; add `static_assert(sizeof(FMyAlias) > 0);` after the alias
+or use the type somewhere that requires it to be complete.
+
+A type reflected through an alias has no `GENERATED_BODY()` and therefore no
+`StaticStruct()` member. Properties of it work normally, but generic code that
+calls `T::StaticStruct()` needs `TBaseStructure<T>::Get()` instead.
+
+## Reflecting templates
+
+`REFLECT()` on a class template makes **every instantiation a property names**
+reflectable. You mark the template once, and each instantiation is registered
+automatically the first time a reflected property uses it.
+
+```cpp
+REFLECT()
+template<typename T>
+struct TRange
+{
+    PROPERTY(Editable)
+    T Min;
+
+    PROPERTY(Editable)
+    T Max;
+};
+
+REFLECT(Component)
+struct RUNTIME_API SSpawnerComponent
+{
+    GENERATED_BODY()
+
+    PROPERTY(Editable)
+    TRange<float> Delay;          // registers as TRange_float
+
+    PROPERTY(Editable)
+    TRange<FVector3> Bounds;      // registers as TRange_FVector3
+
+    PROPERTY(Editable)
+    TVector<TRange<float>> Waves; // arrays of instantiations work too
+};
+```
+
+Because `TRange<float>` is not a valid identifier, an instantiation registers
+under a **mangled name**: the template's name, then each argument, joined with
+underscores. Namespaces are dropped from the arguments, so
+`TPair<int32, Lumina::FVector3>` becomes `TPair_int_FVector3`. That mangled name
+is what appears in the editor and in saved data, so treat it as part of your
+serialized format.
+
+Multiple parameters, container members, and templates nested inside other
+instantiations all work. Two things do not yet:
+
+- **Template `CObject`s.** Each instantiation would need its own `CClass` and
+  registration; only structs are supported.
+- **`FUNCTION()` on a template.** Only fields are walked, so member functions of
+  a template are not exposed.
 
 ## Naming prefixes
 
@@ -219,7 +413,9 @@ Reflection is also why Lumina's type names carry a one-letter prefix.
 | --- | --- | --- |
 | `C` | A reflected class (a `CObject`, usually an asset or object type) | `CMaterial`, `CPrefab` |
 | `S` | A reflected struct, including all components | `STransformComponent`, `SRigidBodyComponent` |
-| `F` | A plain (non-reflected) engine type | `FVector3`, `FName` |
+| `E` | An enum | `EDoorState` |
+| `T` | A template | `TRange`, `TObjectPtr` |
+| `F` | Everything else, whether reflected or not | `FVector3` (reflected), `FEngine` (not) |
 
 When you see an `S`- or `C`-prefixed name in the editor or a script, it is a
 reflected type, and the same name works in C#.
@@ -227,9 +423,8 @@ reflected type, and the same name works in C#.
 ## How the metadata is generated
 
 You never write the metadata by hand. A build-time tool, the **Reflector**
-(`Engine/Applications/Reflector`), parses your headers with libclang (the
-`REFLECT`/`PROPERTY`/`FUNCTION` macros expand to clang annotations it reads) and
-emits two things per module.
+(`Engine/Applications/Reflector`), parses your headers with libclang and emits
+two things per module.
 
 - the `*.generated.h` files each header includes, and
 - a generated source file that registers every type's `CClass`/`CStruct` at
@@ -246,6 +441,40 @@ file is picked up, then build. Editing an existing reflected header just needs a
 rebuild. If the editor reports a missing `*.generated.h`, build again, the
 prebuild sometimes needs a second pass.
 :::
+
+## Build errors
+
+The Reflector reports through MSBuild, so its errors appear in the build log and
+the IDE problem list with a stable `LRT` code.
+
+| Code | Meaning | Usual fix |
+| --- | --- | --- |
+| `LRT1000` | A `PROPERTY` has a type the reflector cannot map. | Use a type from [Supported property types](#supported-property-types), or drop the `PROPERTY`. |
+| `LRT1001` | A `PROPERTY` is a raw pointer. | Use `TObjectPtr<T>`. |
+| `LRT1002` | A `TVector<T>` element type is not reflectable. | Same as `LRT1000`, applied to `T`. |
+| `LRT1003` | A `TOptional<T>` payload type is not reflectable. | Same, applied to `T`. |
+| `LRT1004` | Clang could not name the property's type. | Usually a missing include in the header. |
+| `LRT1005` | A `FUNCTION` argument or return type is not reflectable (warning). | Change the signature, or the C# binding is skipped. |
+| `LRT1006` | Header A includes B which includes A. | Break the cycle, often with a forward declaration. |
+| `LRT1007` | A `PROPERTY` names a struct or class that is not reflected. | Add `REFLECT()` + `GENERATED_BODY()` to that type. |
+| `LRT1008` | Two `PROPERTY` specifiers contradict each other. | The message names which one to delete. |
+| `LRT2000` | A header has reflection macros but no `*.generated.h` include. | Add it as the last include. |
+| `LRT2001` | The `*.generated.h` include is not last. | Move it to the end of the include block. |
+| `LRT2002` | A `REFLECT`'d type has no `GENERATED_BODY()`. | Add it as the first line of the body. |
+| `LRT2003` | The header includes a different file's `*.generated.h`. | Copy-paste mistake, fix the file name. |
+| `LRT2004` | A reflected type lacks its `C`/`S`/`E` prefix. | Rename the type. |
+| `LRT2005` | A `REFLECT`'d alias or class template does not name a usable record. | Only records can be reflected this way. |
+| `LRT2006` | A `REFLECT`'d alias names a template that is never instantiated. | Add `static_assert(sizeof(TheAlias) > 0);` after it. |
+| `LRT2007` | A `REFLECT`'d alias resolved a record with no members. | The target's fields need `PROPERTY()` markers. |
+| `LRT9000`-`LRT9005` | Reflector driver problems (bad input file, libclang parse failure). | See [Reflection and Codegen](/internals/reflection-codegen/). |
+
+Two errors come from the C++ compiler rather than the Reflector, and both mean
+generation is out of date with the header:
+
+- `..._GENERATED_BODY` is an undeclared identifier: the `GENERATED_BODY()` line
+  moved, because the macro name embeds its line number. Rebuild.
+- "Already included, missing `#pragma once`": two generated headers reached one
+  translation unit, or the header is missing `#pragma once`.
 
 ## Struct operations
 
@@ -284,6 +513,6 @@ special case, not a requirement. The quantized math types, for instance, define
 | --- | --- |
 | **Editor** | The Details panel builds itself from a type's `Editable`/`ReadOnly` properties and their metadata, with no hand-written UI per component. |
 | **Serialization** | Reflected properties are what gets written into worlds, prefabs, and assets; `EditorOnly` properties are stripped when cooking. |
-| **Networking** | `Replicated` properties are collected and sent server→client, see [Networking](/manual/scripting/networking/). |
+| **Networking** | `Replicated` properties are collected and sent server to client, see [Networking](/manual/scripting/networking/). |
 | **Scripting** | Every `Component` struct and `Script` property/function is exposed to C# by name, see [C# Scripting](/manual/scripting/). |
 | **Object system** | `CClass`/`CStruct`, `StaticClass()`, type-safe casts, and object construction all run on the generated type info. |

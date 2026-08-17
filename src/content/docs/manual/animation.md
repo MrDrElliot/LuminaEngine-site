@@ -81,15 +81,35 @@ referenced by the layered blend node.
 ### Parameters
 
 A graph declares parameters that gameplay sets each frame (speed, direction,
-whether the character is aiming). You can set them from C# through the animation
-API.
+whether the character is aiming). Rather than a list of loose named keys, a graph
+points at a **parameter struct**: an ordinary reflected struct you declare in
+code, whose fields are the parameters.
 
-:::caution
-If the entity also has a **Blackboard** component, the animation system refills
-the graph's parameter registers from the blackboard **before every evaluation**.
-On such an entity the blackboard value wins, so write through the blackboard
-rather than setting graph parameters directly. The C# animation API routes there
-automatically.
+```cpp
+REFLECT()
+struct SLocomotionParams
+{
+    GENERATED_BODY()
+
+    PROPERTY() float Speed = 0.0f;
+    PROPERTY() bool  bGrounded = false;
+    PROPERTY() TObjectPtr<CAnimation> CurrentAttack;
+};
+```
+
+Pick that struct on the graph asset under **Parameter Struct**. The values you
+set on it there are the authored defaults. Every entity running the graph gets
+its own live instance on its Animation Graph Component, seeded from those
+defaults, and gameplay writes fields on it directly.
+
+The graph resolves each parameter name to a byte offset in that struct once, when
+it links, so reading a parameter per frame is a plain memory read rather than a
+name lookup.
+
+:::note
+A field the graph references but the struct doesn't declare falls back to the
+value authored on the node, and a compile warning names it. Renaming a field
+without updating the graph degrades to that default rather than failing silently.
 :::
 
 ### Sync groups
@@ -189,5 +209,4 @@ inconsistent with the skeleton.
 
 The C# side of animation (playing clips, setting parameters, reacting to
 notifies) is covered in [Animation](/manual/scripting/animation/) in the
-scripting section, and blackboard-driven parameters in
-[Blackboards](/manual/scripting/blackboard/).
+scripting section.

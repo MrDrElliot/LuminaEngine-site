@@ -81,12 +81,39 @@ VM has scalar registers (`sReg`) and pose registers (`pReg`).
 Per-instance VM state (registers, playback clocks, parameter values) lives on the
 component, sized lazily from the graph, and is **not serialized**.
 
-### Parameters and blackboards
+### Parameters
 
-The VM's parameter registers are the graph's inputs. When the entity also has a
-blackboard component, the animation system **refills those registers from the
-blackboard before every evaluation**. On such an entity, writing a graph
-parameter directly is overwritten; the blackboard is the value that survives.
+The VM's parameter registers are the graph's inputs, and they are refilled before
+every evaluation from the component's **parameter block**: an `FInstancedStruct`
+holding an instance of the reflected struct the graph names, seeded from the
+graph's own authored instance.
+
+`CAnimationGraph::LinkParameters` resolves each parameter name against that
+struct once, into `{ byte offset, value type }` pairs parallel to `Parameters` and
+`ObjectParameters`. The per-frame pull is then one base pointer plus N offset
+reads, with no name lookup. It re-links on load, after every compile, and when the
+struct is swapped on the asset.
+
+A property behind a getter or setter is refused at link time, because a raw offset
+read would bypass the accessor.
+
+### Object parameters
+
+Object-valued parameters flow through a separate register file so a node can
+decide **which asset it samples** at runtime. `LoadObjectParam` reads one into an
+object register; `SampleAnimDyn`, `AdvanceClockDyn` and `SampleBlendSpaceDyn` take
+that register in place of a table index.
+
+Each dynamic opcode shares its static twin's operand layout, so the VM handles the
+pair in one case that differs only in how the asset is addressed. That is also why
+a node's clock and its sampling can never disagree about which clip is playing.
+These opcodes were appended, so every existing opcode value is unchanged and
+`kAnimBytecodeVersion` stays at 4.
+
+A clip chosen at runtime has no compile-time curve map, so the VM resolves one by
+name and caches it keyed on `(graph, clip)`. A dynamic clip can only drive slots
+the graph already declares, either through a Get/Set Curve node or
+`CAnimationGraph::DeclaredCurves`.
 
 ### Sync groups
 
@@ -226,7 +253,7 @@ parallel range boundaries.
 
 ```
 update pass (parallel across meshes)
-  VM: advance clocks, evaluate state machines, read params (blackboard first)
+  VM: advance clocks, evaluate state machines, read params (struct offsets)
   record FAnimTaskList
   extract root motion delta
 execute pass (parallel across meshes, one list per thread)
@@ -243,7 +270,8 @@ render gather
 
 | Symptom | Cause |
 | --- | --- |
-| Graph parameter writes are ignored | The entity has a blackboard; registers are refilled from it before every evaluation. Write through the blackboard. |
+| A parameter always reads its default | The name does not resolve to a field on the graph's parameter struct, or that field is behind a getter. The compile log names it. |
+| A swapped-in clip drives no curves | The graph declares no slot with that name. Add a Get Curve node or list it in `DeclaredCurves`. |
 | A clip ignores its play rate | It is in a sync group, which overrides per-clip speed. |
 | Notifies re-fire when scrubbing | Something advanced the clock outside genuine playback. Only playback advance fires point notifies. |
 | Mesh drifts away from the entity | Root motion extracted but the root never pinned back to the bind pose. |

@@ -107,7 +107,7 @@ practice means very long routes need intermediate goals.
 Setting targets, reading path status, and combining navigation with perception
 are covered in the scripting section. See
 [AI Perception](/manual/scripting/perception/) for the sensing side and
-[Blackboards](/manual/scripting/blackboard/) for storing AI state.
+a reflected struct on the entity for storing AI state.
 
 ## Current limitations
 

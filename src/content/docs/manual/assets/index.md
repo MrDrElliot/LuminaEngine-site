@@ -83,7 +83,7 @@ Right-clicking in the [Content Browser](/manual/editor/content-browser/) offers 
 | **Effects** | **Particle System**. |
 | **Audio** | **Audio Stream**. |
 | **Data** | **Data Asset**, **Data Table**, **Curve**. |
-| **Gameplay** | **Prefab**, a saved entity hierarchy. **Blackboard**, typed keys for AI and animation. |
+| **Gameplay** | **Prefab**, a saved entity hierarchy. |
 | **UI** | **Font**. |
 
 Some asset types are not created from scratch but come in through

@@ -61,7 +61,7 @@ changed input to the other.
 
 `Reflector/Clang` drives libclang. The important detail is that the tool defines
 `REFLECTION_PARSER` while parsing, which changes how the macros in
-`ObjectMacros.h` expand:
+`Core/Reflection/ReflectionMacros.h` expand:
 
 ```cpp
 #if defined(REFLECTION_PARSER)
@@ -76,17 +76,101 @@ changed input to the other.
 #endif
 ```
 
+`ReflectionMacros.h` is a **leaf header on purpose**. `ObjectMacros.h` includes it
+and adds the object-system macros on top, so a low-level header like
+`Core/Math/VectorTypes.h` can be reflected without reaching up into
+`Core/Object` and forming a cycle.
+
 The markers collapse to nothing for the parser, and the specifier text is
 recovered from the **macro records** in the translation unit rather than from
-attributes. `ModuleAPI.h` likewise blanks the export macros, because the libclang
+attributes. That is why a macro is matched to a declaration **by source line**:
+the closest record on the same line before the cursor, else the line directly
+above. `ModuleAPI.h` likewise blanks the export macros, because the libclang
 frontend does not model `__declspec`.
 
-Visitors under `Clang/Visitors` handle the three shapes:
-`ClangVisitor_Struct.cpp` (classes and structs), `ClangVisitor_Enum.cpp`, and
-`ClangVisitor_Macro.cpp` (recovering the specifier strings).
+Visitors under `Clang/Visitors` handle the shapes:
 
-The parse is amalgamated: headers are batched into translation units rather than
-parsed one at a time, which is the single largest win in reflection build time.
+| Visitor | Handles |
+| --- | --- |
+| `ClangVisitor_Struct.cpp` | Classes, structs, type aliases, class templates, and `SCRIPT_EXPORT` free functions. |
+| `ClangVisitor_Enum.cpp` | Enums, including the underlying integer width and signedness. |
+| `ClangVisitor_Macro.cpp` | Recovers the specifier strings from macro records. |
+
+The parse is **amalgamated**: the tool writes a single `ReflectHeaders.gen.h` that
+`#include`s every reflected header, and parses that as one translation unit. This
+is the single largest win in reflection build time, and it has two consequences
+worth knowing.
+
+- A header is effectively parsed standalone, so it must be self-sufficient. Some
+  includes that look redundant for a normal compile are load-bearing here.
+- The amalgamation is deleted right after parsing, and libclang's own diagnostics
+  are only surfaced for errors. A parse that half-fails can produce locally wrong
+  reflection with no message.
+
+## Reflecting aliases and templates
+
+Beyond ordinary declarations, `VisitTypeAlias` and `VisitClassTemplate` cover the
+cases where the type the user names is not the type clang declares.
+
+**Aliases.** `REFLECT()` on `using FVector3 = TVec<float, 3>;` reflects the
+aliased record under the alias's name. The reflected type is registered with
+`bIsAlias`, which suppresses the forward declaration, the `GENERATED_BODY` macro,
+and the `StaticStruct()` definition, since none of those have anywhere to live.
+A header whose reflected types are all aliases is also exempt from the
+"must include its `*.generated.h`" rule.
+
+**Templates.** `REFLECT()` on a class template records it in
+`FClangParserContext::ReflectedTemplates`. When a `PROPERTY` names an
+instantiation of a recorded template, `TryResolveTemplateInstantiation` registers
+that instantiation on the spot, under a mangled name (`TRange<float>` becomes
+`TRange_float`). The instantiation is added to the database **before** its fields
+are walked, so a type that reaches itself terminates.
+
+Four details make this work, and each is easy to get wrong:
+
+- **libclang exposes no children for an implicitly instantiated specialization.**
+  `clang_visitChildren` on the cursor returns nothing even though the type is
+  complete. Members must be reached with `clang_Type_visitFields` on the
+  `CXType`, which also recurses into anonymous unions.
+- **An alias never requires its target to be complete.** A template used nowhere
+  else is never instantiated, so its members are invisible. That is detected with
+  `clang_Type_getSizeOf` returning `CXTypeLayoutError_Incomplete` and reported as
+  `LRT2006` rather than silently reflecting an empty type.
+- **A substituted parameter carries no alias sugar.** Inside `TRange<FVector3>`,
+  the member type arrives as the canonical `TVec<float, 3>`.
+  `FClangParserContext::AliasedInstantiations` maps a canonical spelling back to
+  the name a `REFLECT`'d alias gave it, which both fixes the property type and
+  keeps the mangled name stable however the author spelled the argument.
+- **Macro lookup for an alias target is non-consuming.** Seven aliases share
+  `TVec<T, N>`'s `PROPERTY` records, so consuming them would starve all but the
+  first.
+
+### Reflected name versus C++ name
+
+Once a type can register under a name that is not its C++ identifier, the two
+have to be tracked separately. `FReflectedType` carries both:
+
+| Field | Used for |
+| --- | --- |
+| `QualifiedName` | The reflected name. The database key, and the source of every generated symbol (`Construct_CStruct_Lumina_FTransform`, metadata array names). |
+| `CppName` / `CppQualifiedName`, via `EmittedCppName()` / `EmittedCppQualifiedName()` | The real C++ spelling. Required for every **type expression**: `sizeof`, `alignof`, `MakeStructOps<T>`, `offsetof`, the `StaticStruct()` definition, and the forward declaration. |
+
+Getting that split wrong is the failure mode to watch for. Emitting the reflected
+name where a type expression belongs produces "is not a member of Lumina" on a
+name that only exists in the reflection database.
+
+Two more codegen consequences of template instantiations:
+
+- `offsetof` is a **preprocessor macro**, so a comma inside a template argument
+  list reads as an extra argument. Codegen emits
+  `using LRT_Owner_<Friendly> = Lumina::TRange<...>;` and takes the offset against
+  that alias.
+- Accessor wrappers for containers and `Getter`/`Setter` are normally static
+  members declared by `GENERATED_BODY`, which a bodyless type does not have. For
+  those types they are emitted as **free functions inside the owner's namespace**,
+  so unqualified member type names still resolve. Hence a property carries both
+  `AccessorScope` (how the params table refers to it) and
+  `AccessorDefinitionScope` (how the definition spells it).
 
 ## Generated output
 
@@ -159,10 +243,10 @@ See [Scripting Host](/internals/scripting-host/) for the runtime half.
 
 | Marker | Applies to |
 | --- | --- |
-| `REFLECT(...)` | A class, struct, or enum. |
-| `GENERATED_BODY()` | Inside a reflected class or struct body. |
-| `PROPERTY(...)` | A member variable. |
-| `FUNCTION(...)` | A member function. |
+| `REFLECT(...)` | A class, struct, enum, class template, or namespace-scope type alias. |
+| `GENERATED_BODY()` | Inside a reflected class or struct body. Alias- and template-reflected types have none. |
+| `PROPERTY(...)` | A member variable, including one inside a class template or an anonymous union. |
+| `FUNCTION(...)` | A member function. Not walked on templates. |
 | `SCRIPT_EXPORT(...)` | A namespace-scope free function, for C# export. |
 
 Property specifiers recognized by `FReflectedProperty::GenerateMetadata`:
@@ -179,9 +263,24 @@ Property specifiers recognized by `FReflectedProperty::GenerateMetadata`:
 | `ScriptHidden` (alias `NotScriptable`) | Hidden from C#. |
 | `Getter` / `Setter` | Route access through accessor functions. Bare `Getter` means `Get<Name>`, bare `Setter` means `Set<Name>`. |
 
+| `ReflectAs = "T"` | Reflect the member as struct `T` at the real member's offset. |
+
+`FReflectedProperty::FindConflictingSpecifiers` rejects pairs that contradict
+each other (`Editable` with `ReadOnly`, `ScriptReadOnly` with `ScriptWritable`,
+`ScriptHidden` with either script access specifier) and names the one to delete.
+
+Type-level specifiers read by the codegen: `Component`, `System`, `Event`,
+`MinimalAPI`, `Scriptable`, `BitMask` (enums), `ReflectedName = "..."`,
+`NoCSharp`, and `CSharpValueMirror`. The last means LuminaSharp hand-writes a
+blittable value mirror of the type, so properties of it bind by value instead of
+through a generated wrapper. It replaced the old `ManualStub` specifier, which
+was deleted along with the hand-written parser-only shim structs for the math
+types.
+
 Any other `Key = Value` pair is kept as free-form metadata (`Category`,
 `ClampMin`, tooltips, and so on) and reaches the editor through the property's
-metadata table.
+metadata table. A `/** ... */` comment above a declaration is captured through
+`clang_Cursor_getBriefCommentText` and stored as `ToolTip`.
 
 ## Diagnostics
 
@@ -218,3 +317,8 @@ metadata table.
 | A new type is invisible to the editor | Missing `REFLECT()`, or the module sets `bEnableReflection = false`. |
 | A C# binding does not appear | The property lacks `Script` (or is `ScriptHidden`), or `LuminaSharp` compiled before the bindings were emitted. Check the project dependency order. |
 | Stale generated file referencing a deleted type | The expected-output sweep should remove it; if the build was interrupted, delete `Intermediates/Reflection` and rebuild. |
+| `LRT2007`, an alias reflected no members | The aliased type's fields have no `PROPERTY()` markers, or they sit in an anonymous union the walk did not enter. |
+| `LRT2006`, an alias names an uninstantiated template | Nothing in the amalgamation requires the type to be complete. Add a `static_assert(sizeof(...) > 0)`. |
+| "`X` is not a member of `Lumina`" on a generated name | A codegen site emitted `QualifiedName` where a C++ type expression belongs. Use `EmittedCppQualifiedName()`. |
+| "too many arguments for function-like macro `offsetof`" | An `offsetof` was emitted against a template instantiation directly instead of through its `LRT_Owner_` alias. |
+| A phantom property appears on a type with the same name as one of its member types | The amalgamation lost a declaration and clang error-recovered into an implicit `int`. An include was removed from a widely reached header. |

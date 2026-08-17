@@ -155,7 +155,7 @@ in particular that `Serialize` must not dereference a dependency's data.
 
 `Assets/AssetTypes` holds the engine's own asset classes:
 
-`Animation`, `Audio`, `Blackboard`, `DataAsset`, `Font`, `GeometryCollection`,
+`Animation`, `Audio`, `DataAsset`, `Font`, `GeometryCollection`,
 `Material`, `MaterialFunction`, `Mesh`, `ParticleSystem`, `PhysicsAsset`,
 `PhysicsMaterial`, `Prefabs`, `Textures`.
 

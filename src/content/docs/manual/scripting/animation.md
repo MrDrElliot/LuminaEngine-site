@@ -51,8 +51,7 @@ if (World.Animation.IsFinished(Entity))
 
 A graph is a state machine authored in the editor. You don't tell it which clip
 to play. You set **parameters**, and its transitions decide. Parameters are
-named values, resolved by name, declared by the graph's
-[blackboard](/manual/scripting/blackboard/).
+named values declared as fields on the graph's **parameter struct**.
 
 ```csharp
 World.Animation.SetFloat(Entity, "Speed", Velocity.Length);
@@ -71,12 +70,23 @@ World.Animation.SetBool(Entity, "Jump", JumpPressed);
 Setting a parameter the graph doesn't declare is a no-op, so it's safe to push
 values speculatively.
 
-A graph's parameters are declared by the [blackboard](/manual/scripting/blackboard/)
-assigned to it, and on an entity that has a **Blackboard Component** the live
-values live there, and the calls above write straight through to it, so both
-styles agree. Reach for the blackboard directly when the same values are shared
-with AI or other scripts; reach for `World.Animation` when animation is all you
-need.
+The calls above resolve the name to a field on the graph's parameter struct every
+call. When you know the struct, prefer typed access instead: a field is checked at
+compile time, and a typo is an error rather than a silent no-op.
+
+```csharp
+var Anim = Registry.Get<SAnimationGraphComponent>(Entity);
+
+if (Anim.Parameters<SLocomotionParams>() is { } P)
+{
+    P.Speed = Velocity.Length;
+    P.bGrounded = Grounded;
+}
+```
+
+`Parameters<T>()` returns null when the graph names a different struct, so the
+type is checked before you get a handle to the memory. `RequireParameters<T>()`
+throws instead if you would rather fail loudly.
 
 A typical locomotion update looks like this:
 

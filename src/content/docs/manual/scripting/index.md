@@ -91,7 +91,6 @@ hook runs.
 | `World` | The world this entity lives in. |
 | `Registry` | The world's component store (`World.Registry`). |
 | `Transform` | This entity's `STransformComponent`, resolved once and cached. |
-| `Blackboard` | This entity's [blackboard](/manual/scripting/blackboard/), or null when it has no Blackboard Component. |
 
 ## A typed, reflection-driven API
 

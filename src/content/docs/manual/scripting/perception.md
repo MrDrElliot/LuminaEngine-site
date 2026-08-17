@@ -58,7 +58,7 @@ That is the whole loop for most AI: get told when a target appears, get told
 when it is lost, and use the queries below for everything in between.
 
 A common next step is to park what you sensed in a
-[blackboard](/manual/scripting/blackboard/), writing the target into an `Entity`
+your own component, writing the target into an `Entity`
 key and its position into a `Vector` key, so the rest of your AI (and the
 character's animation graph) reads one shared store instead of the perception
 events directly.

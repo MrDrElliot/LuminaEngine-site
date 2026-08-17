@@ -132,7 +132,6 @@ export default defineConfig({
             { label: 'Parallel Work', slug: 'manual/scripting/tasks' },
             { label: 'Timers', slug: 'manual/scripting/timers' },
             { label: 'Animation', slug: 'manual/scripting/animation' },
-            { label: 'Blackboards', slug: 'manual/scripting/blackboard' },
             { label: 'Input', slug: 'manual/scripting/input' },
             { label: 'User Interface', slug: 'manual/scripting/ui' },
             { label: 'Low-Level Rendering (RHI)', slug: 'manual/scripting/rhi' },

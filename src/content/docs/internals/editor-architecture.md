@@ -121,7 +121,7 @@ entries without touching editor code.
 ## Asset editors
 
 `UI/Tools/AssetEditors` holds the built-ins: Animation, AnimationGraph,
-AudioStream, Blackboard, DataAsset, FontEditor, GeometryCollection,
+AudioStream, DataAsset, FontEditor, GeometryCollection,
 MaterialEditor, MaterialFunctionEditor, MeshEditor, ParticleSystemEditor,
 PhysicsMaterial, PrefabEditor, RmlUiEditor, TextureEditor. `FAssetEditorTool` is
 their shared base, adding dirty tracking and save handling.

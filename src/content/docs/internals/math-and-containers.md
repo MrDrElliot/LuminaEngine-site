@@ -125,9 +125,12 @@ Two details in that layout are deliberate:
   registers. `GetForward`, `GetRight`, and `GetUp` are quaternion rotations of
   the basis vectors, not matrix column reads.
 
-`Transform.h` is guarded with `#ifndef REFLECTION_PARSER`, because the libclang
-frontend used by the [Reflector](/internals/reflection-codegen/) does not model
-the intrinsic types. The parser sees a stub instead.
+`VTransform` is reflected directly, with no parser-only stub. It carries
+`REFLECT(ReflectedName = "FTransform", ...)` so it registers under the name every
+caller and saved package already uses, and each `SIMD::VFloat4` member carries
+`PROPERTY(..., ReflectAs = "FVector3")` or `ReflectAs = "FQuat"` so the editor and
+tagged serialization see the scalar TRS at the real member offsets. See
+[Reflection](/manual/reflection/#reflecting-a-type-under-another-name).
 
 ### Hashing
 
@@ -232,6 +235,12 @@ C# boundary. That means their **layout is part of the ABI**: adding a member to
 `FVector3` breaks every mirrored C# struct, every GPU buffer that assumes tight
 packing, and every serialized asset.
 
+They reflect through their aliases: `REFLECT()` sits on
+`using FVector3 = TVec<float, 3>;`, and the Reflector walks the real `TVec`
+members rather than a hand-written description of them, so the reflected shape
+cannot drift from the type. `NoCSharp` and `CSharpValueMirror` keep the C# side
+hand-written, which is what `CSharpLayoutChecks.cpp` guards.
+
 If you change a mirrored type, add it to the layout registry checks described in
 [Scripting Host](/internals/scripting-host/), which validate size and field
 offsets on both sides at startup.
@@ -244,7 +253,7 @@ offsets on both sides at startup.
 | Z-fighting in a new pass | Standard depth compare instead of reverse-Z. |
 | Illegal instruction on an older CPU | An AVX2 or FMA intrinsic used without the `LUMINA_SIMD_HAS_FMA` guard. |
 | Crash in a `LoadAligned` | Buffer not aligned to `SIMD::kAlignment` (32). |
-| Reflection parse errors in a header using SIMD | Missing `#ifndef REFLECTION_PARSER` guard. |
+| Reflection parse errors in a header using SIMD | An intrinsic type reached a `PROPERTY`. Reflect the member as its scalar shape with `ReflectAs`. |
 | Allocation not showing in memory tracking | A raw `std::vector` or `std::string` instead of the engine aliases. |
 | Dangling string from a numbered `FName` | `c_str()` on a numbered name returns a short-lived buffer. |
 | Hash mismatch across runs | FNV1a used for something persisted. It is for code-only ids. |

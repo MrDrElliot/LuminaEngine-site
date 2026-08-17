@@ -22,7 +22,6 @@ to open it. Each asset type has its own editor.
 | **Physics Material** | Friction, restitution, and density, see [Physics](/manual/physics/materials-destruction/). |
 | **Physics Asset** | Bodies and joints for ragdolls. |
 | **Collision Shape** | An authored collision primitive set. |
-| **Blackboard** | Named, typed keys for AI and animation, see [Blackboards](/manual/scripting/blackboard/). |
 | **Data Asset** | Author a data asset's fields. |
 | **Data Table** | Rows of a structured type. |
 | **Curve** | An editable value curve. |
