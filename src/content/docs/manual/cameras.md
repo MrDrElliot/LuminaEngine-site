@@ -56,8 +56,9 @@ entity's transform. See the
 walkthrough; the heart of it follows.
 
 ```csharp
-_Yaw += (float)_Input.GetMouseDeltaX() * Sensitivity;
-_Pitch = Math.Clamp(_Pitch + (float)_Input.GetMouseDeltaY() * Sensitivity, -89.0f, 89.0f);
+FVector2 Look = World.Input.MouseDelta;
+_Yaw += Look.X * Sensitivity;
+_Pitch = Math.Clamp(_Pitch + Look.Y * Sensitivity, -89.0f, 89.0f);
 Transform.SetLocalRotationFromEuler(new FVector3(_Pitch, _Yaw, 0.0f));
 ```
 

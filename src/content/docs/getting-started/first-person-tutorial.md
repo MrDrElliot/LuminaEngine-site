@@ -77,42 +77,36 @@ public sealed class Player : EntityScript
     [Property(Min = 0, Category = "Player")]
     public float LookSensitivity = 0.15f;
 
-    private SInputComponent _Input = null!;
     private float _Yaw;
     private float _Pitch;
-
-    public override void OnReady()
-    {
-        _Input = EnableInput();   // let this entity read keyboard and mouse
-    }
 
     public override void OnUpdate(float DeltaTime)
     {
         // Look: the mouse turns us left/right (yaw) and up/down (pitch).
-        _Yaw += (float)_Input.GetMouseDeltaX() * LookSensitivity;
-        _Pitch = Math.Clamp(_Pitch + (float)_Input.GetMouseDeltaY() * LookSensitivity, -89.0f, 89.0f);
+        FVector2 Look = World.Input.MouseDelta;
+        _Yaw += Look.X * LookSensitivity;
+        _Pitch = Math.Clamp(_Pitch + Look.Y * LookSensitivity, -89.0f, 89.0f);
         Transform.SetLocalRotationFromEuler(new FVector3(_Pitch, _Yaw, 0.0f));
 
         // Move: WASD along the direction we are facing.
-        float Forward = Axis("W", "S");
-        float Strafe = Axis("D", "A");
+        float Forward = Axis(EKey.W, EKey.S);
+        float Strafe = Axis(EKey.D, EKey.A);
         FVector3 Move = Transform.GetForward() * Forward + Transform.GetRight() * Strafe;
         Transform.Translate(Move * (MoveSpeed * DeltaTime));
     }
 
-    private float Axis(string Positive, string Negative)
+    private float Axis(EKey Positive, EKey Negative)
     {
-        return (_Input.IsKeyDown(Positive) ? 1.0f : 0.0f) - (_Input.IsKeyDown(Negative) ? 1.0f : 0.0f);
+        return (World.Input.IsKeyDown(Positive) ? 1.0f : 0.0f)
+             - (World.Input.IsKeyDown(Negative) ? 1.0f : 0.0f);
     }
 }
 ```
 
 ### How it works
 
-- **`OnReady`** runs once, after the scene graph is set up (see [lifecycle order](/manual/scripting/entity-systems/)).
-  - `EnableInput()` adds an Input component so this entity can read input, and returns it so we cache it as `_Input`. Without it, the poll queries read nothing.
 - **`OnUpdate`** runs every frame. `DeltaTime` is the seconds since the last frame; multiplying movement by it keeps the speed the same on any machine.
-  - We accumulate **Yaw** and **Pitch** from the mouse delta and write them back as the entity's rotation. The `new FVector3(Pitch, Yaw, 0)` order is (pitch about X, yaw about Y, roll about Z), see [Worlds & Coordinates](/manual/worlds-and-coordinates/).
+  - `World.Input` is the poll surface: it reads whichever viewport currently has input focus, so it needs no component and no setup. We accumulate **Yaw** and **Pitch** from the mouse delta and write them back as the entity's rotation. The `new FVector3(Pitch, Yaw, 0)` order is (pitch about X, yaw about Y, roll about Z), see [Worlds & Coordinates](/manual/worlds-and-coordinates/).
   - We build a **Move** vector from WASD using the entity's own `GetForward` and `GetRight`, then `Translate` along it. The engine is `+Z` forward and `+X` right, so "forward" is wherever you are looking.
 - The two **`[Property]`** values show up as editable fields on the Player in the editor, tune them without touching code.
 
@@ -163,7 +157,6 @@ so add two components to the `Player`.
 
 public override void OnReady()
 {
-    _Input = EnableInput();
     _Body.OnOverlapBegin.Bind(OnPickup);
 }
 

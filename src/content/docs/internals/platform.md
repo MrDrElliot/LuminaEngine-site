@@ -108,13 +108,36 @@ primary viewport at all; every tool owns and registers its own.
 
 ### Actions and bindings
 
-- `FKey` (`Input/Key.h`) is the key identity type. Reflected as `SKey`, so key
-  bindings can be edited in the property grid.
-- `FInputAction` is a named action; `FInputActionMap` maps actions to bindings
-  and is rebuilt from `CInputSettings` whenever those settings are saved
-  (`FCoreDelegates::OnSettingsSaved`).
-- `FInputProcessor` translates raw events into action state.
-- `EInputMode` selects game, UI, or mixed routing.
+- `SKey` (`Input/Key.h`) is the key identity type, reflected so bindings can be
+  edited in the property grid.
+- `SInputAction` is a named action and `SInputMappingContext` is a named layer of
+  them. `FInputActionMap` caches both and is rebuilt from `CInputSettings`
+  whenever those settings are saved (`FCoreDelegates::OnSettingsSaved`). Every
+  rebuild bumps a serial, which is what invalidates cached action indices.
+- `FInputActionMap::UpdateContext` evaluates every action into the querying
+  `FInputContext` once per frame, before the world update, so every read within a
+  frame sees one consistent snapshot.
+- `FInputContext` also owns the pushed mapping-layer stack.
+  `FInputActionMap::PassesGate` walks it top down: the first layer listing an
+  action allows it, and a layer with `bBlockLower` that does not list it stops
+  there. With an empty stack, `bRunsInUI` plus `EInputMode` decide, as before.
+- `EInputMode` selects game, UI, or mixed routing, and still gates raw device
+  reads independently of the layer stack.
+
+### Reading input
+
+- `Input/InputQuery.h` is the gameplay surface. `Input::GetReceivingContext` is
+  the single definition of "is this world receiving input" (a viewport exists,
+  game input is focused, and it is the active viewport); every other query goes
+  through it, so the action and raw-device families cannot disagree.
+- `FInputActionHandle` caches an action's index against the map's serial, and
+  re-resolves from the name when it moves, so a rebind does not invalidate
+  gameplay code holding one.
+- `SInputComponent` is a tag, not a store: it marks which entities' scripts
+  receive input. `SInputSystem` reads it, dispatches `OnInput`, and polls C#
+  `SInputAction` bindings. It stores no device state.
+- `FInputProcessor` is a thin facade over the active context, for engine code
+  outside a world.
 
 ## Filesystem
 

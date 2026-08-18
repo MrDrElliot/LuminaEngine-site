@@ -138,7 +138,7 @@ entity with no `OnUpdate` is never ticked.
 | `OnAttach()` | Once, when the instance is attached to its entity. The earliest hook. |
 | `OnReady()` | Once, after `OnAttach`, before the first `OnUpdate` (all siblings are attached). Cache things and look up other entities here. |
 | `OnUpdate(float DeltaTime)` | Every frame, while the entity is enabled. `DeltaTime` is seconds. |
-| `OnInput(InputEvent Event)` | A keyboard or mouse event happened, while the entity is receiving input. See [Input](/manual/scripting/input/). |
+| `OnInput(SInputEvent Event)` | A keyboard or mouse event happened, while the entity is receiving input. See [Input](/manual/scripting/input/). |
 | `OnDetach()` | Once, when the entity is destroyed or the script is removed. |
 
 For the full picture (when each runs, the physics phase it runs in, what is
