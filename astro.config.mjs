@@ -17,6 +17,17 @@ export default defineConfig({
       title: 'Lumina Engine',
       description: 'A modern C++ game engine with a data-driven editor, C# scripting, and a Vulkan renderer.',
       favicon: '/favicon.png',
+      head: [
+        {
+          tag: 'link',
+          attrs: {
+            rel: 'alternate',
+            type: 'application/rss+xml',
+            title: 'Lumina Devlog',
+            href: '/blog/rss.xml',
+          },
+        },
+      ],
       plugins: [starlightThemeRapide()],
       logo: {
         light: './src/assets/logo-light.png',
@@ -30,6 +41,7 @@ export default defineConfig({
         baseUrl: 'https://github.com/MrDrElliot/LuminaEngine-site/edit/main/',
       },
       sidebar: [
+        { label: 'Devlog', link: '/blog/' },
         {
           label: 'Getting Started',
           items: [

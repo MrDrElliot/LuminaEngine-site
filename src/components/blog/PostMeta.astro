@@ -1,0 +1,68 @@
+---
+import { formatDate, isoDate, tagHref } from '../../lib/blog';
+
+interface Props {
+  date: Date;
+  authors?: string[];
+  tags?: string[];
+  version?: string;
+}
+
+const { date, authors = [], tags = [], version } = Astro.props;
+---
+
+<p class="post-meta">
+  <time datetime={isoDate(date)}>{formatDate(date)}</time>
+  {authors.length > 0 && <span class="post-meta__authors">by {authors.join(', ')}</span>}
+  {version && <span class="post-meta__version">{version}</span>}
+  {
+    tags.length > 0 && (
+      <span class="post-meta__tags">
+        {tags.map((tag) => (
+          <a href={tagHref(tag)}>{tag}</a>
+        ))}
+      </span>
+    )
+  }
+</p>
+
+<style>
+  .post-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.75rem;
+    margin-block: 0;
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-sm);
+  }
+
+  .post-meta__version {
+    padding: 0.05rem 0.5rem;
+    border: 1px solid var(--sl-color-accent);
+    border-radius: 999px;
+    color: var(--sl-color-accent-high);
+    font-size: var(--sl-text-xs);
+  }
+
+  .post-meta__tags {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .post-meta__tags a {
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-xs);
+    text-decoration: none;
+  }
+
+  .post-meta__tags a::before {
+    content: '#';
+    color: var(--sl-color-gray-4);
+  }
+
+  .post-meta__tags a:hover {
+    color: var(--sl-color-white);
+  }
+</style>

@@ -1,0 +1,72 @@
+---
+import { collectTags, getPosts, tagHref } from '../../lib/blog';
+
+interface Props {
+  activeTag?: string;
+}
+
+const { activeTag } = Astro.props;
+const tags = collectTags(await getPosts());
+---
+
+<nav class="blog-nav" aria-label="Blog">
+  <a class="blog-nav__home" href="/blog/">All posts</a>
+  {
+    tags.map((tag) => (
+      <a
+        class="blog-nav__tag"
+        href={tagHref(tag.name)}
+        aria-current={activeTag === tag.slug ? 'page' : undefined}
+      >
+        {tag.name}
+        <span class="blog-nav__count">{tag.count}</span>
+      </a>
+    ))
+  }
+  <a class="blog-nav__rss" href="/blog/rss.xml">RSS</a>
+</nav>
+
+<style>
+  .blog-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-block: 1.5rem 2.5rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--sl-color-hairline);
+  }
+
+  .blog-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 999px;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-xs);
+    line-height: 1.6;
+    text-decoration: none;
+  }
+
+  .blog-nav a:hover {
+    border-color: var(--sl-color-accent);
+    color: var(--sl-color-white);
+  }
+
+  .blog-nav a[aria-current='page'],
+  .blog-nav__home {
+    border-color: var(--sl-color-accent);
+    color: var(--sl-color-white);
+  }
+
+  .blog-nav__count {
+    color: var(--sl-color-gray-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .blog-nav__rss {
+    margin-inline-start: auto;
+  }
+</style>

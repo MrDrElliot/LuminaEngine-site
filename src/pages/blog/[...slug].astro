@@ -1,0 +1,129 @@
+---
+import type { GetStaticPaths } from 'astro';
+import { render } from 'astro:content';
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import PostMeta from '../../components/blog/PostMeta.astro';
+import { getPosts, postHref } from '../../lib/blog';
+import '../../styles/blog.css';
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  const posts = await getPosts();
+  return posts.map((post, index) => ({
+    params: { slug: post.id },
+    props: {
+      post,
+      newer: posts[index - 1] ?? null,
+      older: posts[index + 1] ?? null,
+    },
+  }));
+};
+
+const { post, newer, older } = Astro.props;
+const { Content, headings } = await render(post);
+---
+
+<StarlightPage
+  frontmatter={{
+    title: post.data.title,
+    description: post.data.description,
+    editUrl: `https://github.com/MrDrElliot/LuminaEngine-site/edit/main/src/content/blog/${post.id}.md`,
+    lastUpdated: post.data.date,
+    prev: false,
+    next: false,
+  }}
+  headings={headings}
+  hasSidebar={false}
+>
+  <div class="post-header">
+    <p class="post-header__eyebrow"><a href="/blog/">Devlog</a></p>
+    <PostMeta
+      date={post.data.date}
+      authors={post.data.authors}
+      tags={post.data.tags}
+      version={post.data.version}
+    />
+    {post.data.draft && <p class="post-header__draft">This post is a draft.</p>}
+  </div>
+
+  <Content />
+
+  <nav class="post-pager" aria-label="More posts">
+    {
+      older && (
+        <a class="post-pager__link" href={postHref(older)}>
+          <span>Older</span>
+          {older.data.title}
+        </a>
+      )
+    }
+    {
+      newer && (
+        <a class="post-pager__link post-pager__link--next" href={postHref(newer)}>
+          <span>Newer</span>
+          {newer.data.title}
+        </a>
+      )
+    }
+  </nav>
+</StarlightPage>
+
+<style>
+  .post-header {
+    margin-bottom: 2rem;
+  }
+
+  .post-header__eyebrow {
+    margin: 0 0 0.75rem;
+    font-size: var(--sl-text-sm);
+  }
+
+  .post-header__eyebrow a {
+    color: var(--sl-color-gray-3);
+    text-decoration: none;
+  }
+
+  .post-header__eyebrow a:hover {
+    color: var(--sl-color-white);
+  }
+
+  .post-header__draft {
+    margin: 0.75rem 0 0;
+    color: var(--sl-color-orange-high, var(--sl-color-gray-3));
+    font-size: var(--sl-text-sm);
+  }
+
+  .post-pager {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--sl-color-hairline);
+  }
+
+  .post-pager__link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 1rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    color: var(--sl-color-white);
+    text-decoration: none;
+  }
+
+  .post-pager__link:hover {
+    border-color: var(--sl-color-accent);
+  }
+
+  .post-pager__link--next {
+    text-align: end;
+  }
+
+  .post-pager__link span {
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+</style>

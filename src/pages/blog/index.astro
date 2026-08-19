@@ -1,0 +1,48 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import BlogNav from '../../components/blog/BlogNav.astro';
+import PostCard from '../../components/blog/PostCard.astro';
+import { BLOG_DESCRIPTION, BLOG_TITLE, getPosts } from '../../lib/blog';
+import '../../styles/blog.css';
+
+const posts = await getPosts();
+const [latest, ...rest] = posts;
+---
+
+<StarlightPage
+  frontmatter={{
+    title: BLOG_TITLE,
+    description: BLOG_DESCRIPTION,
+    template: 'splash',
+    prev: false,
+    next: false,
+    pagefind: true,
+  }}
+  hasSidebar={false}
+>
+  <p class="blog-lede">{BLOG_DESCRIPTION}</p>
+
+  <BlogNav />
+
+  {posts.length === 0 && <p class="blog-empty">No posts yet. Check back soon.</p>}
+  {latest && <PostCard post={latest} featured />}
+  {rest.length > 0 && <div class="blog-list">{rest.map((post) => <PostCard post={post} />)}</div>}
+</StarlightPage>
+
+<style>
+  .blog-lede {
+    margin: 0;
+    max-width: 55ch;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-lg);
+    line-height: 1.7;
+  }
+
+  .blog-list {
+    margin-top: 2rem;
+  }
+
+  .blog-empty {
+    color: var(--sl-color-gray-3);
+  }
+</style>

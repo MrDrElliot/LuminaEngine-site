@@ -1,0 +1,55 @@
+---
+import type { GetStaticPaths } from 'astro';
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import BlogNav from '../../../components/blog/BlogNav.astro';
+import PostCard from '../../../components/blog/PostCard.astro';
+import { collectTags, getPosts, tagSlug } from '../../../lib/blog';
+import '../../../styles/blog.css';
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  const posts = await getPosts();
+  return collectTags(posts).map((tag) => ({
+    params: { tag: tag.slug },
+    props: {
+      name: tag.name,
+      posts: posts.filter((post) => post.data.tags.some((value) => tagSlug(value) === tag.slug)),
+    },
+  }));
+};
+
+const { name, posts } = Astro.props;
+const { tag } = Astro.params;
+---
+
+<StarlightPage
+  frontmatter={{
+    title: `${name} posts`,
+    description: `Lumina Engine devlog posts tagged ${name}.`,
+    template: 'splash',
+    pagefind: false,
+    prev: false,
+    next: false,
+  }}
+  hasSidebar={false}
+>
+  <p class="tag-lede">
+    {posts.length} {posts.length === 1 ? 'post' : 'posts'} tagged {name} in the
+    <a href="/blog/">Lumina devlog</a>.
+  </p>
+
+  <BlogNav activeTag={tag} />
+
+  <div class="tag-list">{posts.map((post) => <PostCard post={post} />)}</div>
+</StarlightPage>
+
+<style>
+  .tag-lede {
+    margin: 0;
+    color: var(--sl-color-gray-2);
+    line-height: 1.7;
+  }
+
+  .tag-lede a {
+    color: var(--sl-color-gray-2);
+  }
+</style>
