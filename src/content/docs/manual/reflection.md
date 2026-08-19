@@ -33,10 +33,10 @@ namespace Lumina
     {
         GENERATED_BODY()
 
-        PROPERTY(Script, Editable, Category = "Health", ClampMin = 0)
+        PROPERTY(Editable, Category = "Health", ClampMin = 0)
         float Max = 100.0f;
 
-        PROPERTY(Script, ReadOnly)
+        PROPERTY(ReadOnly)
         float Current = 100.0f;
     };
 }
@@ -136,20 +136,26 @@ with it.
 | --- | --- |
 | `Editable` | Shown and editable in the Details panel; serialized. |
 | `ReadOnly` | Shown in the Details panel but not editable; serialized. |
-| `Script` | Exposed to C# (readable/writable per the editor flags above). |
 | `Replicated` | Participates in [network replication](/manual/scripting/networking/). |
 | `EditorOnly` | Kept for editor tooling; stripped from cooked/packaged builds. |
 | `NoSerialize` | Not saved or loaded. |
+| `DuplicateTransient` | Reset to its default when the owning object is duplicated. |
+| `SkipHotReload` | Excluded from script hot-reload state migration. |
 | `ScriptReadOnly` / `ScriptWritable` / `ScriptHidden` | Shape the C# wrapper independently of the editor flags. Make an editor-hidden field writable from script, or hide a public field from C#. `NotScriptable` is an alias for `ScriptHidden`. |
 | `Getter` / `Setter` | Route access through accessor functions. Bare `Getter` means `Get<Name>`, bare `Setter` means `Set<Name>`, or pass a name. |
+
+Every reflected property is exposed to C# by default, so there is no opt-in
+keyword. Use `ScriptHidden` when a field should stay out of script.
 
 Some combinations contradict each other and are rejected at build time with
 `LRT1008`, which names the specifier to delete: `Editable` with `ReadOnly`,
 `ScriptReadOnly` with `ScriptWritable`, and `ScriptHidden` with either script
 access specifier.
 
-A specifier can take a value, and any `Key = Value` the macro doesn't recognize
-is stored as **metadata** the editor reads. The common editor hints follow.
+A specifier can take a value, and the value-carrying ones are stored as
+**metadata** the editor reads. The set of specifiers is closed: one the Reflector
+does not know is ignored with an `LRT1009` warning that names the nearest match,
+so a misspelling never quietly does nothing. The common editor hints follow.
 
 | Metadata | Effect |
 | --- | --- |
@@ -163,6 +169,9 @@ is stored as **metadata** the editor reads. The common editor hints follow.
 | `DefaultCollapsed` | Start a nested struct or container collapsed. |
 | `NoDrag` / `NoResize` / `NoReorder` | Remove drag editing, or the resize and reorder controls on a container. |
 | `FilePath` | Draw a file browser for a string. |
+| `Entity` | Draw an entity reference picker. |
+| `AssetType = "..."` | Restrict an asset reference picker to one asset class. |
+| `RequiresRecook` | Editing the value triggers a recook of the owning asset. |
 | `ToolTip = "..."` | Hover text. A `/** ... */` comment above the property becomes this automatically. |
 
 There are also pickers that constrain a value to something the owning asset
@@ -214,6 +223,10 @@ struct RUNTIME_API SAIComponent
 };
 ```
 
+A bare `FInstancedStruct` accepts any reflected struct. Constrain it with
+`PROPERTY(Editable, StructBase = "SCommand")` to get the same filtered picker
+without naming the base in the C++ type.
+
 Read the stored value with `Command.GetPtr<SWaitCommand>()` (null unless the
 stored type is `SWaitCommand` or derived), and replace it with
 `Command.InitializeAs<SWaitCommand>()`. The value serializes inline by the
@@ -252,7 +265,7 @@ available to C# scripts as `List<T>` and `Dictionary<K, V>`; see
 
 ## Functions
 
-`FUNCTION(Script)` exposes a member function to C#, so a script can call it on
+`FUNCTION()` exposes a member function to C#, so a script can call it on
 the reflected type's wrapper (this is how `Transform.AddYaw(...)` or
 `Controller.Jump()` reach native code, no binding written by hand).
 
@@ -265,12 +278,12 @@ struct RUNTIME_API SDoorComponent
     PROPERTY(Editable)
     bool bOpen = false;
 
-    FUNCTION(Script)
+    FUNCTION()
     void Toggle() { bOpen = !bOpen; }
 };
 ```
 
-`FUNCTION(Script, NoSuppressGCTransition)` is a variant for a function that may
+`FUNCTION(NoSuppressGCTransition)` is a variant for a function that may
 exceed the fast managed to native budget (e.g. one that walks a hierarchy).
 
 An argument whose type is not reflectable is dropped with a warning and the
@@ -289,12 +302,30 @@ with too few arguments. Fix the argument type rather than ignoring the warning.
 | `BitMask` | (Enums) treat the enum as flags, so the editor draws checkboxes. |
 | `MinimalAPI` | Export `StaticStruct()`/`StaticClass()` across module boundaries without force-exporting the whole type. |
 | `Scriptable` | (Classes) reflected virtuals become overridable from C#. |
+| `ConfigFile = "..."` | Back the class with a config file the settings system loads and saves. |
+| `DisplayName = "..."` | Override the label shown for the type in the editor. |
+| `HideInComponentList` | Keep the component out of the Add Component menu. |
+| `HideInDetails` | Keep the type out of the Details panel. |
+| `NotPlaceable` | (Classes) exclude from the node graph's placeable node list. |
 | `ReflectedName = "..."` | Register the type under a different name. See [Reflecting a type under another name](#reflecting-a-type-under-another-name). |
 | `NoCSharp` | Do not emit a C# type for this. |
 | `CSharpValueMirror` | LuminaSharp hand-writes a blittable value mirror; bind properties of this type by value. |
 
 `NoCSharp` and `CSharpValueMirror` are normally used together, and only by the
 core math types whose C# side is hand-written to match an exact byte layout.
+
+## The full specifier list
+
+The tables above cover what you reach for day to day. Every specifier the four
+macros accept is declared in one file,
+`Engine/Applications/Reflector/Source/Reflector/ReflectionSpecifiers.h`, one line
+each, with the macro it belongs to, whether it is a bare keyword or takes a
+value, which system reads it, and what it does.
+
+That file is the authority rather than a copy of one. The Reflector validates
+every call site against it, so a specifier that is not listed there is reported
+as `LRT1009` instead of being quietly ignored, and adding a new specifier means
+adding its line to that file.
 
 ## Reflecting a type under another name
 
@@ -320,10 +351,10 @@ different struct type** at the same offset. `VTransform` stores three 16-byte
 SIMD vectors, but presents them as the scalar types a user expects:
 
 ```cpp
-PROPERTY(Script, Editable, ReflectAs = "FVector3")
+PROPERTY(Editable, ReflectAs = "FVector3")
 SIMD::VFloat4 Location;
 
-PROPERTY(Script, Editable, ReflectAs = "FQuat")
+PROPERTY(Editable, ReflectAs = "FQuat")
 SIMD::VFloat4 Rotation;
 ```
 
@@ -428,7 +459,7 @@ two things per module.
 
 - the `*.generated.h` files each header includes, and
 - a generated source file that registers every type's `CClass`/`CStruct` at
-  module load, plus the C# wrappers for `Script`-flagged members.
+  module load, plus the C# wrappers for its reflected members.
 
 This runs as a **prebuild step before each module compiles**, so the generated
 code is always in sync with your headers. The output lands in
@@ -458,6 +489,7 @@ the IDE problem list with a stable `LRT` code.
 | `LRT1006` | Header A includes B which includes A. | Break the cycle, often with a forward declaration. |
 | `LRT1007` | A `PROPERTY` names a struct or class that is not reflected. | Add `REFLECT()` + `GENERATED_BODY()` to that type. |
 | `LRT1008` | Two `PROPERTY` specifiers contradict each other. | The message names which one to delete. |
+| `LRT1009` | A macro carries a specifier the Reflector does not know (warning). | Check the spelling against the tables above; the message suggests the nearest match. |
 | `LRT2000` | A header has reflection macros but no `*.generated.h` include. | Add it as the last include. |
 | `LRT2001` | The `*.generated.h` include is not last. | Move it to the end of the include block. |
 | `LRT2002` | A `REFLECT`'d type has no `GENERATED_BODY()`. | Add it as the first line of the body. |
@@ -514,5 +546,5 @@ special case, not a requirement. The quantized math types, for instance, define
 | **Editor** | The Details panel builds itself from a type's `Editable`/`ReadOnly` properties and their metadata, with no hand-written UI per component. |
 | **Serialization** | Reflected properties are what gets written into worlds, prefabs, and assets; `EditorOnly` properties are stripped when cooking. |
 | **Networking** | `Replicated` properties are collected and sent server to client, see [Networking](/manual/scripting/networking/). |
-| **Scripting** | Every `Component` struct and `Script` property/function is exposed to C# by name, see [C# Scripting](/manual/scripting/). |
+| **Scripting** | Every `Component` struct and every reflected property and function is exposed to C# by name, see [C# Scripting](/manual/scripting/). |
 | **Object system** | `CClass`/`CStruct`, `StaticClass()`, type-safe casts, and object construction all run on the generated type info. |

@@ -249,38 +249,71 @@ See [Scripting Host](/internals/scripting-host/) for the runtime half.
 | `FUNCTION(...)` | A member function. Not walked on templates. |
 | `SCRIPT_EXPORT(...)` | A namespace-scope free function, for C# export. |
 
-Property specifiers recognized by `FReflectedProperty::GenerateMetadata`:
+### The specifier registry
 
-| Specifier | Effect |
-| --- | --- |
-| `Editable` | Appears in the editor property grid. |
-| `ReadOnly` | Shown but not editable. |
-| `NoSerialize` | Excluded from serialization. |
-| `EditorOnly` | Editor builds only. |
-| `Replicated` | Participates in network replication. |
-| `Script` | Exposed to C#. |
-| `ScriptReadOnly` / `ScriptWritable` | Narrows script access. |
-| `ScriptHidden` (alias `NotScriptable`) | Hidden from C#. |
-| `Getter` / `Setter` | Route access through accessor functions. Bare `Getter` means `Get<Name>`, bare `Setter` means `Set<Name>`. |
+`Reflector/ReflectionSpecifiers.h` is the single source of truth for the specifier
+vocabulary. Before it existed the accepted set was spread across
+`ReflectedProperty.cpp`, `PropertyFlags.h`, `ReflectedStruct.cpp`,
+`CSharpBindingEmitter.cpp`, and a few dozen `HasMeta("...")` string literals in
+runtime and editor code, so nothing listed what was legal and a typo did nothing
+at all.
 
-| `ReflectAs = "T"` | Reflect the member as struct `T` at the real member's offset. |
+The file holds one X-macro table per target: `LUMINA_REFLECT_SPECIFIERS`,
+`LUMINA_PROPERTY_SPECIFIERS`, `LUMINA_FUNCTION_SPECIFIERS`, and
+`LUMINA_SCRIPT_EXPORT_SPECIFIERS`. Each row is `Name, Form, Consumer, Doc`.
 
-`FReflectedProperty::FindConflictingSpecifiers` rejects pairs that contradict
-each other (`Editable` with `ReadOnly`, `ScriptReadOnly` with `ScriptWritable`,
-`ScriptHidden` with either script access specifier) and names the one to delete.
+- **Form** is `Flag` (a bare keyword), `Value` (`Key = "Value"`), or `Either`.
+- **Consumer** is `Reflector` (changes the generated C++), `Runtime` (read through
+  `CStruct`/`FProperty` metadata), `Editor` (a property grid hint), or `Script`
+  (shapes the C# binding).
 
-Type-level specifiers read by the codegen: `Component`, `System`, `Event`,
-`MinimalAPI`, `Scriptable`, `BitMask` (enums), `ReflectedName = "..."`,
-`NoCSharp`, and `CSharpValueMirror`. The last means LuminaSharp hand-writes a
-blittable value mirror of the type, so properties of it bind by value instead of
-through a generated wrapper. It replaced the old `ManualStub` specifier, which
-was deleted along with the hand-written parser-only shim structs for the math
-types.
+One row generates both the table and its own documentation, so the two cannot
+drift apart. A fifth table, `LUMINA_RUNTIME_INJECTED_METADATA`, documents the keys
+the scripting host writes at runtime (`Aliases`, `ScriptTypeName`,
+`ScriptInstanceBase`). Those are excluded from validation because no macro
+authors them.
 
-Any other `Key = Value` pair is kept as free-form metadata (`Category`,
-`ClampMin`, tooltips, and so on) and reaches the editor through the property's
-metadata table. A `/** ... */` comment above a declaration is captured through
-`clang_Cursor_getBriefCommentText` and stored as `ToolTip`.
+`ValidateSpecifiers()` runs at every macro call site in the clang visitors and
+reports `LRT1009` for a key absent from its target's table, with a Levenshtein
+suggestion:
+
+```
+FontManager.h(30,27): warning LRT1009: PROPERTY specifier 'NotSerialized' is not
+recognized and will be ignored. Did you mean 'NoSerialize'?
+```
+
+**Adding a specifier means adding its row.** Parsing a key somewhere without
+listing it here makes every call site that uses it warn.
+
+`FReflectedProperty::FindConflictingSpecifiers` runs alongside and rejects pairs
+that contradict each other (`Editable` with `ReadOnly`, `ScriptReadOnly` with
+`ScriptWritable`, `ScriptHidden` with either script access specifier), naming the
+one to delete as `LRT1008`.
+
+Specifiers that map onto `EPropertyFlags` bits are parsed in
+`FReflectedProperty::GenerateMetadata`. The rest stay as free-form metadata and
+reach the editor through the property's metadata table. A `/** ... */` comment
+above a declaration is captured through `clang_Cursor_getBriefCommentText` and
+stored as `ToolTip`.
+
+`CSharpValueMirror` means LuminaSharp hand-writes a blittable value mirror of the
+type, so properties of it bind by value instead of through a generated wrapper. It
+replaced the old `ManualStub` specifier, which was deleted along with the
+hand-written parser-only shim structs for the math types.
+
+### Everything is scriptable by default
+
+There is no per-member opt-in to C#. A reflected function is bound whenever
+`ClassifyFunction` can marshal its signature, and a reflected property is bound
+unless it is `ScriptHidden`. The old `FUNCTION(Script)` and `PROPERTY(Script)`
+markers had no consumer at all, so they were deleted along with the
+`EPropertyFlags::Script` bit and `FProperty::IsScript()`.
+
+`FUNCTION(ScriptEvent)` is gone for the same reason. Overridability is decided by
+`IsScriptEvent()`, which is `bIsVirtual && Type.HasMetadata("Scriptable")`: on a
+`REFLECT(Scriptable)` class every reflected virtual is overridable from C#, so the
+author marks the class and does not have to predict which methods someone will
+want to override.
 
 ## Diagnostics
 
@@ -306,6 +339,9 @@ metadata table. A `/** ... */` comment above a declaration is captured through
    markers are stubbed out during parsing and specifiers are recovered from macro
    records. If you add a new marker macro, add it to the `REFLECTION_PARSER`
    branch too, or the parser will choke on it.
+6. **Declare a new specifier in `ReflectionSpecifiers.h`.** It is validated
+   against, not merely documented by, so an unlisted specifier warns `LRT1009` at
+   every call site that uses it.
 
 ## Common failure modes
 
@@ -315,7 +351,7 @@ metadata table. A `/** ... */` comment above a declaration is captured through
 | "Already included, missing `#pragma once`" | Two generated headers pulled into one translation unit, or a missing `#pragma once`. |
 | Linker error on `Construct_CClass_...` | The header is not under a reflected module's directory, or that module sets `bEnableReflection = false`. |
 | A new type is invisible to the editor | Missing `REFLECT()`, or the module sets `bEnableReflection = false`. |
-| A C# binding does not appear | The property lacks `Script` (or is `ScriptHidden`), or `LuminaSharp` compiled before the bindings were emitted. Check the project dependency order. |
+| A C# binding does not appear | The property is `ScriptHidden`, the function's signature did not classify (see `LRT1005`), or `LuminaSharp` compiled before the bindings were emitted. Check the project dependency order. |
 | Stale generated file referencing a deleted type | The expected-output sweep should remove it; if the build was interrupted, delete `Intermediates/Reflection` and rebuild. |
 | `LRT2007`, an alias reflected no members | The aliased type's fields have no `PROPERTY()` markers, or they sit in an anonymous union the walk did not enter. |
 | `LRT2006`, an alias names an uninstantiated template | Nothing in the amalgamation requires the type to be complete. Add a `static_assert(sizeof(...) > 0)`. |
