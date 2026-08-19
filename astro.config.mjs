@@ -159,6 +159,7 @@ export default defineConfig({
             { label: 'Importing', slug: 'manual/assets/importing' },
             { label: 'Managing Assets', slug: 'manual/assets/managing' },
             { label: 'Textures', slug: 'manual/assets/textures' },
+            { label: 'Texture Streaming', slug: 'manual/assets/texture-streaming' },
             { label: 'Referencing Assets', slug: 'manual/assets/references' },
             { label: 'Cooking & Packaging', slug: 'manual/assets/packaging' },
           ],

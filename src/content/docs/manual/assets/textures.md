@@ -28,7 +28,8 @@ The rules that matter.
 - **HDR panoramas use Environment.** A `.hdr` is kept as uncompressed float so
   lighting reads true radiance, see [Rendering](/manual/rendering/).
 
-Mip levels are always generated.
+Mip levels are always generated. Only the small ones stay resident by default,
+see [Texture Streaming](/manual/assets/texture-streaming/).
 
 ## Auto detection
 
