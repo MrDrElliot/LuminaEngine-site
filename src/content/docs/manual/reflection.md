@@ -283,8 +283,12 @@ struct RUNTIME_API SDoorComponent
 };
 ```
 
-`FUNCTION(NoSuppressGCTransition)` is a variant for a function that may
-exceed the fast managed to native budget (e.g. one that walks a hierarchy).
+`FUNCTION(SuppressGCTransition)` skips the garbage collector transition on the
+generated call. That is worth it for a short leaf function and wrong for anything
+that blocks or calls back into managed code. `REFLECT(ScriptFastCalls)` applies it
+to every function on the type, and `FUNCTION(NoSuppressGCTransition)` opts a
+single one back out, for a function that may exceed the fast managed to native
+budget (e.g. one that walks a hierarchy).
 
 An argument whose type is not reflectable is dropped with a warning and the
 function is skipped by the C# binder, because a generated thunk would call it
@@ -302,6 +306,7 @@ with too few arguments. Fix the argument type rather than ignoring the warning.
 | `BitMask` | (Enums) treat the enum as flags, so the editor draws checkboxes. |
 | `MinimalAPI` | Export `StaticStruct()`/`StaticClass()` across module boundaries without force-exporting the whole type. |
 | `Scriptable` | (Classes) reflected virtuals become overridable from C#. |
+| `ScriptFastCalls` | Apply `SuppressGCTransition` to every generated binding on the type. |
 | `ConfigFile = "..."` | Back the class with a config file the settings system loads and saves. |
 | `DisplayName = "..."` | Override the label shown for the type in the editor. |
 | `HideInComponentList` | Keep the component out of the Add Component menu. |

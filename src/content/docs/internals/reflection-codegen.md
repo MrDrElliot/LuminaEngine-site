@@ -237,6 +237,20 @@ purely a marker the parser detects through the macro record. The thunks are
 declared `LUMINA_SCRIPT_API`, which is always `dllexport`, because they are
 resolved by name at runtime rather than linked.
 
+`SCRIPT_EXPORT` is fully wired but has no call site in the engine today. The
+hand-written `LUMINA_DOTNET_EXPORT` functions in `DotNetGameplay.cpp` are the
+conversion target it was built for.
+
+### GC transitions
+
+`SuppressGCTransition` on a `FUNCTION` or `SCRIPT_EXPORT` emits the C# call
+without the runtime's managed to native transition, which is a real win on a
+short leaf call and unsound on anything that blocks, allocates managed memory,
+or reenters the runtime. `REFLECT(ScriptFastCalls)` turns it on for every
+binding on a type, and `FUNCTION(NoSuppressGCTransition)` opts one back out.
+The emitter resolves this as `(bStructFastCalls || SuppressGCTransition) &&
+!NoSuppressGCTransition`, so the per-function opt-out always wins.
+
 See [Scripting Host](/internals/scripting-host/) for the runtime half.
 
 ## Markers and specifiers
