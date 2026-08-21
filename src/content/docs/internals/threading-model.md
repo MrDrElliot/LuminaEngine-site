@@ -11,7 +11,7 @@ threads that actually exist are:
 | Thread | Count | Owner |
 | --- | --- | --- |
 | Main (game) thread | 1 | `LuminaMain` / `FApplication::Run` |
-| Job scheduler workers | `hardware_concurrency() - 1` by default | `Lumina::Jobs` |
+| Job scheduler workers | `Threading::GetNumThreads() - 1` by default | `Lumina::Jobs` |
 | Log backend | 1 | `Logging::Init` |
 | Hang watchdog | 1 | `HangWatchdog::Start` |
 | Audio device callback | 1 | miniaudio, driven by the audio device |

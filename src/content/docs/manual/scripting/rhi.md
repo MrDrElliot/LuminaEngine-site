@@ -36,7 +36,7 @@ submissions with a timeline semaphore.
 | GPU memory, textures, pipelines, semaphores, the bindless heap | The GPU device (create, destroy) |
 | Command list recording and submission | The per-frame loop and frame pacing |
 | Barriers and per-submission synchronization | The window swapchain and present |
-| Device and memory introspection | Vsync and the backbuffer |
+| Device and memory introspection | Present mode and the backbuffer |
 
 ## The two classes
 
@@ -577,9 +577,10 @@ RHI.CmdDispatch(CL, Alloc.Gpu, Groups, 1, 1);
 ```
 
 The allocation is valid until its frame slot recycles, so use it within the
-frame and never hold it across frames. To free a longer-lived allocation safely
-once every in-flight frame has retired, use `RHICore.DeferredFree(memory)`
-instead of `RHI.Free`.
+frame and never hold it across frames. To free a longer-lived allocation, use
+`RHICore.DeferredFree(memory)` instead of `RHI.Free`: it hands the memory to the
+engine's retire queue, which destroys it only once every queue's timeline has
+passed the point where a recorded command list could still name it.
 
 ## Inspecting the device
 

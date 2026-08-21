@@ -194,9 +194,10 @@ See [Threading Model](/internals/threading-model/).
 
 `Core.MaxFPS` (default 165) caps the frame rate. The limiter sleeps for the bulk
 of the remaining time, leaving a 1 ms margin for scheduler overshoot, then spins
-with `std::this_thread::yield()` until the target time. Set the console variable
-to 0 to disable it. This is separate from vsync, which is an RHI present-mode
-setting.
+with `PlatformTime::YieldThread()` until the target time. Set the console variable
+to 0 to disable it. This is separate from the present mode, which decides how a
+finished frame reaches the display. See
+[Rendering](/manual/rendering/#present-mode).
 
 ### Time
 

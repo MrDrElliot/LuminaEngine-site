@@ -111,7 +111,7 @@ Saving broadcasts:
 FCoreDelegates::OnSettingsSaved.Broadcast(CClass* SavedClass);
 ```
 
-Subsystems subscribe and react. Two do so in `FEngine::Init`:
+Subsystems subscribe and react. Three do so in `FEngine::Init`:
 
 ```cpp
 (void)FCoreDelegates::OnSettingsSaved.AddLambda([](CClass* Class)
@@ -123,6 +123,10 @@ Subsystems subscribe and react. Two do so in `FEngine::Init`:
     else if (Class == CAudioSettings::StaticClass())
     {
         Audio::ApplySettings();
+    }
+    else if (Class == CRendererSettings::StaticClass())
+    {
+        GetDefault<CRendererSettings>()->ApplyPresentMode();
     }
 });
 ```

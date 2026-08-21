@@ -5,7 +5,7 @@ description: "The graphics abstraction: handles, GPU pointers, bindless heaps, a
 
 Lumina's RHI is not a class hierarchy. It is a **flat set of free functions in
 the `Lumina::RHI` namespace** over opaque handles, declared in
-`Engine/Source/Runtime/Renderer/RHI.h` and implemented per backend. There is one
+`Engine/Source/Runtime/Source/Renderer/RHI.h` and implemented per backend. There is one
 backend today, Vulkan (`Renderer/API/Vulkan/VulkanRHI.cpp`). The enum reserves
 `Metal` and `DX12` slots, both unimplemented.
 
@@ -29,8 +29,9 @@ to draw geometry, one way to reach a texture, and one way to reach a buffer.
 - **Buffer device address everywhere.** A shader chases pointers the way C++
   does, so a GPU struct can point at another buffer. This is what lets the cull
   pipeline stay GPU-resident: the CPU never has to learn what the GPU decided.
-- **Mesh and task shaders are the only geometry path.** Not an optimization, the
-  pipeline. See [Mesh shaders are required](#mesh-shaders-are-required).
+- **Mesh shaders are the only geometry path.** Not an optimization, the
+  pipeline. There is no vertex and index path beside it. See
+  [Mesh shaders are required](#mesh-shaders-are-required).
 - **Dynamic state over permutations.** Cull mode, front face, and depth state
   are set on the command list, so one pipeline covers what would otherwise be
   four.
@@ -53,16 +54,23 @@ confusing way. There is no vertex and index path to fall back to.
 
 The limits checked at startup:
 
-| Limit | Minimum |
-| --- | --- |
-| `maxMeshWorkGroupSize[0]`, `maxMeshWorkGroupInvocations` | 32 |
-| `maxMeshOutputVertices` | 64 |
-| `maxMeshOutputPrimitives` | 64 |
-| `maxTaskWorkGroupSize[0]`, `maxTaskWorkGroupInvocations` | 32 |
-| `maxTaskPayloadSize`, `maxTaskPayloadAndSharedMemorySize` | 4096 |
+| Limit | Minimum | Comes from |
+| --- | --- | --- |
+| `maxMeshWorkGroupSize[0]`, `maxMeshWorkGroupInvocations` | 32 | `kMeshWorkGroupSize` |
+| `maxMeshOutputVertices` | 64 | `kMeshMaxOutputVertices` |
+| `maxMeshOutputPrimitives` | 64 | `kMeshMaxOutputPrimitives` |
 
-In practice that means NVIDIA Turing (GTX 16 series, RTX 20 series) or newer, AMD
-RDNA2 (RX 6000) or newer, or Intel Arc.
+There is a fourth check, on subgroup width. A mesh workgroup is 32 threads, so a
+device whose `minSubgroupSize` is below that must be able to pin the mesh stage
+to 32 through `subgroupSizeControl`. When it can, the required size is recorded
+and applied at pipeline creation; when it cannot, the device is rejected.
+
+**No task-stage limits are checked, because the engine has no task shaders.**
+Meshlet culling is a compute pass that writes indirect arguments, and the only
+`CreateMeshShaderPipeline` call in the renderer passes an empty task source.
+
+In practice the requirement means NVIDIA Turing (GTX 16 series, RTX 20 series) or
+newer, AMD RDNA2 (RX 6000) or newer, or Intel Arc.
 
 How the renderer uses them is covered in [Meshlet Pipeline](/internals/meshlet-pipeline/).
 
@@ -140,18 +148,51 @@ Host[0].Value = 1.0f;
 // pass Gpu to a shader
 ```
 
-Freeing memory the GPU may still be reading is the classic bug here. Use
-`RHI::Core::DeferredFree(Ptr, ExtraFrames)` instead of `RHI::Free` for anything
-referenced by submitted work. It retires the allocation once every in-flight
-frame has completed. `ExtraFrames` extends that window for memory whose address
-can still be handed out **after** the free was queued, for instance a game-thread
-cache that will return the old address for one more tick.
+### Retiring
+
+Freeing memory the GPU may still be reading is the classic bug here. `RHI::Free`
+and `FreeH` destroy immediately. For anything a submitted command list can name,
+go through the retire queue instead:
+
+```cpp
+RHI::Core::Retire(GPUPtr Memory);
+RHI::Core::Retire(FTextureH Texture);
+RHI::Core::Retire(FPipelineH Pipeline);
+RHI::Core::RetireSampledSlot(uint32 HeapSlot);
+RHI::Core::RetireStorageSlot(uint32 HeapSlot);
+RHI::Core::RetireCallback(TFunction<void()> Callback);
+```
+
+This is the single point in the engine that destroys a GPU resource. Retiring is
+**fence based, not frame counted**. Posting stamps the item with each queue's
+current counter plus its open command list count, so the fence reaches past any
+recording that may already name the resource but has not been submitted yet. The
+drain at the next `BeginFrame` for that slot destroys only the items whose
+recorded value every queue's timeline has passed.
+
+`RetireCallback` runs on the same boundary a buffer retired at that instant would
+be freed on. Use it for CPU-side state that *describes* a GPU resource and has to
+stop describing it at exactly the moment it dies. Any earlier and frames already
+recorded lose what they were built against; any later and frames recorded since
+read freed state. A frame count cannot express that, but the fence already does.
+
+Draining is metered at 64 destroys per frame, since a destroy can reach
+`vkFreeMemory` and a streaming burst retires hundreds at once. Past a 512 item
+backlog the cap is dropped, because at that point the backlog is itself VRAM the
+frame is trying to allocate. `RHI/RetireBacklog` in Tracy is the number to watch:
+a backlog that does not fall between frames means retires are outrunning
+destroys.
+
+Retires posted after `Core::Shutdown` destroy inline, since there are no frames
+left to wait for.
 
 ### Transient memory
 
 `RHI::Core::AllocTransient(Size, Alignment)` is a per-frame bump allocator over
 CPU-write, device-addressable memory. It is thread safe (atomic bump) and valid
-until its frame slot is reused.
+until its frame slot is reused. Each slot's slice resizes itself at `BeginFrame`:
+it grows 1.5x when last frame's demand overflowed it, and shrinks back after 64
+consecutive frames of using less than half.
 
 ```cpp
 GPUPtr Args = RHI::Core::CopyTransient(MyPushConstants);
@@ -159,9 +200,9 @@ GPUPtr Data = RHI::Core::CopyTransientArray(Items.data(), Items.size());
 ```
 
 This is the intended way to pass per-draw and per-pass data. **It is not for
-geometry.** Vertex and index data belong in a persistent allocation; the
-transient ring is sized for small per-frame payloads and cycling megabytes of
-mesh data through it will exhaust it.
+geometry.** Vertex and index data belong in a persistent allocation. Pushing
+megabytes of mesh data through the ring makes it grow to fit, and every slot pays
+that size for the rest of the session.
 
 ## Textures
 
@@ -201,6 +242,9 @@ FTextureHeapH CreateTextureHeap(uint32 TextureCount, uint32 RWTextureCount, uint
 uint32 HeapWriteTexture(FTextureHeapH Heap, FTextureH Texture);
 uint32 HeapWriteRWTexture(FTextureHeapH Heap, FTextureH Texture, uint32 Mip = 0);
 uint32 HeapWriteSampler(FTextureHeapH Heap, const FSamplerDesc& Desc);
+void   HeapRepointTexture(FTextureHeapH Heap, uint32 Slot, FTextureH Texture);
+void   HeapSetFallbackTexture(FTextureHeapH Heap, FTextureH Texture);
+void   HeapUnbindTexture(FTextureHeapH Heap, uint32 Slot);
 void   HeapFreeTexture / HeapFreeRWTexture / HeapFreeSampler(Heap, uint32 Slot);
 ```
 
@@ -223,15 +267,29 @@ Limits: `kMaxTextureHeapSize` (`INT16_MAX`) entries, `kMaxNumSamplers` (4000),
 uses. `CmdSetTextureHeap(CL, Heap)` binds it, and every render path does this as
 its first command.
 
-**Slot lifetime is the sharp edge.** A slot freed while a submitted command list
-still references it produces a GPU-side read of a destroyed image. Free heap
-slots on the same deferred schedule as the resources behind them.
+**Slot lifetime is the sharp edge**, in two ways.
+
+A slot freed while a submitted command list still references it produces a
+GPU-side read of a destroyed image. Retire heap slots
+(`Core::RetireSampledSlot`, `Core::RetireStorageSlot`) rather than freeing them,
+on the same schedule as the resources behind them.
+
+When a resource is replaced rather than destroyed (a streamed texture changing
+residency, for instance), **repoint the slot instead of freeing and reallocating
+it**. `HeapRepointTexture` overwrites the descriptor in place, so every GPU
+struct already holding that integer keeps working. Free plus realloc can hand the
+same index back to something else, and any struct still carrying it then samples
+the wrong image. `HeapUnbindTexture` points a slot at the heap's fallback texture
+without releasing the index, which is how a slot stays valid while its contents
+are temporarily gone.
 
 Stock samplers are registered by `Core::Initialize` in a fixed order, exposed as
 `EStockSampler`: `LinearWrap`, `LinearClamp`, `LinearMirror`, `PointWrap`,
 `PointClamp`, `AnisoWrap`, `AnisoClamp`, `Shadow`, `MinReduction`,
-`MaxReduction`. These must stay in lockstep with the `SAMPLER_*` constants in
-`GlobalRHI.slang`.
+`MaxReduction`, `PointMirror`, `AnisoMirror`. The slot index **is** the enum
+value and `GlobalRHI.slang` hardcodes it, which is why the last two are appended
+rather than grouped with their filter families. New entries go on the end, and
+the `SAMPLER_*` constants have to move with them.
 
 `GetTextureHeapTextures(Heap, Out)` enumerates every occupied sampled slot, which
 is what the editor's GPU resource views display.
@@ -259,7 +317,8 @@ buffers through device addresses in the shader.
 
 There is no support query to guard `CreateMeshShaderPipeline` with. A device that
 could fail it never finished startup, so the call is unconditional. The task
-stage is optional: an empty source means a mesh-only pipeline.
+stage is optional, and in practice unused: the renderer always passes an empty
+task source and culls in compute instead.
 
 Depth and stencil state is a separate object (`CreateDepthStencil`) bound with
 `CmdSetDepthStencilState`, because the engine reuses one pipeline across
@@ -314,6 +373,22 @@ Command list recording is single threaded per list. Multiple scenes may record
 concurrently because each opens its own list; shared resource creation inside the
 RHI is internally locked.
 
+`RHI::Core` adds the frame-aware wrappers the engine actually calls:
+
+```cpp
+void        Core::Submit(FCmdListH CL);                  // graphics, bookkeeping included
+uint64      Core::SubmitOn(EQueueType, TSpan<const FCmdListH>, TSpan<const FSemaphoreInfo> Waits = {});
+FSemaphoreH Core::GetQueueTimeline(EQueueType Queue);
+uint32      GetOpenCommandListCount(EQueueType Queue);
+```
+
+`SubmitOn` bumps that queue's counter, signals its timeline with the new value,
+and returns it, which is what the retire fences and the frame slot waits are
+built on. `GetOpenCommandListCount` reports lists opened and neither submitted
+nor reset: a resource retired while that is non-zero may already be named by a
+recording no queue counter accounts for yet, which is why a retire fence reaches
+past the queue's current value.
+
 ## Synchronization
 
 Semaphores are timeline semaphores:
@@ -339,7 +414,8 @@ void CmdBarrier(FCmdListH CL, EStageFlags Before, EStageFlags After);
 
 `EStageFlags` covers `IndirectArguments`, `Transfer`, `Compute`,
 `RasterColorOut`, `PixelShader`, `FragmentTests`, `VertexShader`, `Host`,
-`MeshShader`, `TaskShader`, and `AllCommands`.
+`MeshShader`, and `AllCommands`. There is no task-stage flag, because there are
+no task shaders.
 
 The `RHI::Barriers` namespace holds the canonical combinations, and passes should
 use these rather than hand-rolling stage masks:
@@ -352,6 +428,17 @@ use these rather than hand-rolling stage masks:
 | `TransferToAll` | Copies before everything. |
 | `TransferToTransfer` | Copy before copy (resolves write-after-write hazards between two copies to the same image). |
 | `AllToTransfer` | Everything before a copy. |
+| `TransferToCompute` | Uploads and clears before the cull dispatches and the geometry front end. |
+| `ComputeToGeometry` | A cull dispatch before later dispatches, the mesh stage, and indirect fetch. |
+| `ComputeToIndirect` | A dispatch that writes nothing but indirect arguments. |
+
+The last three are narrow by design. Use one only where **every** reader of
+**every** buffer the source wrote is inside the destination mask; otherwise take
+the broad helper above it.
+
+Queue ownership moves with a matching pair, `CmdReleaseImageToQueue` on the
+source queue and `CmdAcquireImageFromQueue` on the destination. Both are required
+for an exclusive resource crossing queue families.
 
 Image layout transitions are handled by the backend. See
 [Vulkan Backend](/internals/vulkan-backend/) for how unified image layouts remove
@@ -386,17 +473,17 @@ Indirect argument structs mirror the Vulkan ones: `FDrawIndirectArguments`,
 ## Device, swapchain, and presentation
 
 ```cpp
-void CreateDevice(const FDeviceDesc& Desc = {});   // bValidation, bDebugUtils
+void CreateDevice(const FDeviceDesc& Desc = {});   // bValidation, bDebugUtils, bHeadless
 void FreeDevice();
 void WaitDeviceIdle();
-void TickFrame();
+void RetireSlot(uint32 Slot);
 
 FSurfaceH    CreateSurface(void* WindowHandle);      // MAIN THREAD ONLY
 FSwapchainH  CreateSwapchain(FSurfaceH Surface, const FUIntVector2& Extent);
 void         RecreateSwapchain(FSwapchainH Swapchain, const FUIntVector2& Extent);
 FTextureH    AcquireNextImage(FSwapchainH Swapchain);   // invalid handle if out of date
 bool         PresentSwapchain(FSwapchainH, FCmdListH Final, FSemaphoreH FrameSignal, uint64 Value);
-void         SetVSync(bool) / bool GetVSync();
+void         SetPresentMode(EPresentMode) / EPresentMode GetPresentMode();
 ```
 
 `CreateSurface` must be called on the thread that owns the window, because GLFW's
@@ -407,7 +494,17 @@ only for the case where the window died before a swapchain was built.
 `AcquireNextImage` returning an invalid handle means out of date; recreate the
 swapchain and skip the frame.
 
-`kFramesInFlight` is 3.
+`kFramesInFlight` is 2. The frame ring itself is driven by
+`RHI::Core::BeginFrame(slot)`, described in
+[Frame Pipeline](/internals/frame-pipeline/#frames-in-flight). `RetireSlot` is
+the backend half of that drain and is not called directly.
+
+`EPresentMode` is `Immediate`, `Mailbox`, or `FIFO`, declared in
+`Renderer/PresentMode.h` so it can be a reflected settings property without
+dragging a generated header into `RHI.h`. Setting it only records the choice;
+the swapchain has to be rebuilt for it to apply, which
+`CRendererSettings::ApplyPresentMode` does through
+`FRenderManager::RecreatePrimarySwapchain`.
 
 ## Introspection
 
@@ -416,8 +513,18 @@ FGPUDeviceInfo GetDeviceInfo();                  // name, API version string, ve
 void           GetGPUMemoryStats(FGPUMemoryStats& Out);
 bool           SupportsAsyncCompute();
 bool           SupportsAsyncTransfer();
+uint32         GetMaxMeshWorkGroupCount();
+bool           GetPipelineStatistics(FPipelineH, TVector<FPipelineStat>& Out);
 ICrashTracker& GetCrashTracker();
 void           HandleDeviceLost();
+
+FString        DescribeDeviceAddress(uint64 AddressLow, uint64 AddressHigh);
+bool           GetAllocationRange(GPUPtr Ptr, GPUPtr& OutBase, uint64& OutSize);
+void           SetValidationHandler(FValidationHandlerFn Handler, void* UserData);
+
+#if WITH_EDITOR
+void           GetGPUAllocations(TVector<FGPUAllocation>& Out);
+#endif
 ```
 
 `FGPUMemoryStats` breaks down per heap: budget and usage as reported by the OS,
@@ -425,12 +532,28 @@ plus allocated and block bytes from the allocator. The gap between allocated and
 block bytes is fragmentation and reserve. `bReBAR` marks a heap that is both
 device local and host visible and larger than the legacy 256 MB BAR window.
 
+Heap totals say how much VRAM is gone, never what took it. `GetGPUAllocations`
+is the other half: one row per live allocation with the debug name its creating
+site gave it, which is what the editor's Memory tool groups by. It takes the
+allocator locks and copies the whole ledger, so it is a tool-rate call and never
+a per-frame one. Editor builds only; game builds keep neither the names nor the
+texture ledger.
+
+`DescribeDeviceAddress` and `GetAllocationRange` resolve a raw device address,
+including an interior one, back to the allocation that owns it. That is what
+turns a device-fault address range into a named buffer. `SetValidationHandler`
+installs an observer on the debug-utils messenger, in addition to the log; it
+must be set before `CreateDevice` and fires on whichever thread the driver
+reports on.
+
 ## Common failure modes
 
 | Symptom | Cause |
 | --- | --- |
-| GPU reads garbage from a buffer freed last frame | `RHI::Free` instead of `Core::DeferredFree`. |
-| Validation error about a destroyed image still in a descriptor | A heap slot was freed before the frames referencing it retired. |
+| GPU reads garbage from a buffer freed last frame | `RHI::Free` instead of `Core::Retire`. |
+| Validation error about a destroyed image still in a descriptor | A heap slot was freed instead of retired, before the frames referencing it drained. |
+| A struct samples the wrong texture after a streaming change | The heap slot was freed and reallocated instead of repointed. |
+| `RHI/RetireBacklog` climbs and never falls | Retires are outrunning the metered drain. Something is churning GPU resources per frame. |
 | Frame-long stall after a one-off submit | `WaitDeviceIdle` used where `SubmitAndWait` was meant. |
 | Transient allocation failure mid-frame | Geometry or large buffers pushed through the transient ring. |
 | Crash creating a surface | `CreateSurface` called off the main thread. |

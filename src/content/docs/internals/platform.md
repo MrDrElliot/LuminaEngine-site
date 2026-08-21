@@ -159,9 +159,32 @@ anything reads a file.
 launches the build tools, opens the generated solution, and runs project file
 regeneration from the editor.
 
-`Platform::EnableHighResolutionTiming()` / `DisableHighResolutionTiming()` bracket
-the engine's lifetime so the frame limiter's sleeps land with 1 ms granularity.
-`Platform::GetTime()` is the monotonic clock the frame loop uses.
+## Time
+
+`Platform/Time/PlatformTime.h` is the engine's only clock. There is no
+`std::chrono` in engine code, and the older `Platform::GetTime()` is gone.
+
+| Call | Meaning |
+| --- | --- |
+| `PlatformTime::Cycles()` | The raw monotonic counter. QPC on Windows, `CLOCK_MONOTONIC` elsewhere. Platform-defined units. |
+| `PlatformTime::Seconds()` | Monotonic seconds since process start. What the frame loop and every profiler use. |
+| `PlatformTime::ToSeconds/ToMilliseconds/ToMicroseconds(Delta)` | Turn a cycle delta into a unit. |
+| `PlatformTime::UtcNanoseconds()` / `UtcSeconds()` | Wall clock since the Unix epoch. |
+| `PlatformTime::LocalTime(Ns)` / `UtcTime(Ns)` / `LocalNow()` | Broken-down `FDateTime` for stamps and file names. |
+| `PlatformTime::Sleep(Seconds)`, `SleepMilliseconds`, `SleepMicroseconds` | Blocking waits. |
+| `PlatformTime::YieldThread()` | Gives up the rest of the time slice. |
+| `PlatformTime::FStopwatch` | Measures a span in cycles, converting only when asked. |
+
+Measure spans with the **monotonic** side and timestamp with the **wall clock**
+side. `UtcNanoseconds` jumps when the system clock is set, so a duration computed
+from it can come out negative.
+
+`PlatformTime::EnableHighResolutionTiming()` / `DisableHighResolutionTiming()`
+bracket the engine's lifetime so the frame limiter's sleeps land with 1 ms
+granularity.
+
+It is `YieldThread`, not `Yield`, because `windows.h` defines `Yield` as an empty
+macro and `PlatformTime::Yield()` would expand to `PlatformTime::`.
 
 ## Crash handling
 
@@ -188,10 +211,26 @@ find them by thread.
 
 ## Threading primitives
 
-`Core/Threading` provides the low-level pieces:
+`Core/Threading/Sync.h` provides the locks, and they are the engine's own, not
+aliases over the standard library:
 
-- Type aliases over the standard library: `FThread`, `FMutex`, `FSharedMutex`,
-  `FRecursiveMutex`, and the matching scoped lock types.
+| Type | Backing |
+| --- | --- |
+| `FMutex` | SRWLOCK on Windows, a pthread mutex elsewhere. **8 bytes** and `constexpr`-constructible, against roughly 80 for `std::mutex`. Not recursive. |
+| `FSharedMutex` | The same SRWLOCK, taken shared or exclusive. |
+| `FRecursiveMutex` | Depth counted on top of `FMutex` with an atomic owner id. |
+| `FScopeLock`, `FWriteScopeLock`, `FRecursiveScopeLock` | `TScopeLock<T>` over the three. |
+| `FReadScopeLock` | Shared lock, with a `TryToLock` overload and `OwnsLock()`. |
+| `FUniqueLock` | Releasable and retakeable, with a `DeferLock` overload. What a condition-variable wait needs. |
+| `FConditionVariable` | `Wait`, `WaitFor(Lock, Seconds)`, `NotifyOne`, `NotifyAll`, plus predicate overloads. |
+| `FOnceFlag` and `CallOnce(Flag, Body)` | One-time initialization. The losing threads block until the winner finishes, not merely starts. |
+| `FThread` | An OS thread that owns its callable. Join or detach it; the destructor detaches. |
+
+`WaitFor` returns false **only** on timeout, so a spurious wake returns true.
+Use the predicate overload, which re-checks.
+
+`Core/Threading/Thread.h` provides the rest:
+
 - `Threading::Initialize(MainThreadName)` and `Shutdown`, called by
   `FApplicationGlobalState`.
 - `SetThreadName(Name, GroupHint)`, which also assigns the Tracy timeline group.
@@ -213,6 +252,9 @@ contend. See [Task System](/internals/task-system/).
 | Crash creating a window or surface | A GLFW call off the main thread. |
 | Cursor mode does not apply | The context was changed without `ReapplyActiveCursorMode()`. |
 | Input goes to the wrong viewport with multiple windows | Native window focus not consulted; OS focus is authoritative. |
+| A spin loop suddenly costs seconds | `Sleep(0)` where `YieldThread()` belongs. It hands over the whole quantum, not just the rest of the slice. |
+| A duration comes out negative | Measured with `UtcNanoseconds`, which jumps when the clock is set. Use `Seconds()` or `Cycles()`. |
+| A condition-variable wait returns early and the code proceeds | `WaitFor` returns true on a spurious wake. Use the predicate overload. |
 | Editor closes despite a cancelled save prompt | `CancelClose()` was not called, so the OS close flag is still set. |
 | Nothing updates after minimizing | Expected: the frame loop skips world updates while minimized. |
 | No crash dump for an early crash | The crash occurred before `CrashHandler::Install`, which is the first line of `LuminaMain`. |

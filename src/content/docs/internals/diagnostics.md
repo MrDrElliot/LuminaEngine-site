@@ -25,7 +25,7 @@ formats and dispatches to sinks. Formatting and I/O stay off the calling thread.
 | `LOG_TRACE` | Trace | Non-Shipping |
 
 `LOG_DISPLAY` is the one to reach for when a message must survive into a Shipping
-build; `LOG_INFO` compiles away. The formatting syntax is `std::format`:
+build; `LOG_INFO` compiles away. The formatting syntax is the engine's `Format`, which takes standard placeholders:
 
 ```cpp
 LOG_DISPLAY("Async transfer queue: {}", bDedicated ? "dedicated" : "aliased");

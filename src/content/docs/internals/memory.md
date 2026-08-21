@@ -127,9 +127,11 @@ one point in the frame that is genuinely quiescent: one game thread, and the
 previous frame's parallel gathers already joined and consumed. **Holding a
 frame-arena pointer across a frame boundary is a use-after-free.**
 
-`FFrameArenaAllocator` and the frame-arena-backed container aliases let EASTL
-containers allocate from an arena. The arena must outlive the container, and the
-container is bulk-reset with no per-item free.
+Containers reach an arena through the allocator they are parameterized on:
+`TScratchVector<T>` and `TScratchHashMap<K, V>` sit on the scratch arena,
+`FFrameAllocator` on the frame arena. `Deallocate` is a no-op for both, so the
+arena must outlive the container and the whole thing is bulk-reset with no
+per-item free. See [Math and Containers](/internals/math-and-containers/#allocators).
 
 ## Memory tracking
 

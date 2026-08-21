@@ -3,7 +3,7 @@ title: Vulkan Backend
 description: Device creation, queues, memory, descriptors, swapchain, and GPU crash handling.
 ---
 
-`Engine/Source/Runtime/Renderer/API/Vulkan/VulkanRHI.cpp` is the only backend.
+`Engine/Source/Runtime/Source/Renderer/API/Vulkan/VulkanRHI.cpp` is the only backend.
 It is a single large translation unit implementing every `Lumina::RHI` free
 function against Vulkan **1.4**.
 
@@ -75,6 +75,8 @@ through an `EnableIfPresent` helper, so the engine degrades instead of failing.
 | `VK_KHR_shader_non_semantic_info` | AMD rejects non-semantic SPIR-V without an explicit enable even though it is core in 1.3. |
 | `VK_NV_device_diagnostics_config` | Nsight Aftermath. NVIDIA only; AMD and Intel skip the diagnostics `pNext`. |
 | `VK_EXT_device_fault` | Vendor-agnostic fault info on `VK_ERROR_DEVICE_LOST`. |
+| `VK_AMD_buffer_marker` | GPU breadcrumbs. Markers written into a buffer as the GPU passes them, so a device loss reports what was still outstanding. |
+| `VK_KHR_pipeline_executable_properties` | Editor only. Backs `GetPipelineStatistics`, which is where the material editor's register and occupancy numbers come from. |
 | `VK_KHR_unified_image_layouts` | Removes most layout transition bookkeeping. |
 | `VK_EXT_memory_priority` plus `VK_EXT_pageable_device_local_memory` | VMA allocation priority and pageable device-local memory. |
 | `VK_EXT_mesh_shader` | Required. See below. Absence aborts with a message. |
@@ -86,16 +88,28 @@ the renderer has. Device selection aborts when the extension is missing, when th
 
 | Limit | Minimum | Comes from |
 | --- | --- | --- |
-| `maxMeshWorkGroupSize[0]`, `maxMeshWorkGroupInvocations` | 32 | `MESHLET_MESH_GROUP_SIZE` |
-| `maxMeshOutputVertices` | 64 | `MESHLET_MAX_VERTICES` |
-| `maxMeshOutputPrimitives` | 64 | `MESHLET_MAX_TRIANGLES` |
-| `maxTaskWorkGroupSize[0]`, `maxTaskWorkGroupInvocations` | 32 | `MeshletCullTask.slang` workgroup size |
-| `maxTaskPayloadSize`, `maxTaskPayloadAndSharedMemorySize` | 4096 | `kMaxTaskPayloadBytes` |
+| `maxMeshWorkGroupSize[0]`, `maxMeshWorkGroupInvocations` | 32 | `kMeshWorkGroupSize` / `MESHLET_MESH_GROUP_SIZE` |
+| `maxMeshOutputVertices` | 64 | `kMeshMaxOutputVertices` / `MESHLET_MAX_VERTICES` |
+| `maxMeshOutputPrimitives` | 64 | `kMeshMaxOutputPrimitives` / `MESHLET_MAX_TRIANGLES` |
 
-The dialog names which of the three checks failed and which hardware generations
-qualify, because "device unsuitable" on its own sends people to the wrong place.
-The measured limits are also logged on every successful startup, which is the
-fastest way to tell a driver problem from a hardware one.
+Then subgroup width. A mesh workgroup is 32 threads, so a device reporting
+`minSubgroupSize` below 32 has to be pinnable: `subgroupSizeControl` supported,
+the mesh stage listed in `requiredSubgroupSizeStages`, and `maxSubgroupSize` at
+least 32. When it is, the required size is recorded and applied at pipeline
+creation. When it is not, the device is rejected, because a narrower subgroup
+silently changes what the mesh stage computes.
+
+**No task-stage limits are checked.** The engine has no task shaders: meshlet
+culling is a compute pass writing indirect arguments, and the renderer's one
+`CreateMeshShaderPipeline` call passes an empty task source.
+
+The dialog names which check failed and which hardware generations qualify,
+because "device unsuitable" on its own sends people to the wrong place. The
+measured limits are also logged on every successful startup, including
+`maxMeshWorkGroupCount[0]` **raw**, before the overflow clamp the caller applies.
+A device reporting 4294967295 there is the signature of the overflow that once
+made an entire machine render nothing, so it is worth being able to read it
+straight out of a user's log.
 
 `VK_KHR_unified_image_layouts` is additionally gated on the **validation layer
 version**: it is only enabled when no validation layer is present or the layer is
@@ -147,37 +161,57 @@ The gap is fragmentation plus reserve. `bReBAR` marks a heap that is both device
 local and host visible and larger than the legacy 256 MB BAR window, which is
 what lets the engine write directly into VRAM.
 
-### Deferred frees
+### Retiring
 
-Freed memory is retired only after every in-flight frame that could reference it
-has completed. The backend keeps a pending list keyed on frame number and
-releases entries once `Frame - Pending.Frame > kFramesInFlight`.
+Destruction goes through `RHI::Core::Retire`, and the gate is a **fence, not a
+frame count**. Each retired item records, per queue, that queue's submission
+counter plus its open command list count; the drain at the next `BeginFrame` for
+that slot destroys only the items every queue's timeline has passed. Counting
+frames would be wrong in both directions here, because an open recording can name
+a resource the counters do not account for yet, and a queue that has not been
+submitted to in a while has not moved at all.
+
+The drain is metered (64 destroys per frame, uncapped past a 512 item backlog)
+and reports `RHI/RetireBacklog` to Tracy. See
+[RHI: Retiring](/internals/rhi/#retiring).
 
 ### The upload ring
 
 `Renderer/RHIUpload.h` is the batched upload path.
 
 ```cpp
-Upload::UploadBuffer(Dest, Data, Size);
-Upload::UploadTexture(Dest, Mip, Data, Size, RowPitchTexels);
-Upload::UploadClearTexture(Dest, ClearValue);
+RHI::UploadBuffer(Dest, Data, Size);
+RHI::UploadTexture(Dest, Layer, Mip, Data, Size, RowPitchTexels);
+RHI::UploadTextureCopy(Dest, DestLayer, DestMip, ...);
+RHI::UploadClearTexture(Dest, ClearValue);
+RHI::FlushUploadsAndWait();
 ```
 
 Callers stage bytes into a per-frame CPU-write linear ring and return
-immediately. Every queued copy is recorded once at the next
-`RHI::Core::BeginFrame`, followed by a single `Transfer -> All` barrier. That
-replaces the old pattern of one staging allocation, one submit, and one fence
-block per upload.
+immediately. Queued copies are recorded once at the next `RHI::Core::BeginFrame`,
+through `Upload::FlushSplit`: buffer copies go on the transfer queue and image
+copies on graphics when async transfer is real, and both land on graphics when it
+is not. That replaces the old pattern of one staging allocation, one submit, and
+one fence block per upload.
 
-Two behaviors to be aware of:
+Things to know:
 
 - If the destination is host visible, `UploadBuffer` writes through immediately
   and queues nothing.
-- An upload becomes resident **at the next `BeginFrame` flush**. Data that must
-  be resident before its first use (boot placeholders, stock LUTs) has to use
-  `Upload::FlushUploadsAndWait()`, which restores the synchronous guarantee.
+- An upload becomes resident **at the next `BeginFrame` flush**, not when it was
+  queued. Data needed before its first use (boot placeholders, stock LUTs) calls
+  `FlushUploadsAndWait()`, which restores the synchronous guarantee.
+- To ask whether specific bytes have landed, take `Upload::BatchForQueuedOps()`
+  *after* queueing them and test `Upload::IsBatchComplete(Batch)`. A frame count
+  is not an answer: uploads flush at the top of `BeginFrame`, so what a
+  queue-time frame number means depends on where in the frame the caller stood.
+- **`Upload::CancelTexture` / `CancelBuffer` must run before releasing a resource
+  that may have queued ops.** `BeginFrame` drains the retire queue *before* it
+  flushes, so a surviving op records against a destroyed image or a freed
+  address, and once that handle or address is recycled it corrupts a live
+  resource instead of faulting. Both are cheap no-ops when nothing is queued.
 
-All three staging calls are thread safe.
+The staging calls are thread safe.
 
 ## Descriptors
 
@@ -222,7 +256,13 @@ geometry lands clockwise in framebuffer space.
 
 ## Swapchain and presentation
 
-- Image count is `max(kFramesInFlight, minImageCount)`.
+- Image count is `max(kFramesInFlight, minImageCount)`, clamped to
+  `maxImageCount` when the surface reports one.
+- `ChoosePresentMode` maps `EPresentMode` onto Vulkan. `FIFO` returns
+  `VK_PRESENT_MODE_FIFO_KHR` without querying, since it is the one mode the spec
+  guarantees. `Mailbox` and `Immediate` query the surface, fall back to each
+  other when unsupported (both render uncapped, so either is a closer match than
+  FIFO), and fall back to FIFO only if neither exists.
 - **Binary** semaphores handle acquire and present: an acquire semaphore ring
   (at least `kFramesInFlight` entries, cycled per acquire) and one present
   semaphore per swapchain image, indexed by the acquired image.
@@ -250,6 +290,11 @@ geometry lands clockwise in framebuffer space.
   crash dump points at a pass rather than an opaque command buffer offset. An
   unbalanced marker corrupts the label stack for the rest of the frame, so every
   `Begin` needs its `End` on every path, including early returns.
+- **Breadcrumbs** through `VK_AMD_buffer_marker`, initialized after
+  `volkLoadDevice` because they need `vkCmdWriteBufferMarkerAMD` resolved. They
+  register a crash-handler diagnostic provider that reports whatever was still
+  outstanding, which narrows a device loss to the work in flight when it
+  happened.
 - `RHI::HandleDeviceLost()` is the entry point that dumps everything the tracker
   collected.
 

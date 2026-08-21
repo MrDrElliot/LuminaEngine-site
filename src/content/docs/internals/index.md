@@ -70,17 +70,17 @@ FRenderManager::FrameEnd
 
 | Directory | What lives there |
 | --- | --- |
-| `Engine/Source/Runtime/Core` | Object system, reflection runtime, serialization, delegates, math, threading primitives, console variables, profilers |
-| `Engine/Source/Runtime/Containers` | EASTL aliases, `FString`, `FName`, and the engine-specific container types |
-| `Engine/Source/Runtime/Memory` | Allocator facade over rpmalloc, frame and linear allocators, memory tracking |
-| `Engine/Source/Runtime/TaskSystem` | Fiber job scheduler, `ParallelFor`, task graph, futures, fiber-aware sync |
-| `Engine/Source/Runtime/Renderer` | RHI declaration, Vulkan backend, shader compiler and cache, material manager |
-| `Engine/Source/Runtime/World` | `CWorld`, the EnTT registry facade, entity systems, and the render scene |
-| `Engine/Source/Runtime/Assets` | Asset registry, asset manager, asset types |
-| `Engine/Source/Runtime/Scripting` | .NET host, interop surface, script structs |
-| `Engine/Source/Runtime/Physics` | Physics facade and the Jolt backend |
-| `Engine/Source/Runtime/UI` | RmlUi integration |
-| `Engine/Source/Runtime/Tools` | ImGui plumbing, importers, transactions, primitives, fonts |
+| `Engine/Source/Runtime/Source/Core` | Object system, reflection runtime, serialization, delegates, math, threading primitives, console variables, profilers |
+| `Engine/Source/Runtime/Source/Containers` | The in-house containers, strings, formatting, algorithms, callables, and `FName` |
+| `Engine/Source/Runtime/Source/Memory` | Allocator facade over rpmalloc, frame and linear allocators, memory tracking |
+| `Engine/Source/Runtime/Source/TaskSystem` | Fiber job scheduler, `ParallelFor`, task graph, futures, fiber-aware sync |
+| `Engine/Source/Runtime/Source/Renderer` | RHI declaration, Vulkan backend, shader compiler and cache, material manager |
+| `Engine/Source/Runtime/Source/World` | `CWorld`, the EnTT registry facade, entity systems, and the render scene |
+| `Engine/Source/Runtime/Source/Assets` | Asset registry, asset manager, asset types |
+| `Engine/Source/Runtime/Source/Scripting` | .NET host, interop surface, script structs |
+| `Engine/Source/Runtime/Source/Physics` | Physics facade and the Jolt backend |
+| `Engine/Source/Runtime/Source/UI` | RmlUi integration |
+| `Engine/Source/Runtime/Source/Tools` | ImGui plumbing, importers, transactions, primitives, fonts |
 | `Engine/Editor` | Everything editor-only: tools, panels, property grid, node graphs |
 | `Engine/Applications/Lumina` | The executable entry point |
 | `Engine/Applications/Reflector` | The code generator |
@@ -97,7 +97,7 @@ FRenderManager::FrameEnd
 | [Threading Model](/internals/threading-model/) | Threads, ownership rules, hand-off points |
 | [Task System](/internals/task-system/) | Fiber scheduler, counters, `ParallelFor`, task graph |
 | [Memory](/internals/memory/) | Allocators, frame arenas, tracking |
-| [Math and Containers](/internals/math-and-containers/) | The in-house math library, SIMD, EASTL aliases, `FName` |
+| [Math and Containers](/internals/math-and-containers/) | The in-house math library, SIMD, containers, strings, formatting, `FName` |
 | [Delegates and Events](/internals/delegates-and-events/) | Delegates, reentrancy, core delegates, input events |
 | [Configuration and Settings](/internals/config-and-settings/) | `FConfig`, developer settings classes, live refresh |
 | [The Object System](/internals/cobject/) | `CObject`, `CClass`, packages, handles, lifetime |

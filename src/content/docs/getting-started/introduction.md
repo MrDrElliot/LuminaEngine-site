@@ -38,8 +38,8 @@ a `.sln`.
 | Git | Any recent version |
 
 The GPU requirement is a hard floor, not a recommendation: the renderer draws all
-geometry through mesh and task shaders and is rejected at startup on a device
-that cannot run them. That means NVIDIA Turing (GTX 16 / RTX 20) or newer, AMD
+geometry through mesh shaders and is rejected at startup on a device that cannot
+run them. That means NVIDIA Turing (GTX 16 / RTX 20) or newer, AMD
 RDNA2 (RX 6000) or newer, or Intel Arc.
 
 ### Windows
@@ -75,7 +75,9 @@ of it, including whether any installed GPU actually reports `VK_EXT_mesh_shader`
 
 :::note
 JetBrains Rider works on both platforms, but is not required. On Windows the
-project templates ship Rider run configurations next to the Visual Studio ones.
+project templates ship Rider run configurations next to the Visual Studio ones,
+and there is a [Rider plugin](/getting-started/installation/#rider-plugin) that
+adds build actions and reflection macro highlighting.
 :::
 
 :::caution

@@ -8,58 +8,81 @@ per-frame **extract** step. Extract writes a snapshot; recording reads only that
 snapshot. Nothing in a render pass ever reads live ECS state.
 
 Both halves run on the game thread inside `FrameEnd`, one after the other. The
-split is not a thread boundary — it is what lets several worlds record
+split is not a thread boundary. It is what lets several worlds record
 concurrently, and what keeps passes off the ECS.
 
 ```
 FrameEnd (game thread)
   FWorldManager::ExtractWorlds
-    CWorld::Extract                  fill this frame's snapshot
+    FRenderReleaseQueue::BeginExtract   open a new extract generation
+    CWorld::Extract                     fill this frame's snapshot
   FRenderManager::FrameEnd
-    RHI::Core::BeginFrame(slot)      wait the frame timeline semaphore
+    ImGuiRenderer->BuildFrame           editor only, produces this frame's ImDrawData
+    RHI::Core::BeginFrame(slot)         wait the slot, drain retires, flush uploads
     FWorldManager::RenderWorlds
-      IRenderScene::PrepareRender    every scene, serial
-      IRenderScene::RenderView       per scene, parallel when >1 world
+      IRenderScene::PrepareRender       every live scene, serial
+      IRenderScene::RenderView          per scene, parallel when >1 live world
     acquire swapchain / composite / present
 ```
 
 ## Frames in flight
 
-`RHI::kFramesInFlight` is **3**. The frame index advances once per
+`RHI::kFramesInFlight` is **2**. The frame index advances once per
 `FRenderManager::FrameEnd`, and `slot = FrameIndex % kFramesInFlight` selects:
 
-- the command list pool to recycle,
+- the command lists to recycle,
 - the transient memory ring slice to reset,
-- the render scene's snapshot slot in its frame ring,
-- the ImGui draw-data snapshot slot.
+- the retire queue to drain,
+- each render scene's per-slot buffers (draw arguments, cull scratch, readbacks).
 
-`RHI::Core::BeginFrame(slot)` waits the **frame timeline semaphore** for that
-slot's previous submission before touching any of it. That single wait is what
-makes recycling everything else safe.
+`RHI::Core::BeginFrame(slot)` waits **every queue's** timeline value recorded for
+that slot, not just the last queue to submit into it. That wait is what makes
+recycling everything else safe.
+
+What `BeginFrame` does, in order:
+
+1. Waits the slot's recorded timeline value on each queue.
+2. Drains the slot's retire queue, then calls `RHI::RetireSlot(slot)` for the
+   backend-side destroys.
+3. Flushes shader-library releases queued since the last frame boundary.
+4. Resets the slot's command lists.
+5. Flushes pending uploads, split across the transfer and graphics queues when
+   async transfer is real, and records the timeline values they signal.
+6. Grows the slot's transient ring slice if last frame overflowed it, shrinks it
+   after a long low streak, then rewinds the cursor.
+7. Publishes the slot as current, and only then retires the staging memory the
+   upload flush used, so it lands on the queue gated by that upload's own
+   timeline value.
 
 ## Extract
 
 `CWorld::Extract()` runs on the game thread during `FrameEnd`, through
-`FWorldManager::ExtractWorlds()`. Worlds that are suspended or have no renderer
-(a dedicated server) are skipped, so the editor never extracts an invisible
-world.
+`FWorldManager::ExtractWorlds()`. Worlds that are suspended, throttled, or have
+no renderer (a dedicated server) are skipped, so the editor never extracts an
+invisible world.
 
 `IRenderScene::Extract(ViewVolume, PostProcess)` fills the frame slot's snapshot:
 visible primitives, lights, transforms, material bindings, per-view constants.
-Because the ring is N-buffered, extract for frame N can run while `RenderView`
-for frame N-1 is still recording. Extract **back-pressures** on the slot's
-consumed fence: if the render side has not released the slot yet, extract waits.
+Everything a pass needs must be in there. A pass that reaches back into the ECS
+is reading data the game thread may be mutating.
 
-Everything a pass needs must be in the snapshot. A pass that reaches back into
-the ECS is reading data the game thread may be mutating concurrently.
+Extract also opens a **release generation**. Anything posted to
+`FRenderReleaseQueue` from that point carries the current generation and cannot
+be released until a later extract has been rendered, which is what keeps a
+material slot and its textures alive for the frames the retained scene is still
+drawing them. See [Scene resources and release](#scene-resources-and-release).
 
 ## FrameEnd
 
 `FRenderManager::FrameEnd` advances the frame index, builds the ImGui draw data,
-and then runs the frame inline:
+and runs the frame inline:
 
 ```cpp
-RHI::Core::BeginFrame(ThisFrameIndex);      // frame timeline fence for this slot
+const uint8 ThisFrameIndex = CurrentFrameIndex;
+CurrentFrameIndex = (CurrentFrameIndex + 1) % RHI::kFramesInFlight;
+
+ImGuiDrawData = ImGuiRenderer->BuildFrame();     // editor only
+RHI::Core::BeginFrame(ThisFrameIndex);
 ApplyPendingResize();
 GWorldManager->RenderWorlds(ThisFrameIndex);
 // acquire, composite, present
@@ -71,42 +94,45 @@ See [Threading Model](/internals/threading-model/) for what may touch what.
 
 `FWorldManager::RenderWorlds(FrameIndex)` runs in two phases.
 
-1. **`PrepareRender(FrameIndex)` for every scene, serially.** This is where
+1. **`PrepareRender(FrameIndex)` for every live scene, serially.** This is where
    device-wide reconciliation lives: work that cannot run while other scenes are
    recording, typically anything guarded by `WaitDeviceIdle` such as recreating
-   IBL cubemaps at a new resolution.
+   IBL cubemaps at a new resolution. The loop counts live worlds as it goes.
 2. **`RenderView(FrameIndex)` per scene.** Each scene opens its own command list,
    so scenes can record concurrently. With more than one live world (the editor's
-   multi-view case) this runs under `Task::ParallelFor` (`r.ParallelWorldRender`);
-   with a single world it takes the identical serial path with no task overhead.
+   multi-view case) this runs under `Task::ParallelFor`
+   (`r.ParallelWorldRender`); with a single world it takes the identical serial
+   path with no task overhead.
+
+Both phases gate on the same condition, so a world with no renderer or one not
+ticking this frame does neither. A skipped record leaves the scene's output image
+holding the last frame it drew, which is what a throttled viewport should show:
+low frame rate, not frozen.
 
 ## Presentation
 
 After the worlds have recorded:
 
 1. `AcquireNextImage(Swapchain)`. An invalid handle means out of date: recreate
-   the swapchain, release the ImGui snapshot slot, and skip the frame.
+   the swapchain and return, skipping the rest of the frame.
 2. Open a command list, bind the global texture heap, and transition the
    swapchain image for rendering.
-3. **Editor build**: render RmlUi editor contexts, then record ImGui from the
-   game-thread snapshot straight into the swapchain image. The scene's output
-   image is sampled by the viewport panel as a bindless texture, so there is no
+3. **Editor build**: render RmlUi editor contexts, then record ImGui from this
+   frame's draw data straight into the swapchain image. The scene's output image
+   is sampled by the viewport panel as a bindless texture, so there is no
    separate blit.
 4. **Game build**: blit the primary game world's display texture
    (`IRenderScene::GetDisplayTexture()`) into the swapchain image.
 5. `RHI::Core::Present(Swapchain, CL)`.
-6. **Editor build**: render and present secondary ImGui viewports (dragged-out
-   tool windows, each with its own swapchain), then release the snapshot slot.
-   This must finish before the slot is released because it reads that slot's
-   captures.
+6. **Editor build**: render and present secondary ImGui viewports, the
+   dragged-out tool windows, each with its own swapchain.
 
 ## ImGui draw data
 
 `ImGuiRenderer->BuildFrame()` produces the frame's `ImDrawData` at the top of
-`FRenderManager::FrameEnd`, and it is recorded later in the same function. Since
-recording no longer happens a frame later on another thread, the draw data does
-not need to be snapshotted into a ring — it is consumed before control returns to
-the update loop.
+`FRenderManager::FrameEnd`, and it is recorded later in the same function. There
+is no snapshot ring: recording no longer happens a frame later on another thread,
+so the draw data is consumed before control returns to the update loop.
 
 ## The render scene interface
 
@@ -116,22 +142,23 @@ defaults to "not supported" so a minimal renderer stays minimal.
 
 **Required:**
 
-| Method | Thread | Purpose |
-| --- | --- | --- |
-| `Init()` | Game | Two-phase construction. Required here because it makes virtual calls and hands `this` to systems, neither of which works from a constructor. |
-| `Extract(ViewVolume, PostProcess)` | Game | Fill the frame slot's snapshot. |
-| `RenderView(FrameIndex)` | Recording | Record and submit. Reads only the snapshot. |
-| `Resize(NewSize)` | Game | Recreate render targets. |
-| `GetRenderExtent()` | Game | Current render target size. |
+| Method | Purpose |
+| --- | --- |
+| `Init()` | Two-phase construction. Required here because it makes virtual calls and hands `this` to systems, neither of which works from a constructor. |
+| `Extract(ViewVolume, PostProcess)` | Fill the frame slot's snapshot. Game thread. |
+| `RenderView(FrameIndex)` | Record and submit. Reads only the snapshot. |
+| `Resize(NewSize)` | Recreate render targets. |
+| `GetRenderExtent()` | Current render target size. |
 
 There is deliberately **no `Shutdown()`**. Each class's destructor releases what
 it owns.
 
-**Optional hooks:** `PrepareRender`, `SignalFrameConsumed`,
+**Optional hooks:** `PrepareRender`, `SetPrimaryViewSize`,
 `SetActivePostProcessMaterials`, `GetDisplayResourceID`, `GetDisplayTexture`,
-`GetEntityAtPixel` and `SetPickerCursor` (editor picking),
-`RegisterCaptureView` / `SetCaptureView` / `GetCaptureDisplayResourceID` (scene
-capture), `GetShadowAtlas`, and the `IPrimitiveDrawInterface` debug-draw methods.
+`GetEntityAtPixel` and `SetPickerCursor` (editor picking), `RegisterCaptureView`
+/ `SetCaptureView` / `GetCaptureDisplayResourceID` (scene capture),
+`GetShadowAtlas`, `GetImmediateLines` / `BeginImmediateLines`, and the
+`IPrimitiveDrawInterface` debug-draw methods.
 
 Capture view handles are **only meaningful to the scene that issued them**.
 `SetCaptureView` returns false for a handle the scene does not recognize (for
@@ -164,17 +191,28 @@ void FMyGameModule::ShutdownModule()
 - A module that installs an override **must** clear it before unloading, or the
   function pointer dangles into an unloaded DLL.
 
-## Scene images and ownership
+## Scene resources and release
 
-Render targets are `FSceneImage` values carrying an `bOwned` flag. A scene that
+Render targets are `FSceneImage` values carrying a `bOwned` flag. A scene that
 hands one of its images to a second holder calls `BorrowSceneImage` rather than
 copying the value, so only the owner releases it. Getting this wrong produces a
 double free at scene teardown.
 
-Images and buffers freed mid-frame go onto per-slot deferred lists
-(`DeferredBufferFrees`, `DeferredImageReleases`) and are released at the top of
-`RenderView` for that slot, at which point the frame timeline has already proven
-the GPU is done with them.
+Resources whose owner has gone away go through `FRenderReleaseQueue`
+(`Renderer/RenderRelease.h`), which clears **two** gates in order:
+
+1. **Extract liveness.** The token is held until every extract that was already
+   in flight when it was posted has been rendered. The caller supplies the other
+   half: it posts only once the owning object's last strong reference has
+   dropped, so nothing game-side can hand the resource out again.
+2. **GPU liveness.** The release itself routes through `RHI::Core::Retire`, which
+   fences per queue.
+
+Gate 2 alone is not enough. Releasing a material slot on GPU liveness only is
+what made an unloaded material flash the magenta placeholder, because the
+retained scene still had a frame or two of primitives naming the slot. The
+counters are global rather than per scene, since one `FMaterialManager` is shared
+across every world.
 
 ## Idle reclaim
 
@@ -190,17 +228,17 @@ batching several of them stalls hard.
 There is nothing to flush: recording and submission finish inside `FrameEnd`
 before the update loop continues, so any code running in an update stage is
 already outside the render half of the frame. What still matters is the **GPU**,
-which is up to `kFramesInFlight` frames behind — anything that destroys a
-resource the GPU may still be reading goes through the deferred-release lists
-below, or `WaitIdle` for the heavyweight cases (renderer teardown, resize).
+which is up to a frame behind. Anything that destroys a resource the GPU may
+still be reading goes through `RHI::Core::Retire` or the release queue above, or
+`WaitIdle` for the heavyweight cases (renderer teardown, resize).
 
 ## Common failure modes
 
 | Symptom | Cause |
 | --- | --- |
-| Renderer stalls after a swapchain resize | An early return from the render command that skipped `SignalSnapshotSlotConsumed`. |
-| Extract blocks every frame | The render side is not releasing slots, usually a scene that never calls `SignalFrameConsumed`. |
 | Torn or one-frame-late visuals | A pass reading live ECS state instead of the snapshot. |
+| Unloaded material flashes magenta | A render resource released on GPU liveness alone, bypassing the release queue's extract gate. |
 | Double free at world teardown | A scene image copied instead of borrowed, so two holders think they own it. |
+| A viewport freezes instead of slowing down | The world stopped ticking, so both `PrepareRender` and `RenderView` are skipped. Expected for a throttled tab, a bug anywhere else. |
 | Hitch when several editor viewports go idle | More than one idle reclaim in a frame. |
 | Crash on module unload with a custom renderer | `RenderSceneFactory::SetOverride(nullptr)` missing from `ShutdownModule`. |

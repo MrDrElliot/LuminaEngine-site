@@ -67,9 +67,9 @@ packages are required rather than the Wayland ones.
 
 These apply on both platforms. You need a GPU and driver supporting **Vulkan 1.4**
 and **mesh shaders** (`VK_EXT_mesh_shader`). Both are hard requirements. The
-renderer draws all geometry through mesh and task shaders, with no vertex and
-index path to fall back to, so a device that cannot run them is rejected at
-startup with an explicit message rather than failing later.
+renderer draws all geometry through mesh shaders, with no vertex and index path
+to fall back to, so a device that cannot run them is rejected at startup with an
+explicit message rather than failing later.
 
 In practice that means:
 
@@ -245,6 +245,29 @@ for you.
 
 </TabItem>
 </Tabs>
+
+## Rider plugin
+
+Optional, and only useful if you work on the engine's C++ in
+[Rider](https://www.jetbrains.com/rider/). Install **Lumina Engine** from the
+[JetBrains Marketplace](https://plugins.jetbrains.com/plugin/33643-lumina-engine),
+or from inside Rider under **Settings**, **Plugins**, **Marketplace**, searching
+for **Lumina Engine**.
+
+It adds a **Lumina** menu under **Tools**, plus a toolbar group, wrapping
+LuminaBuildTool: Build, Rebuild, Run, Clean, Generate Project Files, and
+Regenerate Reflection. Compiler errors in the console are clickable, and the same
+commands are available as a run configuration.
+
+It also highlights `REFLECT`, `PROPERTY`, `FUNCTION`, and the other reflection
+macros, and checks their specifiers against the Reflector's own table, so a
+misspelled specifier is underlined in the editor with the same message the build
+prints as `LRT1009`. Completion inside a macro offers only the specifiers that
+macro accepts, hovering one explains what it does, and the plugin's tool window
+lists them all.
+
+Requires Rider 2026.1 or 2026.2. The engine root is detected from the open
+solution, so there is nothing to configure.
 
 ## External dependencies
 

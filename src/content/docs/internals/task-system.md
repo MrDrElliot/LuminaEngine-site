@@ -15,7 +15,7 @@ when building a new primitive.
 
 ## The scheduler
 
-One worker thread per core (`hardware_concurrency() - 1` by default). Each job
+One worker thread per core (`Threading::GetNumThreads() - 1` by default). Each job
 runs on a pooled user-mode fiber.
 
 Work is **sharded per worker**: every worker owns one lock-free MPMC queue per
@@ -38,7 +38,7 @@ thread hostage.
 
 ```cpp
 Jobs::Initialize({
-    .NumWorkerThreads   = 0,   // 0 => hardware_concurrency() - 1
+    .NumWorkerThreads   = 0,   // 0 => GetNumThreads() - 1
     .NumExternalThreads = 8,   // reserved slots for main / other non-worker threads
     .NumWorkFibers      = 0,   // 0 => default pool size
     .FiberStackSize     = 0,   // 0 => default per-fiber reserved stack

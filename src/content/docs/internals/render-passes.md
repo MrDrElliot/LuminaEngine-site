@@ -3,27 +3,33 @@ title: Render Passes
 description: A pass-by-pass walk of the default scene renderer.
 ---
 
-`FForwardRenderScene`
-(`World/Scene/RenderScene/Forward/ForwardRenderScene.cpp`) is the engine's
-default `IRenderScene`. Despite the name it is not a classic forward renderer.
-Opaque meshes go through a **visibility buffer** and are shaded in a
-**tile-binned deferred material pass**; terrain renders forward with an early-Z
-pre-pass; translucency is forward with weighted-blended OIT; and light
-assignment is **clustered**.
+`FDefaultSceneRenderer`
+(`World/Scene/RenderScene/Default/DefaultSceneRenderer.cpp`) is the engine's
+default `IRenderScene`. Opaque meshes go through a **visibility buffer**, are
+classified per material into pixel runs, and are shaded by **indirect compute
+dispatches** into a GBuffer that a single lighting pass consumes. Terrain renders
+forward with an early-Z pre-pass, translucency is moment-based OIT, and light
+assignment is clustered.
 
 The whole thing is recorded by hand in `RenderView`. There is no render graph, so
 the order below **is** the dependency description.
+
+Pass names in the tables are the `SCENE_GPU_SCOPE` labels, which is what a Tracy
+GPU zone, a RenderDoc capture, and a crash dump all show.
 
 ## Named images
 
 Render targets are addressed through `ENamedImage`, indexed per view:
 
 `HDR`, `LDR`, `PostProcessScratch`, `SMAAEdges`, `SMAABlend`, `SMAAArea`,
-`SMAASearch`, `SSAO`, `SSAODenoise`, `SSAOBlur`, `Cascade`, `DepthAttachment`,
-`DepthPyramid`, `Picker`, `VisBuffer`, `Accum`, `Revealage`, `WaterRefraction`,
-`DBufferA` / `DBufferB` / `DBufferC`, `AdaptedLuminance`, `FroxelScatter`,
-`FroxelIntegrated`, `HDR_MS`, `Depth_MS`, `Picker_MS`, `BRDFLut`, `SkyCube`,
-`SkyIrradiance`, `SkyPrefilter`, plus editor billboard icons.
+`SMAASearch`, `GTAO`, `GTAODenoise`, `GTAOBlur`, `ShadowMask`, `Cascade`,
+`CascadePyramid`, `DepthAttachment`, `DepthPyramid`, `Picker`, `VisBuffer`,
+`GBufferA` through `GBufferD`, `Accum`, `MomentZeroth`, `Moments`,
+`WaterRefraction`, `DBufferA` / `DBufferB` / `DBufferC`, `AdaptedLuminance`,
+`FroxelScatter`, `FroxelIntegrated`, `AerialInScatter`, `AerialTransmittance`,
+`CloudNoise`, `CloudScatter`, `BRDFLut`, `SkyCube`, `SkyIrradiance`,
+`SkyPrefilter`, `ProbeCaptureCube`, `ProbePrefiltered`, plus editor billboard
+icons.
 
 Each `FSceneView` owns its own set, which is what lets scene capture views render
 the same world from another camera.
@@ -32,17 +38,18 @@ the same world from another camera.
 
 `RenderView(FrameIndex)` starts by:
 
-1. Selecting the frame slot and releasing that slot's deferred buffer frees and
-   image releases. Safe because `RHI::Core::BeginFrame` already waited the frame
-   timeline for this slot.
-2. `SyncMSAAState()`, then bailing out if the slot was never extracted.
-3. Publishing the depth pyramid dimensions and heap slot into the frame's cull
-   constants, and copying frame stats out for the editor.
+1. Taking the frame slot, and returning immediately if the slot was never
+   extracted.
+2. Pointing at the primary view and publishing the depth pyramid and cascade
+   pyramid dimensions and heap slots into the frame's cull constants.
+3. Copying frame stats out for the editor, and marking this frame's pyramid
+   usable by the next frame.
 4. Opening a command list, binding the global texture heap, and setting
    `EFrontFace::CW` (the projection bakes the Vulkan Y flip, so CCW-wound
    geometry lands clockwise in framebuffer space).
-5. An `AllCommands -> AllCommands` barrier, ordering last frame's reads of these
-   targets (the editor viewport sampling the output) before this frame's writes.
+
+Everything then records under two markers, `RenderView Geometry` and
+`RenderView Shading`, and the frame ends with one `RHI::Core::Submit`.
 
 ## Pass order
 
@@ -50,124 +57,153 @@ the same world from another camera.
 
 | Pass | What it does |
 | --- | --- |
-| RmlUi world widgets | Rasterizes world-space UI documents into their own render targets before anything samples them. |
-| `ResetPass_Render` | Clears per-frame counters and indirect args. |
-| `CompileDrawCommands_Render` | Buffer resizes and uploads for the draw commands extract compiled. |
-| `TexturePaintPass` | Applies queued render-target painting (terrain and texture painting tools). |
-| `CullPassEarly` | Frustum and cone culling for every view, plus Hi-Z occlusion for the camera against **last frame's** depth pyramid. Meshlets the stale pyramid hides are **deferred, not dropped**. Writes the mesh-task `GroupCountX` straight into `{0,1,1}`-seeded indirect args. |
-| `SkinningPass` | Compute skinning for skeletal meshes into pre-skinned vertex buffers. |
-| `VisBufferPass` (phase 1) | Rasterizes the early, non-occluded camera meshlets into triangle IDs plus depth, clearing both. |
-| `TerrainUpdatePass` | Terrain chunk streaming and meshlet updates. |
-| `TerrainCullPass` | Terrain chunk culling against last frame's end pyramid. Chunks are large, so the one-frame lag is a conservative trade. |
-| `TerrainDepthPrePass` | Terrain depth plus a VisBuffer "empty" stamp. Runs **before** the mid pyramid so terrain occludes the late meshlet re-test, SSAO and decals see full opaque depth, and the deferred pass skips mesh pixels terrain covers. |
-| `DepthPyramidPass` (mid) | Rebuilds the pyramid from this frame's partial depth (meshes plus terrain) using single-pass downsample. |
-| `CullPassLate` | Re-tests the deferred meshlets against the rebuilt pyramid and emits the disoccluded ones to the camera-late view. |
-| `VisBufferPass` (phase 2) | Rasterizes the disoccluded meshlets, loading and accumulating into the same VisBuffer and depth without clearing. Removes the one-frame disocclusion lag. |
+| `RmlUi Widgets` | Rasterizes world-space UI documents into their own render targets before anything samples them. |
+| `Reset Pass` | Clears per-frame counters and indirect arguments. |
+| `Compile Draw Commands` | Buffer resizes and uploads for what extract compiled, then `GPU Scene Cull`: retained instance upload, instance cull, meshlet block build, draw prefix, and the **early** meshlet cull. |
+| `Sky Cube Capture` | Captures the sky into a cubemap, early so the IBL chain below stays in lockstep with the background that gets drawn. |
+| `Texture Paint` | Applies queued render-target painting (terrain and texture painting tools). |
+| `Terrain Update` | Terrain chunk streaming and meshlet updates. |
+| `Terrain Cull` | Terrain chunk culling against last frame's end pyramid. Chunks are large, so the one-frame lag is a conservative trade. |
+| `Skinning` | Compute skinning for skeletal meshes into pre-skinned vertex buffers. |
+| `VisBuffer Early` | Rasterizes the replay set (see below) into triangle IDs plus depth, clearing both. |
+| `Terrain Depth` | Terrain depth plus a VisBuffer "empty" stamp. Runs **before** the mid pyramid so terrain occludes the late test, GTAO and decals see full opaque depth, and shading skips mesh pixels terrain covers. |
+| `Depth Pyramid (Mid)` | Rebuilds the pyramid from this frame's partial depth (replayed meshes plus terrain), single-pass downsample. |
+| `Meshlet Cull` (late slice) | Tests every instance against the rebuilt pyramid and emits what the early phase did not draw. |
+| `VisBuffer Late` | Rasterizes those, loading and accumulating into the same VisBuffer and depth without clearing. |
+| `Depth Pyramid (End)` | Pyramid over the full mesh depth. |
+| `Cluster Build` | Builds the view's froxel cluster grid. Rebuilt when the projection, near/far, or screen size changes. |
+| `Light Cull` | Assigns lights to clusters. |
+| `Point Shadows` / `Spot Shadows` | Cube and spot shadow maps into the shadow atlas. |
+| `Cascaded Shadows` | Cascaded shadow maps for the directional light. |
 
-This two-phase occlusion scheme is the standard "test against last frame, then
-re-test the survivors against this frame" approach, with the important detail
-that phase 0 **defers** rather than discards, so nothing pops in a frame late.
+Every `Depth Pyramid` build is skipped when `bFreezeCulling` is set, which is what
+lets a frozen-culling debug view keep drawing the set it froze with.
 
-### Lighting setup
+#### Two-phase occlusion
+
+The scheme is the classic one, driven by a **persistent instance visibility
+set**, not by deferring meshlets within a frame:
+
+- **Early** replays the instances that were visible last frame, with no Hi-Z
+  test, purely to lay down depth.
+- The **mid pyramid** is built from that depth plus terrain.
+- **Late** tests every instance against that pyramid and draws whatever Early did
+  not, so a disocclusion resolves in the same frame it happens.
+
+The visibility buffer is double buffered and the write index flips each frame, so
+last frame's set stays readable for the whole frame while this frame's
+accumulates. A view without `ECullViewFlags::MeshletHiZ` is single-phase and
+drawn entirely by Early.
+
+### Environment, occlusion, and shading
 
 | Pass | What it does |
 | --- | --- |
-| `ClusterBuildPass` | Builds the view's froxel cluster grid. Rebuilt when the projection, near/far, or screen size changes. |
-| `LightCullPass` | Assigns lights to clusters. |
-| `PointShadowPass` | Cube shadow maps for point lights, into the shadow atlas. |
-| `SpotShadowPass` | Spot light shadow maps. |
-| `CascadedShowPass` | Cascaded shadow maps for the directional light (four cascades). |
-
-### Environment and IBL
-
-| Pass | What it does |
-| --- | --- |
-| `SkyCubeCapturePass` | Captures the sky into a cubemap. Placed here so the IBL cube stays in lockstep with the rendered background. |
-| `IrradianceConvolutionPass` | Convolves the diffuse irradiance cubemap from that capture. |
-| `PrefilterEnvMapPass` | Convolves the GGX specular prefilter chain. |
-| `EnvironmentPass` | Draws the sky or background into HDR. |
+| `Cascade Pyramid` | Hi-Z over the cascade atlas, for culling into the shadow views. |
+| `Sky Irradiance` | Convolves the diffuse irradiance cube from the sky capture. |
+| `Sky Prefilter` | Convolves the GGX specular prefilter chain. |
+| `Decals` | DBuffer decals projected onto the full opaque depth. |
+| `GTAO` plus its blur | Ground-truth ambient occlusion from full opaque depth. |
+| `Shadow Mask` | Screen-space shadow mask, so shading samples one texture instead of every cascade. |
+| `Environment` | Draws the sky or background into HDR. |
+| `VisBuffer Classify` | Counts pixels per material, prefix-sums the counts, scatters each pixel into its material's run, and writes the indirect arguments. |
+| `Material GBuffer` | One indirect compute dispatch per material over its own pixel run, writing the GBuffer. |
+| `Deferred Lighting` | One indirect dispatch over every classified pixel, writing lit HDR. |
+| `Picker Resolve` (editor) | Resolves entity IDs out of the VisBuffer into the picker target. |
+| `Scene Debug View` (non-Shipping) | Debug visualization modes. |
+| `Terrain Render` | Forward terrain shading, early-Z against the pre-pass depth so the heavy terrain pixel shader runs once per visible pixel. |
+| `Depth Pyramid (End)` | Final pyramid, now including terrain, consumed by next frame's early phase and terrain cull. |
 
 IBL cube reconciliation at a new resolution happens in `PrepareRender`, not here,
 because it issues `WaitDeviceIdle`.
 
-### Opaque shading
+#### The classified deferred chain
 
-| Pass | What it does |
-| --- | --- |
-| `DecalPass` | DBuffer decals projected onto the full opaque depth. |
-| `SSAOPass` plus `SSAOBlurPass` | Ambient occlusion from full opaque depth. |
-| `DeferredMaterialPass` | Shades the visibility buffer. See below. |
-| `TerrainRenderPass` | Forward terrain shading, early-Z against the pre-pass depth so the heavy terrain pixel shader runs once per visible pixel. |
-| `DepthPyramidPass` (end) | Final pyramid, consumed by next frame's early cull. |
+This is the most unusual part of the renderer, and the reason the VisBuffer
+exists. It is six steps, three of which are passes:
 
-#### The deferred material pass
+1. The VisBuffer holds a triangle and instance ID per pixel. Nothing is shaded
+   yet.
+2. **Count.** A compute pass tallies how many pixels each material owns.
+3. **Prefix sum.** Those counts become start offsets into one flat pixel list.
+4. **Scatter.** Every classified pixel writes its position into its material's
+   run, and the pass emits the indirect argument triples. The CPU never learns
+   the counts.
+5. **Material GBuffer.** One indirect dispatch per material, over exactly the
+   pixels it owns, running that material's graph and writing the GBuffer.
+   Compute rather than a rasterized quad on purpose: a pixel shader launches in
+   2x2 quads, so a one-pixel triangle would run the graph four times.
+6. **Deferred Lighting.** One dispatch lights every classified pixel exactly
+   once from the GBuffer.
 
-This is the most unusual pass in the renderer, and the reason the VisBuffer
-exists.
+CPU-side, `BuildDeferredMaterialBinning` assigns each distinct **master deferred
+shader** a dense slot, and every material instance sharing that shader maps to
+the same slot. The cost is therefore `O(distinct visible master shaders)`
+dispatches, not one per instance and not a fullscreen pass per material.
 
-Each distinct **master deferred shader** gets one dense slot, `0..N-1`. Every
-opaque material *instance* sharing that shader maps its own GPU `MaterialIndex`
-to the same slot.
+Two things that will bite:
 
-1. `ClassifyMaterialTiles.slang` (compute) walks covered pixels, writes each
-   pixel's owning slot, and sets that slot's bit in the pixel's tile bitmask.
-2. One shading draw per slot rasterizes **only the tiles whose bit is set**
-   (`DeferredMaterialTileVS.slang` self-culls the rest), keeps the pixels whose
-   recorded slot matches, and shades each with its own per-instance
-   `MaterialIndex`.
+- Background, terrain, and any material without a deferred shader are **never
+  classified**, so they keep whatever the environment pass wrote. That is the
+  intent, not a gap.
+- The pixel list packs coordinates in 16 bits, so a render extent beyond that
+  disables deferred shading for the view, with a warning. Past
+  `GMaterialMaxSlots` distinct deferred shaders, the excess does not shade.
 
-The result is `O(distinct visible master shaders)` tile-binned draws: not one per
-instance, and not a fullscreen pass per material. Instances of one master share
-both the geometry batch and the shading draw.
-
-Texture sampling in this pass uses analytic UV gradients
+Texture sampling in the material lane uses analytic UV gradients
 (`SampleTexture2DGrad`), because a deferred lane has no automatic derivatives and
 naive sampling produces mip seams across triangle, meshlet, and instance
 boundaries.
 
-### Water, translucency, and fog
+### Water, translucency, and atmosphere
 
 | Pass | What it does |
 | --- | --- |
-| `WaterPass` | After the opaque scene, so HDR holds the lit scene to refract and screen-space reflect, and before translucency. |
-| `TransparentPass` | Weighted-blended OIT accumulation into `Accum` and `Revealage`. |
-| `OITResolvePass` | Resolves those into HDR. |
-| `AdditiveTranslucentPass` | Additive blended translucency. |
-| `FroxelInjectPass` / `FroxelIntegratePass` / `FroxelApplyPass` | Volumetric fog: inject scattering into the froxel volume, integrate along view rays, apply to the scene. |
+| `Screen Space Reflections` | Traces against the depth buffer, falling back to the prefiltered cube off screen. |
+| `Water` | After the opaque scene, so HDR holds the lit scene to refract, and before translucency. |
+| `Moment Generation` | Builds the moment-based OIT moments for this frame's translucency. |
+| `Transparent` | Translucent accumulation against those moments. |
+| `OIT Resolve` | Resolves the accumulation into HDR. |
+| `Additive Translucent` | Additive blended translucency. |
+| `Aerial Perspective` | Applies the atmosphere LUT to the scene. Sky pixels are skipped; the sky already has it baked in. |
+| `Volumetric Clouds` | Cloud raymarch and composite. |
+| `Froxel Fog Inject` / `Integrate` / `Apply` | Volumetric fog: inject scattering into the froxel volume, integrate along view rays, apply to the scene. |
 
 ### Debug, particles, and world overlays
 
 | Pass | What it does |
 | --- | --- |
-| `BatchedTriangleDraw` / `BatchedLineDraw` | Debug primitive batches from `IPrimitiveDrawInterface`. |
-| `ParticleSimulatePass` / `ParticleRenderPass` | GPU particle simulation and rendering. |
-| `BillboardPass` | Editor icons and billboards, pre-tone-map, writing both HDR and the picker buffer. |
-| `TextPass` | World-space MSDF text, same MRT arrangement as billboards. |
-| `WidgetPickerPass` (editor) | World-space widgets stamp their entity ID into the picker buffer so they stay click-selectable; their color is drawn later, post-tone-map. |
-| `IssuePickerReadback` (editor) | Issued after the last picker write; the readback is consumed lazily by `GetEntityAtPixel`. |
+| `Batched Solid Tris` / `Batched Lines` | Debug primitive batches from `IPrimitiveDrawInterface`. |
+| `Particles Simulate` / `Particles Render` | GPU particle simulation and rendering. |
+| `Billboards` | Editor icons and billboards, pre-tone-map, writing both HDR and the picker buffer. |
+| `Text` | World-space MSDF text, same MRT arrangement as billboards. |
+| `Widget Picker` (editor) | World-space widgets stamp their entity ID into the picker buffer so they stay click-selectable; their color is drawn later, post-tone-map. |
+| `Picker Readback` (editor) | Issued after the last picker write; the readback is consumed lazily by `GetEntityAtPixel`. |
 
 ### Post-processing
 
 | Pass | What it does |
 | --- | --- |
-| `UnderwaterPass` | Absorption and distortion over the fully composited HDR, computed per-ray path length so a half-submerged waterline falls out naturally and above-water pixels are untouched. Before bloom and exposure. |
-| `BloomPass` | Downsample and upsample chain. |
-| `AutoExposurePass` | Adapts luminance into `AdaptedLuminance`. |
-| `ToneMappingPass` | HDR to LDR, including color grading. |
-| `PostProcessMaterialPass` | User post-process materials, in the order the world resolved them from the camera and post-process volumes. |
-| `SMAAEdgeDetectionPass` / `SMAABlendWeightPass` / `SMAANeighborhoodBlendPass` | Only when `SMAAQuality != Off`. |
-| `WidgetPass` | World-space widget color, post-tone-map. |
-| `DebugTextPass` | Non-Shipping only. |
+| `Underwater` | Absorption and distortion over the composited HDR, computed per-ray path length so a half-submerged waterline falls out naturally and above-water pixels are untouched. |
+| `Bloom` | Downsample and upsample chain. |
+| `Auto Exposure` | Histogram adaptation into `AdaptedLuminance`. |
+| `Tone Mapping` | HDR to LDR, including color grading. |
+| `Post Process Materials` | User post-process materials, in the order the world resolved them from the camera and post-process volumes. |
+| `SMAA` | Edge detection, blend weights, neighborhood blend. Only when `SMAAQuality != Off`. |
+| `Selection Outline` (editor) | Edge-detects the picker target, so billboards, widgets and world text outline as well as meshes. |
+| `Widgets` | World-space widget color, post-tone-map. |
+| `Debug Text` (non-Shipping) | On-screen debug text. |
 
 ### Capture views and composite
 
 Every enabled capture view then re-renders a reduced pass list
 (`RenderCaptureView`): the gather is shared, the shading is per view. Capture
-views are **frustum only**, a single cull phase with no late re-test.
+views are **frustum only**, a single phase with no late re-test.
 
-Finally, `RmlUi::RenderWorldUI` composites screen-space world UI onto the primary
-output, and a `Barriers::RasterToRead` makes the final writes visible to the
-ImGui submit that samples them in the editor viewport.
+`ReflectionProbeBakePass` runs after them, then `RmlUi::RenderWorldUI` composites
+screen-space world UI onto the primary output, and a `Barriers::RasterToRead`
+makes the final writes visible to the ImGui submit that samples them in the
+editor viewport.
 
 ## Draw command compilation
 
@@ -175,7 +211,8 @@ Two halves, run before the passes:
 
 - `CompileDrawCommands_GameThread` does the ECS reads and the parallel `Process*`
   tasks, plus cull and shadow setup.
-- `CompileDrawCommands_Render` resizes buffers and records the uploads.
+- `CompileDrawCommands_Render` resizes buffers, records the uploads, and
+  dispatches the GPU scene cull.
 
 `ResolveDirtyMeshComponents` is a serial pre-pass so the parallel gather stays
 pure reads, and it is skipped entirely when nothing changed.
@@ -199,7 +236,7 @@ GPU zone and an RHI debug marker. That means:
 
 ## Adding a pass
 
-1. Declare the method in `ForwardRenderScene.h` in the pass block.
+1. Declare the method in `DefaultSceneRenderer.h` in the pass block.
 2. Add any new render target to `ENamedImage` and its allocation.
 3. Insert the call into `RenderView` at the correct point, wrapped in a
    `SCENE_GPU_SCOPE`.
@@ -207,16 +244,18 @@ GPU zone and an RHI debug marker. That means:
    automatic dependency tracking.
 5. If it writes depth, use reverse-Z (`EOp::Greater` / `GreaterEqual`, clear to
    0.0).
-6. If the pass has a shader, note that changing the pipeline's key layout may
-   need a [shader cache version](/internals/shaders/) bump.
+6. If it needs per-slot buffers, size them by `RHI::kFramesInFlight` and index
+   with `CurrentFrameSlot`, like the rings around it.
 
 ## Common failure modes
 
 | Symptom | Cause |
 | --- | --- |
 | A pass reads stale data | Missing barrier. The renderer relies entirely on explicit `RHI::Barriers` calls. |
-| Geometry pops one frame late | Something disabled the late cull re-test, or a new view was added to the early phase only. |
-| Mip seams in deferred shading | Sampling without analytic gradients in the deferred material lane. |
+| Geometry pops one frame late | The late phase was skipped, or a new view was added without `ECullViewFlags::MeshletHiZ` handling. |
+| A material renders unlit | It has no deferred shader, so its pixels were never classified. |
+| Deferred shading silently stops at high resolution | The render extent exceeded the 16-bit pixel-list packing. Check the log for the warning. |
+| Mip seams in deferred shading | Sampling without analytic gradients in the material lane. |
 | Z-fighting in a new pass | Standard depth comparison instead of reverse-Z. |
 | Wrong material on an instance | A `MaterialIndex` of -1 collapsed to 0 instead of staying `SIZE_MAX`. |
 | Corrupted GPU marker names | An unbalanced `SCENE_GPU_SCOPE` on an early-return path. |

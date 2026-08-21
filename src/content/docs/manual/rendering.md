@@ -101,3 +101,44 @@ Per-world render settings live in **World Settings**.
   is no TAA, so the image stays crisp without temporal blur.
 - **Variable Rate Shading** trades shading precision for performance on
   supported GPUs. It is off by default.
+
+## Present mode
+
+A finished frame does not go straight to the screen. Your monitor redraws itself
+at a fixed rate, 60 or 144 or 240 times a second, while the GPU finishes frames
+on its own schedule. **Present mode** decides what happens to a frame that is
+ready while the monitor is halfway through drawing the previous one.
+
+It lives in **Project Settings, Rendering, Display**, stored in
+`Config/RendererSettings.json`, and takes effect as soon as you change it.
+
+| Mode | What it does | What it costs |
+| --- | --- | --- |
+| **FIFO** (default) | Queues the frame and waits for the next refresh. This is what most games call V-Sync on. | No tearing. Frame rate capped to the refresh rate, plus a frame of input lag. |
+| **Mailbox** | Keeps rendering, and the newest finished frame replaces whichever one was waiting. | No tearing, less input lag than FIFO. The GPU runs flat out for frames that may never be shown, so more heat, fan noise, and power. |
+| **Immediate** | Hands the frame to the display the moment it is ready, mid refresh. This is V-Sync off. | Lowest input lag. **Tearing**: a horizontal seam where the top of the screen is showing one frame and the bottom is showing the next. |
+
+Which one to use.
+
+- **Editor work, and most shipped games**: FIFO. Nothing tears, and the GPU
+  idles instead of drawing frames nobody will see.
+- **Input lag matters** (an action game where the mouse has to feel immediate):
+  Mailbox, since it buys you latency without introducing tearing. Immediate only
+  if you can live with the seam.
+- **Profiling**: Immediate or Mailbox. FIFO pins the frame rate to the refresh
+  rate, which hides the difference between a frame that took 6 ms and one that
+  took 16 ms.
+
+One FIFO behavior worth knowing: because a late frame has to wait for the *next*
+refresh, missing the deadline steps the rate down rather than shaving it. On a
+60 Hz display a scene that cannot quite hold 60 fps plays at 30, not 55. Mailbox
+and Immediate do not do this, which is often why a scene feels smoother in them
+even though it is doing the same work.
+
+Present mode is not a frame rate limiter. `Core.MaxFPS` still caps how many
+frames the engine produces, in every mode.
+
+Not every GPU and driver offers every mode. If the one you pick is unavailable
+the engine falls back to the other uncapped mode, and finally to FIFO, which is
+always supported. So asking for Mailbox on a driver that lacks it gets you
+Immediate, and tearing along with it.

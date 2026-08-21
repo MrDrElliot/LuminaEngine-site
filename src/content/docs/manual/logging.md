@@ -17,7 +17,8 @@ code, and it's safe from any thread.
 ## C++
 
 Include `Log/Log.h` (already in the precompiled header for most modules) and use
-the macros. The format string is `std::format` syntax.
+the macros. The format string uses the engine's formatter, `Lumina::Format`,
+with the standard `{}` placeholder syntax.
 
 ```cpp
 LOG_INFO("Loaded {} assets in {:.2f} ms", Assets.size(), ElapsedMs);
@@ -55,15 +56,28 @@ A single argument is logged verbatim, so braces in it are harmless:
 LOG_ERROR(ErrorText);   // ErrorText is an FString / const char* / FStringView
 ```
 
-`FString`, `FStringView`, `FName`, `FGuid`, and `FTransform` already have a
-`std::formatter`, so they can be passed straight in. Math types don't, so use
-`Math::ToString`:
+`FString`, `FStringView`, `FName`, `FGuid`, and `FTransform` can be passed
+straight in, as can anything else with `data()` and `size()` over `char`. Math
+types can't, so use `Math::ToString`:
 
 ```cpp
 LOG_INFO("Spawned {} at {}", Prefab->GetName(), Math::ToString(Location));
 ```
 
-For your own types, specialize `std::formatter` the same way the engine ones do.
+For your own types, declare a `FormatArgument` beside the type and the logger
+finds it through ADL. The specifier arrives already parsed, so there is no
+separate parse step:
+
+```cpp
+void FormatArgument(Fmt::FFormatBuffer& Out, const FMyType& Value, const Fmt::FFormatSpec& Spec)
+{
+    AppendFormat(Out, "{}:{}", Value.Name, Value.Index);
+}
+```
+
+The same formatter is available outside logging as `Format`, `FormatAs<T>`,
+`AppendFormat`, `FormatTo`, and `FStringBuilder`. See
+[Math and Containers](/internals/math-and-containers/#formatting).
 
 ### Flushing
 

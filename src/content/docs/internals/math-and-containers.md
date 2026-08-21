@@ -3,10 +3,10 @@ title: Math and Containers
 description: The in-house math library, SIMD conventions, and which container types to reach for.
 ---
 
-Lumina uses its **own math library** and **EASTL** containers. There is no GLM
-and no `std::vector` in engine code. Both choices are load bearing: the math
-types have a guaranteed layout the renderer and the C# interop mirror, and the
-containers route through the engine allocator.
+Lumina uses its **own math library** and its **own containers**. There is no GLM
+and no `std::vector` in engine code, and as of August 2026 no EASTL either. Both
+choices are load bearing: the math types have a guaranteed layout the renderer
+and the C# interop mirror, and the containers route through the engine allocator.
 
 ## Math
 
@@ -62,12 +62,17 @@ Free functions in `Lumina::Math`, found in `VectorMath.h`, `MatrixMath.h`, and
   specializations), `Perspective`, `PerspectiveFov`, `Ortho`, `LookAt`, and
   `Decompose` into translation, rotation, scale, skew, and perspective.
 - **Quaternion**: the usual algebra plus `QuatLookAt(Direction, Up)`.
-- **Scalar** (`Math.h`, `Scalar.h`): `NextPowerOfTwo`, `AlignUp`, `Lerp`,
-  `IsNearlyEqual` and `IsNearlyZero` (defaulting to `LE_KINDA_SMALL_NUMBER`),
-  `CountTrailingZeros64`, `IsEven`, and friends. Most are `constexpr`.
+- **Scalar** (`Math.h`, `Scalar.h`): `Max`, `Min`, `Clamp`, `Abs`, `Sign`,
+  `NextPowerOfTwo`, `AlignUp`, `Lerp`, `IsNearlyEqual` and `IsNearlyZero`
+  (defaulting to `LE_KINDA_SMALL_NUMBER`), `CountTrailingZeros64`, `IsEven`, and
+  friends. Most are `constexpr`.
 
 Prefer `LengthSquared` and `DistanceSquared` in comparisons. `Length` calls
 `sqrt`.
+
+`Math::Max` and `Math::Min` are the engine's, not the standard library's. They
+take exactly two arguments of the same arithmetic type and return by value, so
+there is no dangling reference to a temporary and no initializer-list form.
 
 ### SIMD
 
@@ -141,61 +146,195 @@ tagged serialization see the scalar TRS at the real member offsets. See
 - **FNV1a** is available as a `constexpr` hash. Use it **only for code-only
   features** such as custom RTTI type ids, never for anything persisted, since it
   is not the engine's serialization hash.
-- `HashCombine(Seed, Value)` folds hashes.
+- `HashCombine(Seed, Value)` folds hashes. It funnels through `GetTypeHash`, so a
+  type without one is a compile error rather than a silent fallback.
 
 ## Containers
 
-`Runtime/Containers` aliases EASTL. Using these rather than the standard library
-matters because `EASTLAllocatorType` routes to the engine allocator, so
-allocations are tracked and go through rpmalloc. See [Memory](/internals/memory/).
+`Runtime/Source/Containers` is written in house. Everything lives in
+`Lumina::Containers` with a short alias hoisted into `Lumina`, and every type
+allocates through the engine allocator, so allocations are tracked and go through
+rpmalloc. See [Memory](/internals/memory/).
 
-### Sequence and map types
+**There is no umbrella header.** One header per type, included by name:
+`Containers/Vector.h`, `Containers/HashTable.h`, `Containers/String.h`, and so
+on. A few of these are in the precompiled header already.
 
-| Alias | EASTL type | Use for |
-| --- | --- | --- |
-| `TVector<T>` | `vector` | The default dynamic array. |
-| `TFixedVector<T, N>` | `fixed_vector` | Inline storage for `N` elements, overflowing to the heap by default. Avoids an allocation in the common case. |
-| `TArray<T, N>` | `array` | Fixed size, no allocation. |
-| `TSpan<T>` | `span` | Non-owning view. The default parameter type for "a range of things". |
-| `THashMap<K, V>` | `hash_map` | The default map. |
-| `TFixedHashMap<K, V, N>` | `fixed_hash_map` | Inline node and bucket storage. |
-| `TUnorderedMap<K, V>` | `unordered_map` | When you need the standard-library semantics. |
-| `TOrderedMap<K, V>` | `map` | Ordered iteration. |
-| `TVectorMap<K, V>` | `vector_map` | Sorted vector. Faster for small maps and iteration-heavy use. |
-| `TList<T>` | `list` | Node list. Rarely the right answer. |
-| `TPair<K, V>` | `pair` | |
-| `TBitSet<N>`, `FBitVector` | `bitset`, `bitvector` | Fixed and dynamic bit sets. |
-| `TTupleVector<Ts...>`, `TFixedTupleVector<N, Ts...>` | `tuple_vector` | Structure-of-arrays storage. |
+### Allocators
+
+Containers are parameterized on a stateless allocator rather than a standard
+allocator object:
+
+| Allocator | Backing |
+| --- | --- |
+| `FHeapAllocator` | `Memory::Malloc`, the default for everything |
+| `FScratchAllocator` | The calling thread's scratch arena. `Deallocate` is a no-op; an enclosing `FMemMark` reclaims the lot |
+| `FFrameAllocator` | The calling thread's frame arena, reset at the frame boundary |
+
+The concept requires `Allocate`, `Deallocate`, and **`TryExpand`**, which the
+standard allocator model cannot express. `TryExpand` is what lets a growing
+`TVector` claim adjacent rpmalloc space instead of allocating and copying.
+
+### Sequence types
+
+| Alias | Notes |
+| --- | --- |
+| `TVector<T>` | The default dynamic array. One pointer plus two `uint32`, so 16 bytes. Growth doubles. |
+| `TInlineVector<T, N>`, `TFixedVector<T, N>` | `N` elements of inline storage, overflowing to the heap. |
+| `TScratchVector<T>` | A `TVector` on the scratch arena. |
+| `TArray<T, N>` | Fixed size, no allocation. |
+| `TSpan<T>` | Non-owning view. The default parameter type for "a range of things". |
+| `TRingBuffer<T>` | Fixed-capacity circular buffer. |
+| `TDeque<T>`, `TQueue<T>`, `TStack<T>`, `TList<T>` | Segmented deque and the adaptors over it. `TList` is a node list and is rarely the right answer. |
+| `TBitSet<N>` | Fixed-size bit set. |
+| `TMultiVector<Ts...>` | Parallel arrays kept in lockstep, for structure-of-arrays layouts. |
+| `TSparseArray<T>` | Stable-index array with non-contiguous storage. Indices survive removals. |
+| `TSegmentMap<T>`, `THandle<T>` | Segmented storage addressed by opaque handle. `THandle<T>` is what the [RHI](/internals/rhi/) uses for all its resources. |
 
 Note that `TVector` is the **dynamic array**, not a math vector. Math vectors are
 `FVector3` and friends. The two are easy to confuse when skimming.
 
-### Engine-specific containers
+### Hash containers
 
-| Type | Purpose |
+The hash containers are a **SwissTable**, the same design as Abseil's
+`flat_hash_map`: one byte of control metadata per slot, sixteen slots compared at
+a time with SSE2, triangular probing, and a 7/8 load factor.
+
+| Alias | Layout |
 | --- | --- |
-| `TMultiVector<Ts...>` | Parallel arrays kept in lockstep, for structure-of-arrays layouts. |
-| `TSparseArray<T>` | Stable-index array with non-contiguous storage. Indices survive removals. |
-| `TSegmentArray<T>` and `THandle<T>` | Segmented storage addressed by opaque handle. `THandle<T>` is the handle type the [RHI](/internals/rhi/) uses for all its resources. |
-| `TFunction`, `TMoveOnlyFunction` | Callables. The move-only form is what render commands and task bodies capture into. |
-| `TAny` | Type-erased value. |
-| `TTuple` | Tuple. |
+| `THashMap<K, V>`, `THashSet<T>` | Flat. Elements live in the table and **move when it grows**. |
+| `TNodeHashMap<K, V>`, `TNodeHashSet<T>` | One heap node per element, so references and pointers are stable. |
+| `TInlineHashMap<K, V, N>`, `TFixedHashMap<K, V, N>` | Inline storage for `N` elements before the first allocation. |
+| `TScratchHashMap<K, V>`, `TScratchHashSet<T>` | On the scratch arena. |
+
+Two things follow from flat storage:
+
+- **Never hold a pointer or reference into a `THashMap` across an insert.** Use
+  the node variant when you need stability. This is the most common bug when
+  converting older code.
+- Lookup is heterogeneous by default, so
+  `THashMap<FString, V>::find(FStringView)` works without building a key.
+
+`GetTypeHash` found by ADL is the extension point, and it is **mandatory**: there
+is no `std::hash` fallback, and a key type without one is a compile error naming
+the type. Declare it next to your type:
+
+```cpp
+NODISCARD FORCEINLINE uint64 GetTypeHash(const FMyKey& Key) noexcept
+{
+    return Containers::CombineHash(GetTypeHash(Key.A), GetTypeHash(Key.B));
+}
+```
+
+`Containers/HashPrimitives.h` provides the pieces: `MixHash64` (splitmix64's
+finalizer), `CombineHash`, `HashBytes`, and `GetTypeHash` for integers, enums,
+pointers, and floats. Do not re-mix a hash you already got from `GetTypeHash`: a
+heterogeneous lookup only finds a key when both spellings hash identically.
+
+### Vocabulary types
+
+| Alias | Header |
+| --- | --- |
+| `TPair<K, V>` | `Containers/Pair.h` |
+| `TOptional<T>` | `Core/Templates/Optional.h` |
+| `TVariant<Ts...>` | `Core/Variant/Variant.h` |
+| `TSet<T>`, `TOrderedMap<K, V>`, `TTuple<Ts...>` | Still the standard library. Ordered lookup and tuples did not justify a bespoke red-black tree. |
 
 ### Strings
 
 | Alias | Storage |
 | --- | --- |
-| `FString` | Heap-allocated `basic_string<char>`. |
+| `FString` | `TBasicString<char>`. **16 bytes**, with a small-string buffer holding 15 characters before the first allocation. |
 | `FStringView` | Non-owning view. Prefer it for parameters. |
-| `FFixedString` | `fixed_string<char, 255>`, inline for short strings. |
-| `TFixedString<N>` | Inline for `N` characters. |
-| `FWString`, `FFixedWString` | Wide equivalents. |
+| `FCStringView` | A view that is **guaranteed null-terminated**, so it can be handed to a C API without a copy. |
+| `FFixedString` | 255 characters inline. |
+| `TFixedString<N>` | `N` characters inline. |
+| `FPathString` | 512 characters inline, sized for a path. |
+| `FWString`, `FFixedWString`, `FWStringView` | Wide equivalents. |
 
 Prefer `Lumina::StringCast<>` for narrow and wide conversion. It uses an inline
 buffer (no heap for short strings) and the platform conversion, and the temporary
 lives to the end of the full expression.
 
-### FName
+### Callables
+
+`Containers/Function.h` and `Containers/FunctionRef.h`:
+
+| Type | Owns the target | Use for |
+| --- | --- | --- |
+| `TFunction<Sig>` | yes, copyable | The default. An alias for `TCopyableFunction`. |
+| `TCopyableFunction<Sig>` | yes, copyable | The explicit spelling. |
+| `TMoveOnlyFunction<Sig>` | yes, move only | Anything capturing a `TUniquePtr` or another move-only value: render commands, task bodies, continuations. |
+| `TFunctionRef<Sig>` | **no** | A parameter that is called before the function returns. Two pointers, never allocates, must not outlive its target. |
+
+The owning forms keep a target of up to four pointers inline and only reach the
+allocator past that. `operator()` is `const` on both, so a `const TFunction&`
+parameter is callable.
+
+`Invoke(Callable, Args...)` in `Containers/Invoke.h` is the engine's INVOKE: it
+calls functors, function pointers, pointers to member function, and pointers to
+member data through one spelling. It replaced `std::invoke`.
+
+### Algorithms
+
+`Containers/Algorithm.h` is `Lumina::Algo`, and it replaced `<algorithm>` in
+engine code:
+
+- **Sorting**: `Sort` (introsort, median of three, heapsort past a depth limit),
+  `StableSort` (bottom-up merge through one heap buffer), `NthElement`,
+  `StablePartition`, `IsSorted`.
+- **Searching**: `Find`, `FindIf`, `FindIfNot`, `Contains`, `Count`, `CountIf`,
+  `AllOf`, `AnyOf`, `NoneOf`, `ForEach`, `Equal`.
+- **Ordered**: `LowerBound`, `UpperBound`, `BinarySearch`, `MinElement`,
+  `MaxElement`.
+- **Mutating**: `Remove`, `RemoveIf`, `Unique`, `Reverse`, `Rotate`, `Replace`,
+  `ReplaceIf`, `Fill`, `Iota`, `Copy`, `CopyIf`, `Transform`.
+
+`std::max`, `std::min` and `std::clamp` are **not** part of this; those are
+`Math::Max`, `Math::Min` and `Math::Clamp`.
+
+### Formatting
+
+`Containers/StringFormat.h` is the public API; `Lumina::Fmt` in
+`Containers/Format.h` is the engine behind it. The syntax is the standard's, and
+the whole parser lives out of line in one translation unit, so a call site
+instantiates almost nothing.
+
+```cpp
+FString Text = Format("{} in {:.2f} ms", Name, ElapsedMs);
+AppendFormat(Existing, " ({} more)", Count);
+FormatTo(Reused, "{:#010x}", Address);
+
+FStringBuilder Builder;
+Builder.AppendFormat("{}:{}", Key, Value);
+```
+
+| Entry point | Result |
+| --- | --- |
+| `Format(Fmt, Args...)` | A new `FString`. |
+| `FormatAs<TOut>(Fmt, Args...)` | A new string of your choice, so a `FFixedString` result stays off the heap. |
+| `AppendFormat(Out, Fmt, Args...)` | Appends to a string or a format buffer. |
+| `FormatTo(Out, Fmt, Args...)` | Clears and replaces. |
+| `FormatToBuffer(Ptr, Capacity, Fmt, Args...)` | Writes into a caller-owned array, truncating rather than allocating. |
+| `TStringBuilder<N>` | Builds text in an `N`-byte inline buffer. |
+
+Format strings are **checked where they are written**. A bad index, an unmatched
+brace, mixed automatic and manual indexing, or a specifier the argument type
+rejects is a compile error naming the fault, not a bad line at runtime. Use
+`Fmt::RuntimeFormat(Text)` to opt a string built at runtime out of the check.
+
+To make your own type formattable, declare a `FormatArgument` beside it and ADL
+finds it. There is no `std::formatter` specialization involved, and the specifier
+arrives already parsed:
+
+```cpp
+void FormatArgument(Fmt::FFormatBuffer& Out, const FMyType& Value, const Fmt::FFormatSpec& Spec);
+```
+
+Anything with `data()` and `size()` over `char` already formats as a string, which
+covers `FString`, `FStringView`, `std::string`, and the third-party string types.
+
+## FName
 
 `FName` is the interned, case-insensitive name type used for every identifier the
 engine compares often: object names, class names, asset names, shader keys.
@@ -245,6 +384,10 @@ If you change a mirrored type, add it to the layout registry checks described in
 [Scripting Host](/internals/scripting-host/), which validate size and field
 offsets on both sides at startup.
 
+The **container** layouts are mirrored too. `NativeMarshal.cs` decodes `FString`
+and `TVector` byte layouts in place, so changing either one's storage is a
+breaking change on the C# side as well.
+
 ## Common failure modes
 
 | Symptom | Cause |
@@ -254,6 +397,9 @@ offsets on both sides at startup.
 | Illegal instruction on an older CPU | An AVX2 or FMA intrinsic used without the `LUMINA_SIMD_HAS_FMA` guard. |
 | Crash in a `LoadAligned` | Buffer not aligned to `SIMD::kAlignment` (32). |
 | Reflection parse errors in a header using SIMD | An intrinsic type reached a `PROPERTY`. Reflect the member as its scalar shape with `ReflectAs`. |
-| Allocation not showing in memory tracking | A raw `std::vector` or `std::string` instead of the engine aliases. |
+| Allocation not showing in memory tracking | A raw `std::vector` or `std::string` instead of the engine containers. |
+| Dangling reference after inserting into a map | `THashMap` is flat and moves its elements on growth. Use `TNodeHashMap`. |
+| Compile error naming a key type with no `GetTypeHash` | There is no `std::hash` fallback. Declare `GetTypeHash` beside the type. |
+| Heterogeneous lookup misses a key that is present | Two spellings hashing differently, usually because one path re-mixed the result of `GetTypeHash`. |
 | Dangling string from a numbered `FName` | `c_str()` on a numbered name returns a short-lived buffer. |
 | Hash mismatch across runs | FNV1a used for something persisted. It is for code-only ids. |
