@@ -15,7 +15,11 @@ That split is what makes evaluation cheap for large crowds: inactive state
 machine branches record tasks that are never executed, and the expensive pose
 buffers are only touched for the branches that actually contribute.
 
-For the authoring view see the [Animation](/manual/animation/) manual page.
+The model is adapted from [Esoterica](https://github.com/BobbyAnguelov/Esoterica).
+This page is the tour of the whole runtime;
+[Animation Task System](/internals/animation-task-system/) is the deep dive on the
+task model, the pose pool, and why it scales. For the authoring view see the
+[Animation](/manual/animation/) manual page.
 
 ## Poses
 
@@ -63,9 +67,24 @@ VM has scalar registers (`sReg`) and pose registers (`pReg`).
 | `BlendMasked` | two poses, alpha, mask index, destination |
 | `MakeAdditive` / `ApplyAdditive` | pose sources, alpha, destination |
 | `EvalStateMachine` | state machine index, destination pose |
+| `SampleBlendSpace` | blend space index, x, y, speed, phase slot, start position, seeded slot, smoothing slot, destination |
+| `GetCurve` / `SetCurve` | source pose, curve index, value, destination |
+| `EvalSlot` | slot index, source pose, destination |
+| `Inertialize` / `DeadBlend` | source pose, request, duration, record index, destination |
+| `SavePoseSnapshot` / `LoadPoseSnapshot` | source pose, request, snapshot index, destination |
+| `SmoothScalar` | value, half-life, value slot, seeded slot, destination |
+| `EaseAlpha` | easing curve, value, destination |
 | `BoneTransform` | source pose, alpha, bone index, space, mode, TRS offset, destination |
 | `TwoBoneIK` | source pose, alpha, target xyz, root/mid/end bone indices, pole vector, destination |
+| `FABRIK` / `LookAt` / `FootIK` / `TranslateBone` | source pose, alpha, target or offset registers, bone indices, destination |
+| `GroundTrace` | foot index, world up, trace extents, layer mask, gate, nine destination scalars |
 | `Output` | source pose |
+
+Every dynamic opcode (`SampleAnimDyn`, `AdvanceClockDyn`, `SampleBlendSpaceDyn`)
+mirrors its static twin's operand layout with an object register in place of the
+table index. New opcodes are appended so existing values never move, but any change
+to an existing operand layout bumps `kAnimBytecodeVersion` and the VM refuses to run
+older bytecode rather than misparsing it.
 
 `EClipLoopMode` decides what `AdvanceClock` does at the end of a clip.
 
@@ -107,8 +126,6 @@ that register in place of a table index.
 Each dynamic opcode shares its static twin's operand layout, so the VM handles the
 pair in one case that differs only in how the asset is addressed. That is also why
 a node's clock and its sampling can never disagree about which clip is playing.
-These opcodes were appended, so every existing opcode value is unchanged and
-`kAnimBytecodeVersion` stays at 4.
 
 A clip chosen at runtime has no compile-time curve map, so the VM resolves one by
 name and caches it keyed on `(graph, clip)`. A dynamic clip can only drive slots
@@ -122,6 +139,9 @@ normalized time so blends stay foot-locked. A sync group **overrides the per-cli
 speed**, which is intended but surprising when you see a clip ignore its own rate.
 
 ## The task system
+
+Summarized here; see [Animation Task System](/internals/animation-task-system/)
+for the full treatment.
 
 `FAnimTask` (`Animation/TaskSystem/AnimTask.h`) is a recorded pose operation.
 Design choices worth noting:

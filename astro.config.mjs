@@ -196,6 +196,7 @@ export default defineConfig({
             { label: 'ECS Internals', slug: 'internals/ecs-internals' },
             { label: 'Physics Internals', slug: 'internals/physics-internals' },
             { label: 'Animation Internals', slug: 'internals/animation-internals' },
+            { label: 'Animation Task System', slug: 'internals/animation-task-system' },
             { label: 'Networking Internals', slug: 'internals/networking-internals' },
             { label: 'Audio Internals', slug: 'internals/audio-internals' },
             { label: 'RHI', slug: 'internals/rhi' },
