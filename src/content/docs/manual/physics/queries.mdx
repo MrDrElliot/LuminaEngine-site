@@ -120,7 +120,7 @@ C# returns a fresh array.
 
 ```cpp
 TVector<uint32> Ignore { Context.GetEntityBodyID(Entity) };
-TVector<entt::entity> Nearby;
+TVector<ECS::FEntity> Nearby;
 
 Context.GetPhysicsScene()->OverlapSphere(Center, 5.0f, Ignore, Nearby);
 Context.GetPhysicsScene()->OverlapBox(Center, HalfExtents, Rotation, Ignore, Nearby);

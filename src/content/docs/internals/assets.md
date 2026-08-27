@@ -229,7 +229,7 @@ by any other archive walking `Object->Serialize(Ar)`. `FObjectReferenceReplacerA
 is that archive.
 
 A reflection property walk would be wrong here. World and prefab asset
-references live in entt components, reached through `CWorld::Serialize` ->
+references live in components, reached through `CWorld::Serialize` ->
 `ECS::Utils::SerializeRegistry` -> `SerializeTaggedProperties`, not through
 reflected properties on the `CObject`. A walk over `CStruct` properties sees
 none of them.

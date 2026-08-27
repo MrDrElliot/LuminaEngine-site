@@ -117,7 +117,7 @@ in, and treat any index or enumerator as invalid after you change the container.
 
 ## `Entity`
 
-A lightweight handle to an entity (the C# mirror of `entt::entity`).
+A lightweight handle to an entity (the C# mirror of `ECS::FEntity`).
 
 ```csharp
 Entity E = World.GetEntityByName("Player");

@@ -80,7 +80,7 @@ LuminaSharp_Physics_GetLinearVelocity(...)`. The C# side binds it with
 Conventions in that surface:
 
 - `World` is an opaque `CWorld*` passed as `uint64`.
-- `Entity` is an `entt` id passed as `uint32`.
+- `Entity` is a packed entity handle passed as `uint32`.
 - **Game thread only.**
 - MSVC warning C4190 ("UDT returned with C linkage") is expected and harmless:
   every export returning `FVector3`, `FQuat`, or a wire struct does so

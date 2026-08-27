@@ -97,7 +97,7 @@ to the live world's component store.
 
 ### Iterating entities with views
 
-`Registry.View<...>()` is an entt-style typed view, every entity that has *all*
+`Registry.View<...>()` is a typed view, every entity that has *all*
 of the listed components. Iterate it with `.Each(...)` or `foreach`, and pass an
 `Exclude<...>()` filter as the argument to skip entities that also have a
 component.

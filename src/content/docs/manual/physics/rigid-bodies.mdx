@@ -135,7 +135,7 @@ struct SHoverSystem
             return;
         }
 
-        Context.ForEach<SHoverComponent>([&](entt::entity E, SHoverComponent&)
+        Context.ForEach<SHoverComponent>([&](ECS::FEntity E, SHoverComponent&)
         {
             Scene->AddForce(E, FVector3(0.0f, 20.0f, 0.0f));
         });

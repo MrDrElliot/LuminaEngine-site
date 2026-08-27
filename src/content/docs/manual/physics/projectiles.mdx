@@ -24,7 +24,7 @@ the entity that fired it.
 <TabItem label="C++">
 
 ```cpp
-entt::entity Shot = World->SpawnProjectile(Muzzle, Aim * 60.0f, 25.0f, 5.0f, Shooter);
+ECS::FEntity Shot = World->SpawnProjectile(Muzzle, Aim * 60.0f, 25.0f, 5.0f, Shooter);
 
 World->GetRegistry().get<SProjectileComponent>(Shot).OnHit.AddLambda(
     [](const SProjectileHitEvent& Hit)

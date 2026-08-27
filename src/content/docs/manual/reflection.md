@@ -85,7 +85,7 @@ silent skip.
 | `FString`, `FFixedString` | Both reflect as a string property. |
 | `FName` | Interned name, reflects as its own property kind. |
 | A reflected `enum class` | Any underlying width is preserved, so a `uint8` enum stays one byte. |
-| `FEntity`, `entt::entity` | Reflects as a 32-bit integer, surfaces in C# as an `Entity` handle. |
+| `ECS::FEntity` | Reflects as a 32-bit integer, surfaces in C# as an `Entity` handle. |
 
 ### Structs
 

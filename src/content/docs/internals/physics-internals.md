@@ -183,7 +183,7 @@ move is applied:
 ## Constraints
 
 `FConstraintDesc` is a Jolt-free description built by gameplay or editor code and
-resolved by the scene. Frames are world space, and a body set to `entt::null` is
+resolved by the scene. Frames are world space, and a body set to `ECS::NullEntity` is
 treated as **fixed to the world**, which is how you anchor a joint.
 
 `EPhysicsConstraintType`:
