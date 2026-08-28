@@ -31,9 +31,13 @@ default instead of picking up whatever was in those bytes.
 
 ## What does not survive
 
-Ordinary instance fields, the ones without `[Property]`, are **reset**. A reload
-builds new script objects, so anything a script accumulated at runtime, a timer,
-a cached target, a counter, starts over.
+Ordinary instance fields, the ones with neither `[Property]` nor `[Serialize]`,
+are **reset**. A reload builds new script objects, so anything a script
+accumulated at runtime, a timer, a cached target, a counter, starts over.
+
+A `[Serialize]` field gets the same native storage a `[Property]` does, so it
+survives a reload (and a scene save) exactly as a `[Property]` would; it just
+never appears in the Details panel.
 
 `OnAttach` and `OnReady` run again on the new instances, so anything those set up
 is rebuilt for you.
@@ -55,7 +59,7 @@ The same attribute works on the script **class**, which moves every attached
 script onto the renamed class.
 
 ```csharp
-[Alias("Game.OldPatrolScript")]
+[Alias("GameScripts.OldPatrolScript")]
 public sealed class Patrol : EntityScript { }
 ```
 

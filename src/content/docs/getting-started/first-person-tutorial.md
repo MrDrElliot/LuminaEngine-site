@@ -67,7 +67,7 @@ using System;
 using LuminaSharp;
 using Lumina;
 
-namespace Game;
+namespace GameScripts;
 
 public sealed class Player : EntityScript
 {
@@ -149,18 +149,11 @@ so add two components to the `Player`.
   down by gravity.
 - a **Capsule Collider**.
 
-**Handle the overlap.** Update `Player.cs`: cache the rigid body, bind its
-`OnOverlapBegin` in `OnReady`, and collect whatever you touch.
+**Handle the overlap.** Update `Player.cs`: override the overlap callback and
+collect whatever you touch.
 
 ```csharp
-[RequireComponent] private SRigidBodyComponent _Body = null!;
-
-public override void OnReady()
-{
-    _Body.OnOverlapBegin.Bind(OnPickup);
-}
-
-private void OnPickup(SCollisionEvent Event)
+public override void OnOverlapBegin(SCollisionEvent Event)
 {
     Debug.Log($"Collected {Event.Other}");
     World.DestroyEntity(Event.Other);
@@ -169,14 +162,18 @@ private void OnPickup(SCollisionEvent Event)
 
 Press **Play** and fly into a pickup; it logs and vanishes.
 
-### How the event binding works
+### How the event works
 
-- **`[RequireComponent]`** finds the Rigid Body you added (and would add one if it
-  were missing) and caches it as `_Body` before `OnReady` runs.
-- **`_Body.OnOverlapBegin.Bind(OnPickup)`** is the pattern for every engine event:
-  you bind a handler to it. The same shape covers `OnContactBegin` for solid hits
-  and perception's `OnTargetPerceived`, see
+- **`OnOverlapBegin`** is one of the script lifecycle hooks, like `OnUpdate`. The
+  engine delivers it to every script on the entity whose body overlapped
+  something, so there is nothing to subscribe to and nothing to unsubscribe.
+- The same shape covers `OnContactBegin` for solid hits and
+  `OnTargetPerceived` for AI senses, see
   [Collisions & Triggers](/manual/physics/collisions/).
+- When you want the event on an entity *other* than the one running the script,
+  bind the component's delegate instead: resolve the component and call
+  `Body.OnOverlapBegin.Bind(Handler)`, keeping the returned `DelegateBinding` so
+  you can `Unbind()` it in `OnDetach`.
 - **`SCollisionEvent.Other`** is the entity you overlapped, the pickup, so we log
   it and destroy it. Every `SCollisionEvent` field is listed in
   [Collisions & Triggers](/manual/physics/collisions/#the-collision-event).

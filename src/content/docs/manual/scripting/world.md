@@ -22,24 +22,49 @@ Each subsystem is a property on `World`.
 | `World.Physics` | Forces, velocities, raycasts, overlaps. See [Physics](/manual/physics/). |
 | `World.Navigation` | Pathfinding and agent movement over the navmesh. |
 | `World.UI` | Screen-space RmlUi documents. See [User Interface](/manual/scripting/ui/). |
+| `World.Perception` | What AI entities can see and hear. See [Perception](/manual/scripting/perception/). |
 | `World.Messages` | The gameplay message bus. See [Events](/manual/scripting/events/). |
+| `World.Tags` | The gameplay tag registry. See [Gameplay Tags](/manual/gameplay-tags/). |
 | `World.Net` | Network role and replication state. See [Networking](/manual/scripting/networking/). |
 | `World.Draw` | Debug drawing (Development and Debug builds only). |
+| `World.Input` | Poll actions, keys, and the mouse by name. See [Input](/manual/scripting/input/). |
+| `World.Camera` | The active camera, screen projection, and camera shakes. See [Cameras](/manual/cameras/). |
+| `World.Audio` | Playing and mixing sound. See [Audio](/manual/audio/). |
+| `World.Timers` | One-shot and looping timers. See [Timers](/manual/scripting/timers/). |
+| `World.Animation` | Clips, graph parameters, and montages. See [Animation](/manual/scripting/animation/). |
 
 ## Entities
 
 | Call | Result |
 | --- | --- |
+| `World.CreateEntity(name, location?, rotation?, scale?)` | A new named entity with a transform and nothing else |
 | `World.SpawnPrefab(path)` | Instantiates a prefab, returns its root `Entity` |
 | `World.SpawnPrefab(path, location, rotation?, parent?)` | Same, placed (and optionally parented) in one call |
+| `World.SpawnPrefab(path, transform, configure, parent?)` | Same, running `configure(root)` before the next frame so values are in place for `OnReady` |
 | `World.SpawnProjectile(origin, velocity, damage?, lifetime?)` | Fires a swept projectile entity (see [Projectiles](/manual/physics/projectiles/)) |
 | `World.DuplicateEntity(entity)` | Deep-copies an entity and its children, returns the new root |
 | `World.DestroyEntity(entity)` | Removes the entity |
+| `World.SetLifetime(entity, seconds)` | Destroys it after a delay; calling again retimes the countdown |
+| `World.IsValidEntity(entity)` | `false` once it has been destroyed and its id recycled |
 | `World.GetEntityByName(name)` | First entity with that name (`Entity.Null` if none) |
-| `World.GetEntityByTag(tag)` | First entity with that tag |
+| `World.FindByTag(tag)` | First entity with that tag (`GetEntityByTag` is the same call) |
+| `World.FindAllByTag(tag)` | Every entity with that tag, as a fresh `List<Entity>` |
 | `World.EntityHasTag(entity, tag)` | `bool` |
 | `World.GetEntityName(entity)` | The entity's name |
 | `World.GetNumEntities()` | Count of live entities |
+
+Every `SpawnPrefab` overload also takes a `TSoftObjectPtr<CPrefab>` or an
+`FSoftObjectPath` instead of a path string, so a prefab authored as a
+`[Property]` reference spawns without unwrapping it first.
+
+```csharp
+[Property] public TSoftObjectPtr<CPrefab> EnemyPrefab;
+
+Entity Enemy = World.SpawnPrefab(EnemyPrefab, Where, Configure: E =>
+{
+    Registry.GetScript<Enemy>(E)!.Health = 50.0f;
+});
+```
 
 ```csharp
 Entity Player = World.GetEntityByName("Player");
@@ -49,9 +74,9 @@ if (!Player.IsNull)
 }
 ```
 
-To create entities from nothing rather than from a prefab, use a
-[world system](/manual/scripting/world-systems/), whose context exposes
-`Create()` / `Destroy(entity)`.
+`World.CreateEntity` makes a bare entity you build up with
+`World.Registry.Emplace<T>(entity)`. A [world system](/manual/scripting/world-systems/)
+has the same pair on its context as `Create()` / `Destroy(entity)`.
 
 ## Transform (world space)
 
@@ -61,10 +86,12 @@ To create entities from nothing rather than from a prefab, use a
 | `World.SetEntityRotation(entity, q)` | sets rotation |
 | `World.TranslateEntity(entity, delta)` | moves by a world-space delta |
 
-For an entity you act on every frame, prefer caching its `STransformComponent`
-via `World.Registry.Get<STransformComponent>(entity)` and calling its methods
-directly, same as [`Transform`](/manual/scripting/entities-components/#transform)
-does for your own entity.
+For several operations on one entity in a single callback, resolve its
+`STransformComponent` once with `World.Registry.Get<STransformComponent>(entity)`
+and call its methods directly. Do not keep that wrapper past the callback: it
+points into registry storage that any structural change can move, so re-resolve
+it next frame, exactly as
+[`Transform`](/manual/scripting/entities-components/#transform) does.
 
 ## Hierarchy
 
@@ -81,6 +108,8 @@ does for your own entity.
 | --- | --- |
 | `World.DeltaTime` | Seconds since the last frame |
 | `World.ElapsedTime` | Seconds since the world was created |
+| `World.Paused` | Get or set. Pauses systems, scripts, and physics; the UI keeps running, so a pause menu can set it back |
+| `World.TimeDilation` | Get or set. Below 1 is slow motion, above 1 speeds the world up. Clamped to 0 or greater |
 
 `OnUpdate` already receives `DeltaTime` as its argument; `World.DeltaTime` is
 there for code reached outside a hook.

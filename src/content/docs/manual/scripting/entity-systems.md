@@ -15,21 +15,22 @@ works and subtle bugs.
 
 ## An entity and its script
 
-An entity on its own is just an id with components. Adding a **C# Script**
-component, with a **Script Class**, is what gives it behavior. That component
-holds the running instance and the editor-set property values.
+An entity on its own is just an id with components. Adding an **Entity Script**
+component and picking a class under **Add Script...** is what gives it behavior.
+That component holds the running instances.
 
 ```cpp
-struct SCSharpScriptComponent
+struct SEntityScriptComponent
 {
-    FString ScriptClass;                          // e.g. "Game.Player", the class to run
-    FScriptPropertyOverrides PropertyOverrides;   // [Property] values set in the editor
-
-    void* Instance;                               // this entity's managed instance (a GCHandle)
-    ECSharpBindState BindState;                    // Unbound -> Attached -> Ready
-    // ...
+    TVector<TObjectPtr<CEntityScript>> Scripts;   // one entry per attached script
 };
 ```
+
+A script instance is an ordinary engine object. A C# script class is minted at
+load time as a real `CClass` deriving `CEntityScript`, the same base a C++ script
+derives, so the driver ticks both through one loop of virtual calls with no
+language-specific path. Your `[Property]` values live on that object, which is
+why they save, undo, and replicate with no extra code.
 
 ## One instance per entity
 
@@ -42,10 +43,10 @@ against, namely `this`. Two consequences, and both trip people up.
   nothing through ordinary (instance) fields, each has its own copy. To share
   state across *every* entity of a script, use a `static` field; statics live on
   the type, not the instance.
-- **`Entity`, `World`, and `Transform` are not set in the constructor.** The
-  engine injects them *after* constructing the instance, just before `OnAttach`.
-  A field initializer or constructor runs too early to use them, so do per-entity
-  setup that needs the entity in `OnReady`.
+- **`Entity` and `World` are not set in the constructor.** The engine sets the
+  owner *after* constructing the instance, just before `OnAttach`. A field
+  initializer or constructor runs too early to use them, so do per-entity setup
+  that needs the entity in `OnReady`.
 :::
 
 ```csharp
@@ -67,22 +68,29 @@ public sealed class Turret : EntityScript
 
 For a single entity, top to bottom.
 
-1. The engine **constructs the instance** and fills in `Entity`, `World`, and the
-   cached `Transform`. Editor `[Property]` values are applied here too.
-2. **`OnAttach`** runs, **top-down** (a parent before its children). The earliest hook.
-3. **`OnReady`** runs, **bottom-up** (a child before its parent, so it runs up the
-   tree with the root last), once the scene graph is set up. By now every child
-   is ready, so it is safe to look up children and other entities here.
+1. The engine **constructs the instance** and sets its owning entity and world.
+   Editor `[Property]` values are applied here too.
+2. **`OnAttach`** runs. The earliest hook.
+3. **`OnReady`** runs on the first tick after attaching, so every script added the
+   same frame exists by then. Cache things and look up other entities here.
 4. **`OnUpdate`** runs every frame while playing, in its update phase (below).
-5. **`OnDetach`** runs once, when the entity is destroyed.
+5. **`OnDetach`** runs once, when the entity is destroyed or the script is removed.
+
+:::caution[Order across entities is unspecified]
+The driver walks the entities carrying an Entity Script component in storage
+order, not in scene-graph order. A parent's `OnReady` may run before or after its
+children's. If one script has to run after another, do not lean on hook order:
+read the other script with `GetScript<T>()` when you need it, or use an
+[event](/manual/scripting/events/).
+:::
 
 ### At map load vs at runtime
 
-- When a **map loads**, all of its entities run this together. Every script's
-  `OnAttach` first, then every `OnReady`.
-- When you **spawn an entity (or prefab) while the game is running**, its
-  `OnAttach` runs immediately and `OnReady` right after. Either way, `OnReady`
-  always runs once the entity is fully set up.
+- A script **loaded with a map** gets `OnAttach`, `OnReady`, and its first
+  `OnUpdate` back to back on the first tick.
+- A script **attached while the game is running** gets `OnAttach` immediately, in
+  the `AddScript` call itself. `OnReady` is held until the next tick, so every
+  sibling script added the same frame exists by the time it runs.
 
 ### In the editor
 
@@ -98,7 +106,14 @@ fixed-step hook, and they run at different points relative to the physics step.
 | Hook | When |
 | --- | --- |
 | `OnUpdate(float DeltaTime)` | Once per frame, in the entity's update phase (pre- or post-physics). |
-| `OnFixedUpdate(float FixedDeltaTime)` | At the fixed physics rate, 0..N times per frame, *before* the physics step. |
+| `OnFixedUpdate(float FixedDeltaTime)` | At the fixed physics rate, 0..N times per frame, after the physics step. |
+
+The frame runs its stages in this order, and the physics step sits between the
+two script passes.
+
+```
+FrameStart -> PrePhysics -> DuringPhysics -> physics step -> PostPhysics -> FrameEnd
+```
 
 ### Pre-physics and post-physics
 
@@ -125,10 +140,11 @@ to the whole script's `OnUpdate`.
 ### Fixed update for physics
 
 `OnFixedUpdate(float FixedDeltaTime)` runs at the **fixed physics timestep**
-(`1 / physics Hz`), zero or more times per frame, *before* each physics step. Its
-delta is the fixed step, not the frame delta, so it is framerate-independent. Use
-it for anything that drives the simulation: applying forces or impulses, and
-character movement.
+(`1 / PhysicsHz`), zero or more times per frame, in the post-physics stage. Its
+delta is the fixed step, not the frame delta, so it is framerate-independent, and
+the accumulator is clamped to `MaxPhysicsSteps` so a long hitch cannot queue a
+hundred steps. Both knobs live on the world's settings. Use it for anything that
+drives the simulation: applying forces or impulses, and character movement.
 
 ```csharp
 public override void OnFixedUpdate(float FixedDeltaTime)
@@ -141,70 +157,29 @@ Use `OnUpdate` for per-frame logic and visuals; use `OnFixedUpdate` for
 physics-affecting forces and movement. They are independent: a script can
 override either, both, or neither.
 
-## Running in parallel
+## Threading
 
-By default a script's `OnUpdate` and `OnFixedUpdate` run one after another on the
-game thread, in an unspecified order. That is always safe, a script can freely
-touch other entities, spawn or destroy entities, and add or remove components.
+Scripts run on the game thread, one after another, in an unspecified order. That
+is always safe: a script can freely touch other entities, spawn or destroy
+entities, and add or remove components.
 
-When a script only ever touches **its own** entity, that serialization is wasted.
-Add `[NoDeps]` to the class to promise the engine that the script's per-frame
-callbacks have no effect on any other entity. The engine then groups every
-`[NoDeps]` script and ticks them **across worker threads** through the job
-system. Scripts without the attribute keep running serially, so it is purely
-opt-in.
+There is no per-script parallel opt-in. When you have a rule that applies to many
+entities and want it spread across worker threads, write it as a
+[world system](/manual/scripting/world-systems/) and declare its component access
+with `[Reads]` / `[Writes]`; the scheduler then runs it beside any system that
+does not conflict. For self-contained compute, hand the work to the
+[task system](/manual/scripting/tasks/) and apply the results on the game thread.
+
+## Disabling a script
+
+An entity carrying `SDisabledTag` or `SScriptDisabledTag` is skipped by the
+driver entirely, so none of its scripts tick. Adding and removing the tag is the
+cheap way to park behavior without detaching anything.
 
 ```csharp
-[NoDeps]
-public sealed class Spin : EntityScript
-{
-    [Property(Units = "deg/s")]
-    public float Rate = 90.0f;
-
-    public override void OnUpdate(float DeltaTime)
-    {
-        Transform.AddYaw(Rate * DeltaTime);   // touches only this entity
-    }
-}
+Registry.Emplace<SScriptDisabledTag>(Entity);   // stop ticking
+Registry.Remove<SScriptDisabledTag>(Entity);    // resume
 ```
-
-A spinner, a projectile that only moves itself, a decoration that bobs in place,
-anything whose logic begins and ends with `this` entity is a good fit. On a scene
-with thousands of such entities the speedup is large.
-
-### The promise
-
-Inside `OnUpdate` and `OnFixedUpdate`, a `[NoDeps]` script **may**:
-
-- read and write **this** entity's own components, through `Registry` with
-  `Entity` or a `[RequireComponent]` field,
-- move **this** entity's `Transform`,
-- do self-contained compute and read values like `DeltaTime`, `Time`, and its
-  own `[Property]` fields.
-
-It **must not**:
-
-- read or write **another** entity's components or transform,
-- make structural changes, spawning or destroying any entity, or adding or
-  removing a component on any entity (its own included),
-- broadcast a message or fire a signal that another script handles right away,
-- block, await, or hand work to the [task system](/manual/scripting/tasks/).
-
-:::caution[Breaking the promise races]
-The engine trusts the attribute, it does not check it. A `[NoDeps]` script that
-reaches another entity, or changes the world's structure, will race the scripts
-running beside it, and that corruption is hard to reproduce. When in doubt, leave
-the attribute off. A serial script is always correct, only slower.
-:::
-
-### Why it is safe
-
-Each script instance owns exactly one entity. When every script in the parallel
-group touches only its own entity, no two of them ever reach the same data, so
-they run at once with no locking. Moving your own transform is fine too, those
-moves are queued and applied together after the parallel pass. The moment a
-script reaches outside its own entity that guarantee is gone, which is why the
-attribute is a promise you make rather than the default.
 
 ## Where to put what
 

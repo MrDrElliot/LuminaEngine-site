@@ -1,6 +1,6 @@
 ---
 title: Animation
-description: Play single clips or drive an animation graph's parameters from a script.
+description: Play single clips, drive an animation graph, and layer montages from a script.
 ---
 
 Animation lives on `World.Animation`. Every method takes the **entity** you want
@@ -77,14 +77,14 @@ compile time, and a typo is an error rather than a silent no-op.
 ```csharp
 var Anim = Registry.Get<SAnimationGraphComponent>(Entity);
 
-if (Anim.Parameters<SLocomotionParams>() is { } P)
+if (Anim.GetParameters<SLocomotionParams>() is { } P)
 {
     P.Speed = Velocity.Length;
     P.bGrounded = Grounded;
 }
 ```
 
-`Parameters<T>()` returns null when the graph names a different struct, so the
+`GetParameters<T>()` returns null when the graph names a different struct, so the
 type is checked before you get a handle to the memory. `RequireParameters<T>()`
 throws instead if you would rather fail loudly.
 
@@ -95,12 +95,59 @@ public override void OnUpdate(float DeltaTime)
 {
     FVector3 Velocity = World.Physics.GetLinearVelocity(Entity);
     World.Animation.SetFloat(Entity, "Speed", Velocity.Length);
-    World.Animation.SetBool(Entity, "Falling", Velocity.y < -0.1f);
+    World.Animation.SetBool(Entity, "Falling", Velocity.Y < -0.1f);
 }
 ```
 
+## Montages
+
+A montage plays a clip **over** whatever the graph is already doing, on a named
+slot. The entity's graph needs a Slot node matching one of the montage's slot
+tracks; without it nothing is heard. This is how an attack, a reload, or a hit
+reaction rides on top of locomotion instead of replacing it.
+
+```csharp
+CAnimationMontage? Attack = AttackMontage.Get();
+if (Attack is not null)
+{
+    World.Animation.PlayMontage(Entity, Attack);
+}
+```
+
+| Method | Effect |
+| --- | --- |
+| `PlayMontage(entity, montage, playRate, section)` | Blends out anything already on the slots it uses. Returns 0 when nothing started |
+| `StopMontage(entity, montage, blendOutTime)` | A null montage stops every montage; a negative blend time uses the montage's own |
+| `IsMontagePlaying(entity, montage)` | A null montage asks whether *any* montage is contributing |
+| `GetMontagePosition(entity, montage)` | Seconds into the montage |
+| `GetMontageWeight(entity, montage)` | How strongly it is blended over the graph pose, 0 to 1 |
+| `GetMontageSection(entity, montage)` | The section playing now |
+| `SetMontagePlayRate(entity, montage, rate)` | Retime it while it plays |
+| `JumpToMontageSection(entity, montage, section)` | Re-arms a montage that was blending out, which is how a combo follow-up chains |
+| `SetNextMontageSection(entity, montage, section)` | Overrides the authored link, taken at the current section's end |
+
+The same calls exist on `SAnimationGraphComponent` itself when you already have
+the component in hand.
+
+### Reacting to a notify
+
+An animation notify fires at an authored point in a clip. Poll it on the
+component the frame it lands rather than guessing from the playhead.
+
+```csharp
+var Graph = Registry.TryGet<SAnimationGraphComponent>(Entity);
+if (Graph is not null && Graph.WasNotifyTriggered("Hit"))
+{
+    ApplyMeleeDamage();
+}
+```
+
+`SSimpleAnimationComponent` has the same `WasNotifyTriggered`, plus
+`IsNotifyStateActive(name)` for a notify with a duration, and both components
+expose `GetCurveValue(name, default)` for a curve authored on the clip.
+
 :::note
 The two backends are independent: single-clip calls (`Play`, `Stop`, …) act on
-the simple component, parameter calls (`SetFloat`, …) act on the graph
-component. An entity normally uses one or the other.
+the simple component, parameter and montage calls act on the graph component. An
+entity normally uses one or the other.
 :::

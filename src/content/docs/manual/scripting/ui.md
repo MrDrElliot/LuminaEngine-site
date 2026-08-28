@@ -387,7 +387,7 @@ using System;
 using LuminaSharp;
 using Lumina;
 
-namespace Game;
+namespace GameScripts;
 
 public sealed class ImperativeMenu : EntityScript
 {

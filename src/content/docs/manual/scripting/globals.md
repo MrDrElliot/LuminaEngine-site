@@ -1,6 +1,6 @@
 ---
 title: Globals & Helpers
-description: Ambient world access and the static engine APIs, Time, Trace, Sound, Debug, Gizmo, and entity sugar.
+description: Ambient world access and the static engine APIs, Time, Trace, Sound, Fx, Debug, Gizmo, Game, and entity sugar.
 ---
 
 Most engine APIs hang off `World` (e.g. `World.Physics`, `World.Audio`). For the
@@ -47,7 +47,7 @@ by entity:
 ```csharp
 if (World.Registry.TryGet<SHealthComponent>(other) is { } health)
 {
-    health.Current -= 10;
+    health.ApplyDamage(10.0f, Entity);
 }
 ```
 
@@ -97,6 +97,48 @@ engine.Stop(fadeOut: true);
 `Sound.Play` / `Sound.PlayAt` return a `PlayingSound` whose `Volume`, `Pitch`,
 `Position`, and `Looping` are settable, plus `Stop()`. (This is the static, code-
 first counterpart to the [`World.Audio`](/manual/audio/playback/) facade.)
+
+## Fx
+
+The visual counterpart to `Sound`. Each call spawns an effect entity and
+despawns it after `Lifetime` seconds (5 by default).
+
+```csharp
+Fx.Play(Explosion, hit.Point);                          // burst at a point
+Fx.PlayAligned(Impact, hit.Point, hit.Normal);          // oriented along a surface
+Fx.PlayAttached(MuzzleFlash, Entity, "Muzzle");         // parented, follows a socket
+Fx.Stop(effect);                                        // stop emitting, let live particles finish
+```
+
+| Call | Effect |
+| --- | --- |
+| `Fx.Play(system, location, lifetime?)` | Bursts at a world point |
+| `Fx.Play(system, transform, lifetime?)` | Bursts at a full transform, keeping an authored scale or rotation |
+| `Fx.PlayAligned(system, location, normal, lifetime?)` | Oriented along a normal, the shape an impact wants |
+| `Fx.PlayAttached(system, target, socket?, offset?, lifetime?)` | Parented to an entity, optionally on a named socket or bone |
+| `Fx.Stop(effect)` | Stops emitting without cutting off live particles |
+
+Every overload also accepts a `TSoftObjectPtr<CParticleSystem>`, so a
+`[Property]` reference plays without resolving it first. An unset reference is a
+no-op rather than an error.
+
+:::note
+`PlayAttached` takes the offset before the lifetime, unlike `Play`. Pass
+`Lifetime:` by name when you skip the offset.
+:::
+
+## Game
+
+```csharp
+Game.OpenLevel("/Game/Content/Maps/Arena");   // deferred to the next frame start
+Game.OpenLevel("192.168.1.5:7777");           // or connect to a server
+Game.Quit();                                  // exits the process, ends the Play session in the editor
+```
+
+`Game.Instance` is the persistent game instance (`GetInstance<T>()` for your own
+subclass), and `Game.World` / `Game.InWorld` are the ambient world described
+above. Both `OpenLevel` and `Quit` defer to a safe frame point, so they are fine
+to call from any callback.
 
 ## Debug
 
@@ -165,9 +207,10 @@ don't touch the world from a worker task body.
 ## Creating entities
 
 ```csharp
-Entity e = World.ConstructEntity("Crate", transform);   // empty entity at a transform
-Entity p = World.Spawn("/Game/Content/Prefabs/Enemy", spawnPoint);
+Entity e = World.CreateEntity("Crate", position);                        // empty entity at a point
+Entity p = World.SpawnPrefab("/Game/Content/Prefabs/Enemy", spawnPoint);
 ```
 
-`World.Spawn` is the short alias of `SpawnPrefab`; `World.ConstructEntity` makes a
-bare entity (at the given transform) you build up with `World.Registry.Add<T>(e)`.
+`World.CreateEntity` makes a bare entity you build up with
+`World.Registry.Emplace<T>(e)`; `SpawnPrefab` instantiates a prefab. Both are
+covered in [The World API](/manual/scripting/world/).

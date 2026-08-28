@@ -66,29 +66,39 @@ handle and remove the binding when the owner goes away.
 ```csharp
 public sealed class Mine : EntityScript
 {
-    [RequireComponent] private SRigidBodyComponent _Body = null!;
-
-    public override void OnReady()
-    {
-        _Body.OnContactBegin.Bind(OnHit);
-        _Body.OnOverlapBegin.Bind(OnEnterTrigger);
-    }
-
-    private void OnHit(SCollisionEvent Event)
+    public override void OnContactBegin(SCollisionEvent Event)
     {
         Debug.Log($"hit {Event.Other} at {Event.ImpactSpeed} m/s");
     }
 
-    private void OnEnterTrigger(SCollisionEvent Event)
+    public override void OnOverlapBegin(SCollisionEvent Event)
     {
         Debug.Log($"entered trigger of {Event.Other}");
     }
 }
 ```
 
-Cache the component with `[RequireComponent]` and bind in `OnReady`. `Bind`
-returns a `DelegateBinding`, but a script's bindings are removed for you when it
-detaches, so you only need to keep it when you want to `Unbind()` early.
+For **this** entity's body, override the script hook: the engine delivers the
+event to every script on the entity, with nothing to subscribe or unsubscribe.
+
+To listen to a **different** entity's body, bind that component's delegate. Do
+not cache the component in a field, resolve it where you bind and keep only the
+`DelegateBinding` the call returns.
+
+```csharp
+private DelegateBinding _Hit;
+
+public override void OnReady()
+{
+    SRigidBodyComponent? Body = Registry.TryGet<SRigidBodyComponent>(Target);
+    if (Body is not null)
+    {
+        _Hit = Body.OnContactBegin.Bind(OnHit);
+    }
+}
+
+public override void OnDetach() => _Hit.Unbind();
+```
 
 </TabItem>
 </Tabs>

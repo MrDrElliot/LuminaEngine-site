@@ -36,7 +36,7 @@ the engine's value types and avoid per-frame allocation.
 
 Scripts are `.cs` files in your project's `Game/Scripts/` folder. The editor
 compiles every script in the project into one assembly; you attach a script to an
-entity by its **class name** (for example `Game.Player`), not by file path.
+entity by its **class name** (for example `GameScripts.Player`), not by file path.
 
 ## Anatomy of a script
 
@@ -48,7 +48,7 @@ using System;
 using LuminaSharp;
 using Lumina;
 
-namespace Game;
+namespace GameScripts;
 
 public sealed class Orbit : EntityScript
 {
@@ -90,7 +90,9 @@ hook runs.
 | `Entity` | This entity's handle (an `Entity`, wrapping its id). |
 | `World` | The world this entity lives in. |
 | `Registry` | The world's component store (`World.Registry`). |
-| `Transform` | This entity's `STransformComponent`, resolved once and cached. |
+| `Transform` | This entity's `STransformComponent`, re-resolved on every access. |
+| `DestroyToken` | A `CancellationToken` canceled when the script is detached, to pass to `GameTask` awaits. |
+| `EnableInput()` / `DisableInput()` | Add or remove this entity's `SInputComponent`, which is what makes `OnInput` and the input queries fire. |
 
 ## A typed, reflection-driven API
 
@@ -106,7 +108,7 @@ Body.Mass = 5.0f;
 ```
 
 The component types, the math types (`FVector3`, `FQuat`), and the event types
-(`SCollisionEvent`, `InputEvent`) all live in the `Lumina` namespace; the
+(`SCollisionEvent`, `SInputEvent`) all live in the `Lumina` namespace; the
 scripting surface (`EntityScript`, `Entity`, `Registry`, attributes, `Physics`,
 `Net`) lives in `LuminaSharp`. Most scripts open both.
 
@@ -125,8 +127,8 @@ The API has one rule that keeps it clean.
   networking, and global helpers.
 
 `World` exposes its subsystems as properties (`World.Physics`, `World.Draw`,
-`World.Net`, `World.Navigation`, `World.Messages`) covered on the pages that
-follow.
+`World.Net`, `World.Navigation`, `World.Messages`, and more) covered on the pages
+that follow.
 
 ## Lifecycle hooks
 
@@ -138,19 +140,26 @@ entity with no `OnUpdate` is never ticked.
 | `OnAttach()` | Once, when the instance is attached to its entity. The earliest hook. |
 | `OnReady()` | Once, after `OnAttach`, before the first `OnUpdate` (all siblings are attached). Cache things and look up other entities here. |
 | `OnUpdate(float DeltaTime)` | Every frame, while the entity is enabled. `DeltaTime` is seconds. |
-| `OnInput(SInputEvent Event)` | A keyboard or mouse event happened, while the entity is receiving input. See [Input](/manual/scripting/input/). |
+| `OnFixedUpdate(float FixedDeltaTime)` | At the fixed physics rate, 0..N times per frame. Use it for forces and movement. |
 | `OnDetach()` | Once, when the entity is destroyed or the script is removed. |
+| `OnInput(SInputEvent Event)` | A keyboard or mouse event happened, while the entity is receiving input. See [Input](/manual/scripting/input/). |
+| `OnContactBegin(SCollisionEvent)` / `OnContactEnd(SCollisionEvent)` | This entity's body started or stopped touching another. See [Collisions](/manual/physics/collisions/). |
+| `OnOverlapBegin(SCollisionEvent)` / `OnOverlapEnd(SCollisionEvent)` | The same, for a trigger volume. |
+| `OnTargetPerceived(SPerceptionEvent)` / `OnTargetLost(SPerceptionEvent)` | One of this entity's senses acquired or lost a target. See [Perception](/manual/scripting/perception/). |
+
+That is the whole set. Overriding one sets its bit on the script's class, so the
+engine only crosses into C# for the callbacks a script actually implements.
 
 For the full picture (when each runs, the physics phase it runs in, what is
-per-entity, and how to run scripts in parallel) see
+per-entity, and how threading works) see
 **[Entity Systems](/manual/scripting/entity-systems/)**. For what survives when
 you save a script while the editor is running, see
 **[Hot Reload](/manual/scripting/hot-reload/)**.
 
 ## Attaching a script
 
-In the editor, add a **C# Script** component to an entity, then click **Add
-Script** and pick your script's type (for example `Game.Player`). An entity can
+In the editor, add an **Entity Script** component to an entity, then use **Add
+Script...** and pick your script's type (for example `GameScripts.Player`). An entity can
 carry **several scripts** at once, each with its own properties; they run
 independently. Press **Play** or **Simulate** to run them.
 

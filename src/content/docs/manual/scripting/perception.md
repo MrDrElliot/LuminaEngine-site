@@ -30,22 +30,14 @@ category, or added from script). Then react in your `EntityScript`:
 ```csharp
 public sealed class Guard : EntityScript
 {
-    [RequireComponent] private SPerceptionComponent _Perception = null!;
-
-    public override void OnReady()
-    {
-        _Perception.OnTargetPerceived.Bind(OnSpotted);
-        _Perception.OnTargetLost.Bind(OnLost);
-    }
-
-    private void OnSpotted(SPerceptionEvent Event)
+    public override void OnTargetPerceived(SPerceptionEvent Event)
     {
         // We just became aware of Event.Target via Event.Sense.
         Debug.Log($"Spotted {Event.Target} via {Event.Sense}");
         MoveTo(Event.Location);
     }
 
-    private void OnLost(SPerceptionEvent Event)
+    public override void OnTargetLost(SPerceptionEvent Event)
     {
         // Event.Location is where we last knew the target to be.
         Debug.Log($"Lost {Event.Target}, searching last known spot");
@@ -54,14 +46,19 @@ public sealed class Guard : EntityScript
 }
 ```
 
+`OnTargetPerceived` and `OnTargetLost` are script lifecycle hooks, delivered to
+the **perceiver's** scripts alongside the component's own delegates. Override
+them and there is nothing to subscribe or unsubscribe. Bind
+`SPerceptionComponent.OnTargetPerceived` directly only when you want to hear
+about a perceiver other than your own entity.
+
 That is the whole loop for most AI: get told when a target appears, get told
 when it is lost, and use the queries below for everything in between.
 
-A common next step is to park what you sensed in a
-your own component, writing the target into an `Entity`
-key and its position into a `Vector` key, so the rest of your AI (and the
-character's animation graph) reads one shared store instead of the perception
-events directly.
+A common next step is to park what you sensed in a component of your own,
+writing the target entity and its last known position, so the rest of your AI
+(and the character's animation graph) reads one shared store instead of the
+perception events directly.
 
 ## The perceiver
 

@@ -45,6 +45,11 @@ boundary changes. Its history is a useful record of what the boundary carries:
   adding `OnNativeDelegateDestroyed`.
 - v8, a managed render scene bridge, so a C# type can be installed through
   `RenderSceneFactory`.
+- v9, the Scriptable sink carries each class's update phase, so `[UpdatePhase]`
+  reaches the native tick.
+- v10, a script struct's schema carries its managed size, which the minted layout
+  is checked against, and a minted enum property takes its underlying type's width
+  rather than always 8 bytes.
 
 A mismatch is reported at the handshake rather than crashing later.
 

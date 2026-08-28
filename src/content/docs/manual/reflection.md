@@ -171,12 +171,31 @@ so a misspelling never quietly does nothing. The common editor hints follow.
 | `FilePath` | Draw a file browser for a string. |
 | `Entity` | Draw an entity reference picker. |
 | `AssetType = "..."` | Restrict an asset reference picker to one asset class. |
+| `RowType = "..."` | Restrict a data table row handle picker to one row struct. |
 | `RequiresRecook` | Editing the value triggers a recook of the owning asset. |
+| `EditCondition = "..."` | Disable the property while the expression is false. Terms are `Prop`, `!Prop`, `Prop == Value` or `Prop != Value`, joined by `&&` or `\|\|`. |
+| `EditConditionHides` | Hide the property instead of disabling it while its `EditCondition` is false. |
 | `ToolTip = "..."` | Hover text. A `/** ... */` comment above the property becomes this automatically. |
 
-There are also pickers that constrain a value to something the owning asset
-knows about: `BonePicker`, `SocketPicker`, `CurvePicker`, `InputAction`,
-`ParameterPicker`, `ObjectParameterPicker`, and `RowType` for a data table row.
+A string or name property can be drawn as a **picker** that constrains it to
+something the owning asset knows about. It is one specifier taking a kind, not a
+specifier per kind.
+
+```cpp
+PROPERTY(Editable, Picker = "Bone")
+FName AttachBone;
+```
+
+The built-in kinds are `Bone`, `Socket`, `Curve`, `Parameter`,
+`ObjectParameter`, and `InputAction`; the editor resolves the name through its
+picker registry, so a plugin can add more.
+
+Two specifiers shape what a field reflects **as** rather than how it draws.
+
+| Specifier | Effect |
+| --- | --- |
+| `ReflectAs = "..."` | Reflects the field as the named type instead of its declared type. |
+| `StructBase = "..."` | Constrains a bare `FInstancedStruct` to structs deriving from the named base. |
 
 ```cpp
 PROPERTY(Editable, Category = "Movement", ClampMin = 0, Units = "m/s")
@@ -309,6 +328,7 @@ with too few arguments. Fix the argument type rather than ignoring the warning.
 | `ScriptFastCalls` | Apply `SuppressGCTransition` to every generated binding on the type. |
 | `ConfigFile = "..."` | Back the class with a config file the settings system loads and saves. |
 | `DisplayName = "..."` | Override the label shown for the type in the editor. |
+| `ToolTip = "..."` | Hover text for the type, filled from its doc comment when not written by hand. |
 | `HideInComponentList` | Keep the component out of the Add Component menu. |
 | `HideInDetails` | Keep the type out of the Details panel. |
 | `NotPlaceable` | (Classes) exclude from the node graph's placeable node list. |

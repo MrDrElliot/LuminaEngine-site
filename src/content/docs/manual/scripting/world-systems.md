@@ -31,7 +31,7 @@ automatically.
 using LuminaSharp;
 using Lumina;
 
-namespace Game;
+namespace GameScripts;
 
 [EntitySystem(Stage = EUpdateStage.PrePhysics, Priority = 128)]
 public sealed class SpinSystem : EntitySystem
@@ -74,7 +74,7 @@ can opt into.
 | `DuringPhysics` | Alongside the physics step. |
 | `PostPhysics` | After physics resolves (react to results). |
 | `FrameEnd` | End of frame. |
-| `Paused` | The stage that ticks while the editor is idle (not playing). |
+| `Paused` | The only stage that runs while `World.Paused` is true, and the only one that does **not** run otherwise. |
 
 `Priority` is an `int`, **lower runs first**, and `128` is the default (medium).
 
@@ -122,10 +122,37 @@ Views support arity 1–4 and an exclude filter of up to 3 types. The wrappers a
 view hands back are valid only for the current iteration step. Read out any
 field you need to keep, don't store the wrapper.
 
-:::note[Stateless and single-threaded]
+:::note[Stateless]
 Keep per-frame work in the view loop, not on the instance. A system holds the
-*rule*, not per-entity state. World systems tick on the script thread one at a
-time; native systems with non-overlapping component access run in parallel.
+*rule*, not per-entity state.
+:::
+
+## Running systems in parallel
+
+A system that declares nothing about the components it touches runs
+**exclusively**: the scheduler gives it the world to itself. Declare the access
+and it can run beside any system that does not conflict, C# and C++ alike.
+
+```csharp
+[EntitySystem(Stage = EUpdateStage.PrePhysics)]
+[Reads(typeof(SVelocityComponent))]
+[Writes(typeof(STransformComponent))]
+public sealed class MoveSystem : EntitySystem
+{
+    public override void OnUpdate(SystemContext Context) { }
+}
+```
+
+Both attributes are repeatable and take any number of component types. Reads run
+concurrently with each other; a reader serializes only against a writer of the
+same type, and a writer against any reader or writer of it.
+
+:::caution[Declaring access is a promise]
+A system that declares access must do synchronous compute over **only** the
+components it declared. Under-declaring races. It also must make no structural
+change (no creating or destroying entities, no adding or removing components) and
+must not block or await, because it runs on a job-system fiber. A system that
+declares nothing is always correct, just serialized.
 :::
 
 ## Subsystems

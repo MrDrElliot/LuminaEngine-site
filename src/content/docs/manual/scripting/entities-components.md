@@ -33,34 +33,47 @@ Registry.Remove<SBillboardComponent>(Entity);
 | `Registry.Get<T>(Entity)` | The component; throws if absent |
 | `Registry.TryGet<T>(Entity)` | The component, or `null` |
 | `Registry.Has<T>(Entity)` | `bool` |
-| `Registry.Emplace<T>(Entity)` | Adds the component if missing and returns it (idempotent) |
+| `Registry.Emplace<T>(Entity)` | Adds the component if missing and returns it (idempotent). `Add<T>` is an alias |
+| `Registry.GetOrAdd<T>(Entity)` | The component, adding a default one first if absent |
 | `Registry.Remove<T>(Entity)` | `bool` (whether one was removed) |
+
+`Emplace` and `GetOrAdd` return `T?`, and the result is `null` for a **tag**, a
+component with no fields (`SDisabledTag` and friends). Presence is the whole
+value there, so test it with `Has<T>`.
 
 The returned wrapper points at the **live** component, writing its fields writes
 through to the entity's data. A component's own methods and fields depend on its
 type; see [Entities & Components](/manual/ecs/) for the catalog.
 
-### Caching a component with `[RequireComponent]`
+### Do not cache a component across frames
 
-`Registry.Get` crosses into native code each call, so for a component you touch
-every frame, cache it. Mark a component-typed field `[RequireComponent]` and the
-engine resolves it once (adding the component if missing) and assigns it before
-`OnReady`.
+A component wrapper is a pointer into the registry's storage, and that storage
+moves. Adding or removing **any** component on **any** entity can reallocate or
+swap the array a wrapper points into, so a wrapper you stored in a field last
+frame may address the wrong entity, or freed memory, this frame.
+
+Resolve inside the callback that uses it, and hold it only for that call.
 
 ```csharp
 public sealed class Mover : EntityScript
 {
-    [RequireComponent] private SRigidBodyComponent _Body = null!;
-
     public override void OnUpdate(float DeltaTime)
     {
-        _Body.LinearDamping = 0.1f;     // no per-frame lookup
+        SRigidBodyComponent? Body = Registry.TryGet<SRigidBodyComponent>(Entity);
+        if (Body is not null)
+        {
+            Body.LinearDamping = 0.1f;
+        }
     }
 }
 ```
 
-`Transform` is already cached for you this way. It's every entity's
-`STransformComponent`, resolved once.
+`Transform` follows the same rule: it is not a cached field, it re-resolves on
+every access, which is exactly why reading it is always safe.
+
+What you *can* cache is anything that is a value rather than a view: an `Entity`
+handle, a script instance from `GetScript<T>()`, an asset reference, or the
+numbers you read out of a component.
 
 ## Identity
 
@@ -83,7 +96,7 @@ FVector3 Here = Transform.GetLocalLocation();        // local-space position
 Transform.SetLocalLocation(new FVector3(0, 2, 0));   // local-space
 FVector3 World = Transform.GetWorldLocation();       // resolved world position
 Transform.Translate(new FVector3(0, 0, 1));
-Transform.AddYaw(90.0f);                             // degrees; also AddPitch, AddRoll
+Transform.AddYaw(90.0f);                             // degrees
 Transform.SetLocalRotationFromEuler(new FVector3(0, 90, 0));
 ```
 
@@ -96,7 +109,8 @@ Transform.SetLocalRotationFromEuler(new FVector3(0, 90, 0));
 | `GetLocalRotationAsEuler()` / `SetLocalRotationFromEuler(e)` | local | degrees |
 | `AddLocalRotationFromEuler(e)` | local | degrees |
 | `Translate(delta)` | local | `FVector3` |
-| `AddYaw(deg)` / `AddPitch(deg)` / `AddRoll(deg)` | local | |
+| `AddYaw(deg)` / `AddRoll(deg)` | local | |
+| `AddPitch(deg, clampMin, clampMax)` | local | The clamps have C++ defaults of -89.9 and 89.9; a generated C# binding carries no defaults, so pass all three. |
 | `GetForward()` / `GetRight()` / `GetUp()` | world | `FVector3` |
 | `SetWorldTransform(t)` | world | |
 
@@ -132,7 +146,7 @@ camera follow another entity, add an `SCameraFollowComponent` and set its target
 ## Editable properties
 
 Expose a field to the editor with the `[Property]` attribute. It appears in the
-entity's **C# Script** section in the Details panel, and you read or write it
+entity's **Entity Script** section in the Details panel, and you read or write it
 like any field. The field's **type** picks the widget: a numeric drag, a vector
 or color picker, an enum dropdown, an asset or entity picker, a list.
 
@@ -184,16 +198,77 @@ here is the engine's `TVector<T>` there.
 | `FString` | The same storage as `string`, spelled as the engine type. Use this one inside a container, where `string` cannot go. |
 | `FName` | An interned name. Compared by id rather than by text, and case insensitive. |
 | `FVector2` / `FVector3` / `FVector4` / `FQuat` / `FTransform` | Any engine math type. |
+| `Color` | RGBA, stored as an `FVector4`. Pair it with `Color = true` for the picker. |
+| A `struct` you declare | Grouped members, drawn as a nested section. See [Your own struct](#your-own-struct). |
 | `Entity` | Draws an entity picker. |
 | `FSoftObjectPath`, `TSoftObjectPtr<T>` | Soft asset references, resolved on demand. See [Asset references](/manual/scripting/reference/#asset-references). |
 | `TObjectPtr<T>` | A hard reference to a live object, which keeps it alive. |
 | A class deriving `NativeObject` | A direct reference to a `CObject`, for example `CTexture`. |
 | `TVector<T>` | A list. See [Lists and maps](#lists-and-maps) for what `T` may be. |
 | `THashMap<K, V>` | A key/value map. `K` and `V` are plain values. |
+| `SInputAction` / `SInputAxis` | An action binding, drawn as a dropdown of the project's actions. The only property kind that stays a managed field. See [Input](/manual/scripting/input/). |
 
 Anything else is a build error naming the field, rather than a property that
-silently never appears. A plain C# class or struct of your own is not currently
-supported as a `[Property]` type.
+silently never appears.
+
+### Your own struct
+
+Group related settings in a `struct` and use it as a property. Its members are
+minted as a nested struct and drawn as their own section in the Details panel.
+
+```csharp
+public struct AimSettings
+{
+    [Property] public float    Spread;
+    [Property] public bool     Auto;
+    [Property] public FVector3 Offset;
+    [Serialize] public double  Recoil;
+}
+
+public sealed class Weapon : EntityScript
+{
+    [Property] public AimSettings Aim;
+}
+```
+
+It nests and it goes in a list, so `TVector<AimSettings>` and a struct holding
+another struct both work. Assign it as a whole value, the way you would any
+struct.
+
+```csharp
+AimSettings V = Aim;
+V.Spread = 2.5f;
+Aim = V;
+```
+
+Three rules apply, and breaking one is a build error naming the field.
+
+- **Every field must be marked** `[Property]` or `[Serialize]`. The struct is
+  the value native stores, so an unmarked field would leave the two sides
+  disagreeing about its size. Use `[Serialize]` for a member you want stored but
+  not shown.
+- **Every field must itself be storable as raw bytes**: numbers, `bool`, engine
+  math types, or another such struct. A `string`, a list, or a reference makes
+  the struct managed and it cannot back a property.
+- **Enums are fine**, at any underlying width. The native slot is the C#
+  underlying type's width, so `byte`, `int`, and `long` enums all pack as they do
+  in C#.
+
+The engine checks the minted layout against the managed size when it builds the
+class, so a disagreement is reported and the property dropped rather than read
+out of bounds.
+
+### What is not a property type
+
+`[Instanced]`, which would let a property hold a polymorphic subclass picked in
+the inspector, is **not** reachable from a script. The attribute exists for
+native use; a script field marked with it is rejected at compile time.
+
+Putting `[Property]` on a plain **class** of your own fails differently from a
+struct: the compiler rewrites those fields into accessors over native storage
+that only an `EntityScript` has, so the build stops with
+`CS0103: The name 'HasNativeStorage' does not exist in the current context`
+pointing at your helper class. Use a struct.
 
 ### Lists and maps
 
@@ -245,7 +320,7 @@ something that can live there.
 | `TObjectPtr<T>` | Yes | The list assigns each slot through the engine, so the reference count stays right. |
 | `string` | No | A managed reference cannot live in native memory. Use `FString`. |
 | A class deriving `NativeObject`, such as `CTexture` | No | Not a storable reference. Use `TObjectPtr<CTexture>`. |
-| An `enum` | No | The engine stores an enum property in a 64 bit slot, which does not match the C# underlying type's width. Use a `TVector<long>` and cast. |
+| An `enum` | Yes | The slot is the underlying type's width, so it packs like the number it is. |
 | `FSoftObjectPath`, `TSoftObjectPtr<T>` | No | An asset reference is stored as a path, not as bytes. |
 | Another `TVector<T>` or `THashMap<K, V>` | No | There is no nested container property. Give the elements a struct type instead. |
 
@@ -297,7 +372,7 @@ it for you.
 using Lumina;
 using LuminaSharp;
 
-namespace Game;
+namespace GameScripts;
 
 public sealed class EveryPropertyType : EntityScript
 {
@@ -376,16 +451,31 @@ Every `[Property]` key is optional.
 | `Name = "X"` | Renames the field; this is both its inspector label and its saved key. |
 | `Min = n` / `Max = n` | Clamp range for a numeric field. |
 | `Units = "X"` | Unit suffix after a numeric value, e.g. `"m/s"`. |
-| `Color = true` | Draws an RGBA color picker for an `FVector3` / `FVector4` instead of drag fields. |
+| `Color = true` | Draws an RGBA color picker for an `FVector3`, `FVector4`, or `Color` instead of drag fields. |
 
 Related attributes control persistence and hot reload.
 
 | Attribute | Effect |
 | --- | --- |
-| `[Serialize]` | Persists the field with the entity **without** showing it in the inspector. |
+| `[Serialize]` | Persists the field with the entity **without** showing it in the inspector. It gets the same native storage a `[Property]` does, so the same type rules apply. |
 | `[Hide]` | Keeps the field from ever being serialized or shown. |
 | `[Alias("OldName")]` | A prior name, so the value survives a rename: both when loading a saved scene and across a live C# hot reload. Repeatable. Also valid on the script **class**, which carries attached scripts onto the renamed class. |
 | `[SkipHotReload]` | Resets the field to its default on a C# hot reload instead of carrying the old value. Also valid on the script class to reset all of its properties. |
+
+Two more attributes go on members other than a property field.
+
+| Attribute | On | Effect |
+| --- | --- | --- |
+| `[Button("Label")]` | a parameterless method | Draws a button in the script's inspector section that calls the method on the live instance. Only while the game is running; a method taking arguments is ignored with a warning. |
+| `[UpdatePhase(EScriptPhase.PostPhysics)]` | the class | Moves this script's `OnUpdate` to after the physics step. See [Pre-physics and post-physics](/manual/scripting/entity-systems/#pre-physics-and-post-physics). |
+
+```csharp
+[Button("Reload")]
+public void BeginReload()
+{
+    Magazine = MagazineSize;
+}
+```
 
 ### Renaming things
 
@@ -404,7 +494,7 @@ The same applies to renaming the script class itself. Put `[Alias]` on the class
 moves onto the new one, in a live reload and when loading a scene saved under the old name.
 
 ```csharp
-[Alias("Game.OldPatrolScript")]
+[Alias("GameScripts.OldPatrolScript")]
 public sealed class Patrol : EntityScript { }
 ```
 

@@ -102,7 +102,7 @@ A script registers the view-model, then loads and shows the document.
 using LuminaSharp;
 using Lumina;
 
-namespace Game;
+namespace GameScripts;
 
 public sealed class MainMenu : EntityScript
 {

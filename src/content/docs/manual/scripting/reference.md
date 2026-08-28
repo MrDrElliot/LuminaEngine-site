@@ -12,8 +12,11 @@ Two namespaces cover almost everything.
 
 ```csharp
 using LuminaSharp;   // EntityScript, Entity, Registry, attributes, Physics, Net, Asset, Task, Debug
-using Lumina;        // FVector3, FQuat, component types (S*), InputEvent, SCollisionEvent
+using Lumina;        // FVector3, FQuat, component types (S*), SInputEvent, SCollisionEvent
 ```
+
+Scripts compile with implicit usings **off**, so nothing adds a namespace for
+you.
 
 ## Vectors and quaternions
 
@@ -35,7 +38,8 @@ FVector3 Dir = (Sum - P).Normalized();
 | `FVector4` | `X, Y, Z, W`; `Zero`, `One` (also used for RGBA colors) |
 | `FQuat` | `X, Y, Z, W`; `Identity`; `AngleAxis(radians, axis)`; `Rotate(v)`; `*` composes |
 
-Colors are `FVector4` (RGBA, components 0–1). Scalar helpers (`Sin`, `Clamp`,
+Colors are `FVector4` (RGBA, components 0–1), or the `Color` type in `LuminaSharp`, which is
+the same four floats with named constants and an implicit conversion. Scalar helpers (`Sin`, `Clamp`,
 `Lerp`, `Tau`) come from `System.MathF`.
 
 ## Strings and names
@@ -136,7 +140,26 @@ These static classes are usable from anywhere.
 | `Debug` | `Log(msg)`, `LogWarning(msg)`, `LogError(msg)` (writes to the engine log) |
 | `Asset` | `Load<T>(path)`, `LoadAsync<T>(path, callback)`, `Exists(path)` |
 | `Task` | `ParallelFor`, `Run`, `WaitForAll`, `WorkerCount` (see [Parallel Work](/manual/scripting/tasks/)) |
+| `GameTask` | `DelaySeconds`, `NextFrame`, `LoadAsync<T>`, awaited on the game thread |
 | `Profiler` | `Sample(name)` (a `using` scope), `Begin`/`End`, `Enabled` |
+| `Time` | `Delta`, `DeltaTime`, `Now` |
+| `Trace` | `Ray`, `Sphere`, then `.Ignore` / `.IgnoreSelf` / `.WithMask` and `.Run()` / `.RunAll()` |
+| `Sound` | `Play`, `PlayAt`, `PlayEx`, `PlayOnBus`, `StopAll`, bus volume and mute |
+| `Fx` | `Play`, `PlayAligned`, `PlayAttached`, `Stop`, for particle systems |
+| `Gizmo` | `Line`, `Sphere`, `Box`, `Text`, plus `Color` / `Thickness` / `Duration` state |
+| `Game` | `World`, `InWorld`, `OpenLevel(url)`, `Quit()`, `Instance`, `GetInstance<T>()` |
+
+The ambient ones (`Time`, `Trace`, `Sound`, `Fx`, `Gizmo`, `Game.World`) resolve
+the current world for you and are only valid inside a gameplay callback. See
+[Globals & Helpers](/manual/scripting/globals/).
+
+:::caution[`Game` collides with a namespace called `Game`]
+`Game` is a type in `LuminaSharp`. A script declared in a namespace *named*
+`Game` resolves the identifier to its own namespace instead, so `Game.OpenLevel`
+fails to compile with `CS0234`. The project template uses `GameScripts` for this
+reason; in an older project either rename the namespace or write
+`global::LuminaSharp.Game`.
+:::
 
 ```csharp
 Debug.Log($"spawned {E}");
@@ -186,13 +209,18 @@ public override void OnReady()
 detail is in [The World API](/manual/scripting/world/); the surface in brief.
 
 - **Subsystems**, `World.Registry`, `World.Physics`, `World.Navigation`,
-  `World.UI`, `World.Messages`, `World.Net`, `World.Draw`.
-- **Entities**, `SpawnPrefab`, `DuplicateEntity`, `DestroyEntity`,
-  `GetEntityByName`, `GetEntityByTag`, `EntityHasTag`, `GetNumEntities`.
+  `World.Perception`, `World.UI`, `World.Messages`, `World.Tags`, `World.Net`,
+  `World.Draw`, `World.Input`, `World.Camera`, `World.Audio`, `World.Timers`,
+  `World.Animation`.
+- **Entities**, `CreateEntity`, `SpawnPrefab`, `SpawnProjectile`,
+  `DuplicateEntity`, `DestroyEntity`, `SetLifetime`, `IsValidEntity`,
+  `GetEntityByName`, `FindByTag`, `FindAllByTag`, `EntityHasTag`,
+  `GetNumEntities`.
 - **Transform**, `GetEntityLocation` / `SetEntityLocation`, `SetEntityRotation`,
   `TranslateEntity`.
-- **Hierarchy**, `SetParent`, `DetachFromParent`, `GetParent`, `GetRootEntity`.
-- **Time**, `DeltaTime`, `ElapsedTime`.
+- **Hierarchy**, `SetParent`, `DetachFromParent`, `GetParent`, `GetRootEntity`,
+  `AttachEntityToSocket`, `GetSocketLocation`.
+- **Time**, `DeltaTime`, `ElapsedTime`, `Paused`, `TimeDilation`.
 
 ## Attributes
 
@@ -205,6 +233,8 @@ Declared in `LuminaSharp`, applied to script members or classes.
 | `[Hide]` | field | Never serialized or shown. |
 | `[Alias("OldName")]` | field/class | A prior name so saved data survives a rename. Repeatable. |
 | `[SkipHotReload]` | field/class | Resets to default on a C# hot reload instead of carrying the old value. |
-| `[RequireComponent]` | component-typed field | Resolves and caches the component before `OnReady` (adding it if missing). |
+| `[Button("Label")]` | parameterless method | Draws a button in the inspector that calls it on the live instance while playing. |
+| `[UpdatePhase]` | class (on `EntityScript`) | Runs this script's `OnUpdate` in `EScriptPhase.PrePhysics` (default) or `PostPhysics`. See [Entity Systems](/manual/scripting/entity-systems/#pre-physics-and-post-physics). |
 | `[EntitySystem]` | class (on `EntitySystem`) | Declares a [world system](/manual/scripting/world-systems/)'s `Stage` and `Priority`. |
-| `[UpdatePhase]` | class (on `EntityScript`) | Runs an [entity system](/manual/scripting/entity-systems/)'s `OnUpdate` in `EScriptPhase.PrePhysics` (default) or `PostPhysics`. |
+| `[Reads]` / `[Writes]` | class (on `EntitySystem`) | Declares the components a system touches, so the scheduler can run non-conflicting systems at once. |
+| `[DataTableRow]` | struct/class | Publishes the type as a data table row shape; its `[Property]` members become the columns of any data table asset that picks it. |
