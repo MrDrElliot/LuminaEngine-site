@@ -211,6 +211,15 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Sample Applications',
+          items: [
+            { label: 'Overview', slug: 'samples' },
+            { label: 'Breakout', slug: 'samples/breakout' },
+            { label: 'Umbral', slug: 'samples/umbral' },
+            { label: 'Grain', slug: 'samples/grain' },
+          ],
+        },
+        {
           label: 'Contributing',
           items: [{ autogenerate: { directory: 'contributing' } }],
         },

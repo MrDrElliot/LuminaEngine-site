@@ -27,6 +27,10 @@ If you are landing in the repository for the first time, read these in order.
 5. **[RHI](/internals/rhi/)** and **[Frame Pipeline](/internals/frame-pipeline/)**,
    the rendering half.
 
+The [sample applications](/samples/) are the applied version of this section. Each
+one drives the RHI, the job system and the ECS directly, with no editor, no world and
+no scene renderer, so they are a good way to see the pieces used in isolation.
+
 ## Subsystem map
 
 ```
