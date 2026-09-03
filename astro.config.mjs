@@ -143,6 +143,7 @@ export default defineConfig({
             { label: 'World Systems', slug: 'manual/scripting/world-systems' },
             { label: 'Parallel Work', slug: 'manual/scripting/tasks' },
             { label: 'Timers', slug: 'manual/scripting/timers' },
+            { label: 'Tweens', slug: 'manual/scripting/tweens' },
             { label: 'Animation', slug: 'manual/scripting/animation' },
             { label: 'Input', slug: 'manual/scripting/input' },
             { label: 'User Interface', slug: 'manual/scripting/ui' },
