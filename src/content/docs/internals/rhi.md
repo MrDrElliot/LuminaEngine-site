@@ -10,7 +10,8 @@ backend today, Vulkan (`Renderer/API/Vulkan/VulkanRHI.cpp`). The enum reserves
 `Metal` and `DX12` slots, both unimplemented.
 
 There is **no OpenGL backend**, and there is no render graph. Passes are recorded
-by hand into command lists, in an explicit order, with explicit barriers.
+by hand into command lists, in an explicit order, with explicit barriers. See
+[Why there is no render graph](#why-there-is-no-render-graph).
 
 ## Present and future
 
@@ -44,6 +45,53 @@ its own dispatches, and writes its own indirect arguments. Lumina's scene cull
 already works this way, and the API shape is what makes that unremarkable instead
 of a special case. Every per-draw payload is already a device address, so moving
 a decision from the CPU to the GPU does not change a signature.
+
+## Why there is no render graph
+
+A render graph exists to answer two questions. What has to happen before what,
+and which resources can share memory. Both answers cost CPU time every frame,
+and Lumina already has both without asking.
+
+Barriers name **stages, not resources**:
+
+```cpp
+void CmdBarrier(FCmdListH CL, EStageFlags Before, EStageFlags After);
+```
+
+There is no resource argument, so there is nothing to track. No per-resource
+state machine, no last-writer table, no reordering step, no aliasing analysis. A
+pass that wrote with compute and is about to be read by anything says so in one
+line, `RHI::Barriers::ComputeToAll(CL)`, and moves on. The canonical
+combinations are listed under [Synchronization](#synchronization), and a pass
+picks one rather than assembling stage masks by hand.
+
+Layouts are gone as well. Every image stays in `GENERAL` for its whole life, and
+the only real transition left is swapchain present. A graph that solves for
+optimal layouts would be solving a problem the renderer does not have. See
+[Vulkan Backend](/internals/vulkan-backend/) for how that works.
+
+Transient aliasing is the other half of the usual pitch, and it does not apply
+here either. Scene images are named and persistent, allocated once per view and
+reallocated only when the view resizes. Nothing requests and releases a render
+target per frame, so there is no lifetime puzzle to solve.
+
+What the absence buys:
+
+- **The frame is the source.** Passes run in the order they are written in the
+  scene renderer. Reading the render function is reading the frame, with no
+  graph to execute in your head and no node to trace back to the code that
+  registered it.
+- **A capture matches the code.** A GPU capture, a profiler zone, and the call
+  site line up, because nothing was reordered on the way to the driver.
+- **No per-frame graph cost.** Nothing to build, resolve, or compile. Recording
+  a pass costs the pass.
+- **One layer, not two.** A graph is an abstraction over an abstraction. Removing
+  it means a pass calls the same functions the backend implements.
+
+The trade is deliberate and worth stating plainly. A new pass has to choose its
+own barrier, and choosing one too narrow is a hazard nothing will catch at
+compile time. That is why the narrow helpers carry the warning they do, and why
+the broad helper above them is the right default when in doubt.
 
 ## Mesh shaders are required
 
