@@ -52,15 +52,15 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 ## The renderer
 
 Most graphics abstractions are shaped by hardware that stopped existing years
-ago. Binding slots, vertex input layouts, and per-draw descriptor sets are
-concessions to fixed-function stages a modern GPU emulates rather than
-implements. Lumina skips the concession and targets the hardware as it is.
+ago. Binding slots, vertex input layouts, and per-draw descriptor sets are all
+concessions to fixed-function stages modern GPUs no longer have. Lumina skips
+the concession and targets the hardware as it is.
 
 Descriptor indexing, buffer device address, and mesh shaders are hard
-requirements on Vulkan 1.4, checked at device selection and reported in a dialog
-rather than failing later in a confusing way. None of it is a fast path with a
-fallback beside it. There is one way to draw geometry, one way to reach a
-texture, and one way to reach a buffer.
+requirements on Vulkan 1.4. Device selection checks for them up front and says
+so in a dialog when a GPU comes up short. There is one way to draw geometry, one
+way to reach a texture, and one way to reach a buffer, with no fallback path
+beside any of them.
 
 <CardGrid>
   <Card title="A texture is an integer" icon="database">
@@ -83,10 +83,10 @@ texture, and one way to reach a buffer.
     the GPU never changes a signature.
   </Card>
   <Card title="Mesh shaders are the pipeline" icon="star">
-    Not an optimization sitting next to a vertex and index path. There is no
-    vertex and index path. A meshlet is 64 vertices and 64 triangles with
-    quantized positions, and meshlet culling is a compute pass that writes its
-    own indirect arguments.
+    There is no vertex and index path to fall back to, and no fast path to opt
+    into. A meshlet is 64 vertices and 64 triangles with quantized positions,
+    and meshlet culling is a compute pass that writes its own indirect
+    arguments.
   </Card>
   <Card title="No render graph" icon="list-format">
     Barriers name stages, not resources, so there is nothing to track. No
@@ -94,11 +94,11 @@ texture, and one way to reach a buffer.
     stays in `GENERAL` for its whole life. Passes run in the order they are
     written, so a capture and a profiler zone line up with the call site.
   </Card>
-  <Card title="Shaded per material, not per pixel" icon="analytics">
+  <Card title="One dispatch per material" icon="analytics">
     Opaque geometry writes a visibility buffer, a compute pass sorts every pixel
     into its material's run, and each material shades exactly the pixels it owns
-    with one indirect dispatch. The cost is the number of visible shaders, not
-    the number of instances.
+    with one indirect dispatch. The cost scales with the number of visible
+    shaders, and an instance count of ten thousand costs the same as ten.
   </Card>
 </CardGrid>
 
@@ -121,12 +121,12 @@ heap. Nothing is rebound per draw, because there is nothing left to rebind.
 
 ### The CPU does not know what gets drawn
 
-The scene is retained, not walked. Culling is a GPU-resident chain that sizes its
-own dispatches and writes its own indirect arguments, in two phases against a
-persistent per-instance visibility set. An early pass replays what the camera
-could see at the end of last frame and produces the depth a Hi-Z pyramid is built
-from. A late pass then tests everything else against that fresh pyramid and emits
-only what the early pass did not draw.
+The scene is retained, and nothing walks it per frame. Culling is a GPU-resident
+chain that sizes its own dispatches and writes its own indirect arguments, in two
+phases against a persistent per-instance visibility set. An early pass replays
+what the camera could see at the end of last frame and produces the depth a Hi-Z
+pyramid is built from. A late pass then tests everything else against that fresh
+pyramid and emits only what the early pass did not draw.
 
 Counts stay on the GPU from end to end. Pixel classification prefix-sums its own
 material runs, the mesh stage reads a packed draw word the cull wrote, and no
