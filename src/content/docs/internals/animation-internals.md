@@ -84,7 +84,7 @@ Every dynamic opcode (`SampleAnimDyn`, `AdvanceClockDyn`, `SampleBlendSpaceDyn`)
 mirrors its static twin's operand layout with an object register in place of the
 table index. New opcodes are appended so existing values never move, but any change
 to an existing operand layout bumps `kAnimBytecodeVersion` and the VM refuses to run
-older bytecode rather than misparsing it.
+older bytecode.
 
 `EClipLoopMode` decides what `AdvanceClock` does at the end of a clip.
 

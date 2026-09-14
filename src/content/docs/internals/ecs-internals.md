@@ -103,7 +103,7 @@ struct SProjectile
 };
 ```
 
-Two contradictions are compile errors rather than runtime surprises:
+Two contradictions are caught at compile time:
 `InPlaceDelete` with `Layout::Packed` (a packed pool relocates as it grows), and
 a `PageSize` that is not a non-zero power of two.
 

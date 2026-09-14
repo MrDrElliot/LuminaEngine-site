@@ -16,10 +16,9 @@ by hand into command lists, in an explicit order, with explicit barriers. See
 ## Present and future
 
 Most graphics abstractions are shaped by hardware that no longer exists. Binding
-slots, vertex input layouts, and per-draw descriptor sets are concessions to
-fixed-function stages that a modern GPU emulates rather than implements. Lumina
-targets the hardware as it is now, and as it is clearly heading, instead of a
-lowest common denominator.
+slots, vertex input layouts, and per-draw descriptor sets are all concessions to
+fixed-function stages modern GPUs no longer have. Lumina targets the hardware as
+it is now, and as it is clearly heading.
 
 Everything below is core Vulkan or an extension that has shipped on every vendor
 for years. None of it is a fast path with a fallback beside it. There is one way
@@ -63,7 +62,7 @@ state machine, no last-writer table, no reordering step, no aliasing analysis. A
 pass that wrote with compute and is about to be read by anything says so in one
 line, `RHI::Barriers::ComputeToAll(CL)`, and moves on. The canonical
 combinations are listed under [Synchronization](#synchronization), and a pass
-picks one rather than assembling stage masks by hand.
+picks one off that list.
 
 Layouts are gone as well. Every image stays in `GENERAL` for its whole life, and
 the only real transition left is swapchain present. A graph that solves for
@@ -97,8 +96,8 @@ the broad helper above them is the right default when in doubt.
 
 `VK_EXT_mesh_shader` is a hard requirement. Device selection rejects a GPU that
 lacks the extension, lacks the `meshShader` feature, or reports limits below what
-the geometry path needs, and it says so in a dialog instead of failing later in a
-confusing way. There is no vertex and index path to fall back to.
+the geometry path needs, and it says so in a dialog at startup. There is no
+vertex and index path to fall back to.
 
 The limits checked at startup:
 
@@ -122,10 +121,9 @@ newer, AMD RDNA2 (RX 6000) or newer, or Intel Arc.
 
 How the renderer uses them is covered in [Meshlet Pipeline](/internals/meshlet-pipeline/).
 
-Requiring them removes a class of problem rather than adding one. There is a
-single meshlet format, a single cull, and a single set of entry points, so a bug
-cannot be present on one path and absent on the other, and no pass gets written
-twice.
+The requirement buys more than it costs. There is a single meshlet format, a
+single cull, and a single set of entry points, so a bug cannot be present on one
+path and absent on the other, and no pass gets written twice.
 
 ## Shape of the API
 
@@ -487,6 +485,13 @@ the broad helper above it.
 Queue ownership moves with a matching pair, `CmdReleaseImageToQueue` on the
 source queue and `CmdAcquireImageFromQueue` on the destination. Both are required
 for an exclusive resource crossing queue families.
+
+`Host` is in that list for the readback direction only. **Host writes never need a
+barrier.** Every host-visible allocation requires `HOST_COHERENT`, so there is
+nothing to flush, and a queue submission already makes host writes issued before
+it visible to every command in that submission. The reverse direction is a real
+dependency, which is why a readback ends with a `Transfer` to `Host` barrier
+before the fence wait.
 
 Image layout transitions are handled by the backend. See
 [Vulkan Backend](/internals/vulkan-backend/) for how unified image layouts remove

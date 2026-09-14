@@ -190,7 +190,7 @@ Configuration participates in engine startup at three points:
 A settings class registered by a plugin loading later than editor init is
 discovered by the **next** `DiscoverAndLoadSettings` call. Since the function is
 idempotent, calling it again from your module's `StartupModule` is the correct
-fix rather than a workaround.
+fix.
 
 ## Adding a settings class
 

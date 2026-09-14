@@ -122,9 +122,10 @@ LMABI/1|Development|Editor|MSC1944
 That is the ABI version, the build configuration, whether the module was built
 for editor or game, and the MSVC compiler version. The module manager compares
 it against the engine's own signature before calling anything else in the DLL. A
-mismatch is refused with a clear message instead of the usual silent heap
-corruption from mixing configurations. Bump `LUMINA_MODULE_ABI_VERSION` when a
-change breaks binary compatibility across the module boundary.
+mismatch is refused with a clear message. Mixing configurations otherwise
+corrupts the heap quietly, which is a miserable thing to chase down. Bump
+`LUMINA_MODULE_ABI_VERSION` when a change breaks binary compatibility across the
+module boundary.
 
 ## Plugins
 

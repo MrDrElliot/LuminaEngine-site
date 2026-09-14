@@ -51,7 +51,7 @@ boundary changes. Its history is a useful record of what the boundary carries:
   is checked against, and a minted enum property takes its underlying type's width
   rather than always 8 bytes.
 
-A mismatch is reported at the handshake rather than crashing later.
+A mismatch is reported at the handshake, before either side runs.
 
 ## Native to managed
 
@@ -110,8 +110,8 @@ The interop implementation is split by area:
 
 `CSharpLayoutChecks.cpp` and `LayoutRegistry.cpp` verify that every struct
 mirrored across the boundary has matching size and field offsets on both sides.
-A mismatch is caught at startup with a named error instead of producing silently
-corrupted data.
+A mismatch is caught at startup with a named error, before anything reads a
+field at the wrong offset.
 
 Whenever you add or change a struct that crosses the boundary, add it to the
 layout registry. This is the single highest-value guard in the interop layer.

@@ -205,9 +205,9 @@ Output:
 
 ## Deleting assets and fixing up references
 
-Deleting is not just removing a file. Every delete funnels through
-`FContentBrowserEditorTool::RequestDeletion`, which asks the registry for the
-referencers of everything in the delete set, minus edges internal to that set.
+Every delete funnels through `FContentBrowserEditorTool::RequestDeletion`,
+which asks the registry for the referencers of everything in the delete set,
+minus edges internal to that set.
 
 If anything outside the set still points at it, a modal
 (`ReplaceReferencesModal`) offers a per-asset choice of a replacement or a null.
@@ -242,7 +242,7 @@ other archive is affected.
 
 Replacement candidates are filtered to the original's class or a subclass.
 `FObjectProperty::Serialize` performs no type check on assignment, so a wider
-filter would be a latent crash rather than a warning.
+filter turns a bad assignment into a latent crash.
 
 ## Common failure modes
 

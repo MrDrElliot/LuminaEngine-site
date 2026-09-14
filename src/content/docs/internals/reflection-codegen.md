@@ -135,7 +135,7 @@ Four details make this work, and each is easy to get wrong:
 - **An alias never requires its target to be complete.** A template used nowhere
   else is never instantiated, so its members are invisible. That is detected with
   `clang_Type_getSizeOf` returning `CXTypeLayoutError_Incomplete` and reported as
-  `LRT2006` rather than silently reflecting an empty type.
+  `LRT2006`.
 - **A substituted parameter carries no alias sugar.** Inside `TRange<FVector3>`,
   the member type arrives as the canonical `TVec<float, 3>`.
   `FClangParserContext::AliasedInstantiations` maps a canonical spelling back to

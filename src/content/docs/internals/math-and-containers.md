@@ -147,7 +147,7 @@ tagged serialization see the scalar TRS at the real member offsets. See
   features** such as custom RTTI type ids, never for anything persisted, since it
   is not the engine's serialization hash.
 - `HashCombine(Seed, Value)` folds hashes. It funnels through `GetTypeHash`, so a
-  type without one is a compile error rather than a silent fallback.
+  type without one is a compile error.
 
 ## Containers
 
