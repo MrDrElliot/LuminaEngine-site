@@ -1,9 +1,9 @@
 ---
 title: Lumina Engine
-description: A modern C++ game engine with a data-driven editor, C# scripting, and a Vulkan renderer.
+description: A modern C++ game engine with a data-driven editor, C# scripting, and a bindless, GPU-driven renderer.
 template: splash
 hero:
-  tagline: A modern C++ game engine with a data-driven editor, C# scripting, and a Vulkan renderer.
+  tagline: A modern C++ game engine with a data-driven editor, C# scripting, and a bindless, GPU-driven renderer.
   image:
     dark: ../../assets/logo-dark.png
     light: ../../assets/logo-light.png
@@ -30,9 +30,10 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 ## Why Lumina
 
 <CardGrid>
-  <Card title="Vulkan renderer" icon="rocket">
-    A bindless, GPU-driven renderer with clustered lighting, cascaded shadows,
-    image-based lighting, volumetric fog, and a Slang shader pipeline.
+  <Card title="A renderer with no binding model" icon="rocket">
+    Textures are integers and buffers are addresses. No descriptor sets, no
+    vertex input, no render graph, and no rasterization path beside mesh shaders.
+    [How that works](#the-renderer)
   </Card>
   <Card title="Data-driven world" icon="puzzle">
     A sparse-set entity-component world with a reflection system that powers the
@@ -46,6 +47,99 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
     A full editor, the scene outliner, inspector, asset browser, and live tools,
     on the same runtime as the game.
   </Card>
+</CardGrid>
+
+## The renderer
+
+Most graphics abstractions are shaped by hardware that stopped existing years
+ago. Binding slots, vertex input layouts, and per-draw descriptor sets are
+concessions to fixed-function stages a modern GPU emulates rather than
+implements. Lumina skips the concession and targets the hardware as it is.
+
+Descriptor indexing, buffer device address, and mesh shaders are hard
+requirements on Vulkan 1.4, checked at device selection and reported in a dialog
+rather than failing later in a confusing way. None of it is a fast path with a
+fallback beside it. There is one way to draw geometry, one way to reach a
+texture, and one way to reach a buffer.
+
+<CardGrid>
+  <Card title="A texture is an integer" icon="database">
+    There are no descriptor sets in the API at all. Sampled images, storage
+    images, and samplers live in one process-wide heap and are addressed by a
+    `uint32` slot. The heap is bound once per command list, so that integer can
+    sit inside a GPU struct and be read by a shader nothing ever told about the
+    texture.
+  </Card>
+  <Card title="A buffer is an address" icon="server">
+    There is no buffer object either. An allocation is a 64-bit device address,
+    and a shader chases it the way C++ does, so a GPU struct can point at another
+    buffer. Vertex input went with it. A mesh shader pulls its own vertices
+    through a pointer.
+  </Card>
+  <Card title="A draw is a pointer" icon="document">
+    Every draw and dispatch takes one `GPUPtr` that becomes the shader's push
+    constant. Per-draw data is a struct written into a per-frame bump allocator
+    and handed over by address, which is why moving a decision from the CPU to
+    the GPU never changes a signature.
+  </Card>
+  <Card title="Mesh shaders are the pipeline" icon="star">
+    Not an optimization sitting next to a vertex and index path. There is no
+    vertex and index path. A meshlet is 64 vertices and 64 triangles with
+    quantized positions, and meshlet culling is a compute pass that writes its
+    own indirect arguments.
+  </Card>
+  <Card title="No render graph" icon="list-format">
+    Barriers name stages, not resources, so there is nothing to track. No
+    last-writer table, no aliasing analysis, no per-frame graph cost. Every image
+    stays in `GENERAL` for its whole life. Passes run in the order they are
+    written, so a capture and a profiler zone line up with the call site.
+  </Card>
+  <Card title="Shaded per material, not per pixel" icon="analytics">
+    Opaque geometry writes a visibility buffer, a compute pass sorts every pixel
+    into its material's run, and each material shades exactly the pixels it owns
+    with one indirect dispatch. The cost is the number of visible shaders, not
+    the number of instances.
+  </Card>
+</CardGrid>
+
+### The whole binding model
+
+```cpp
+const uint32 AlbedoSlot = RHI::HeapWriteTexture(RHI::GetGlobalHeap(), Albedo);
+
+struct FArgs { RHI::GPUPtr Instances; uint32 AlbedoSlot; uint32 Count; };
+const RHI::GPUPtr ArgsPtr = RHI::CopyTransient(FArgs{ Instances, AlbedoSlot, Count });
+
+RHI::CmdSetTextureHeap(CL, RHI::GetGlobalHeap());
+RHI::CmdSetPipeline(CL, Pipeline);
+RHI::CmdDispatch(CL, ArgsPtr, Groups, 1, 1);
+```
+
+That is all of it. The heap is bound once, `ArgsPtr` carries everything else, and
+the shader reads `Instances` as a pointer and `AlbedoSlot` as an index into the
+heap. Nothing is rebound per draw, because there is nothing left to rebind.
+
+### The CPU does not know what gets drawn
+
+The scene is retained, not walked. Culling is a GPU-resident chain that sizes its
+own dispatches and writes its own indirect arguments, in two phases against a
+persistent per-instance visibility set. An early pass replays what the camera
+could see at the end of last frame and produces the depth a Hi-Z pyramid is built
+from. A late pass then tests everything else against that fresh pyramid and emits
+only what the early pass did not draw.
+
+Counts stay on the GPU from end to end. Pixel classification prefix-sums its own
+material runs, the mesh stage reads a packed draw word the cull wrote, and no
+stage reports a number back for the CPU to act on. There is no readback, and no
+frame of latency spent waiting for one.
+
+<CardGrid>
+  <LinkCard title="RHI" description="Handles, GPU pointers, bindless heaps, and command lists." href="/internals/rhi/" />
+  <LinkCard title="Meshlet Pipeline" description="The retained scene, the GPU cull chain, and the mesh stage." href="/internals/meshlet-pipeline/" />
+  <LinkCard title="Render Passes" description="A pass-by-pass walk of the default scene renderer." href="/internals/render-passes/" />
+  <LinkCard title="Vulkan Backend" description="Device selection, queues, memory, and GPU crash handling." href="/internals/vulkan-backend/" />
+  <LinkCard title="Shaders" description="The Slang pipeline, permutations, and shared constants." href="/internals/shaders/" />
+  <LinkCard title="Frame Pipeline" description="Extract, render, and present across threads." href="/internals/frame-pipeline/" />
 </CardGrid>
 
 ## Start here

@@ -15,7 +15,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Lumina Engine',
-      description: 'A modern C++ game engine with a data-driven editor, C# scripting, and a Vulkan renderer.',
+      description: 'A modern C++ game engine with a data-driven editor, C# scripting, and a bindless, GPU-driven renderer.',
       favicon: '/favicon.png',
       head: [
         {
