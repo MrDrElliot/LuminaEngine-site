@@ -46,21 +46,23 @@ is quicker than searching when the slot is empty.
 
 ## In scripts
 
-Load by content path. Paths are the same ones the Content Browser shows, without
-the `.lasset` extension.
+Load by content path, with the same object-loading functions C++ uses. Paths are
+the same ones the Content Browser shows, without the `.lasset` extension.
+`LoadObject<T>` and `AsyncLoadObject<T>` are available in every script without a
+qualifier.
 
 ```csharp
 // Blocking load, typed. Null if the path does not resolve.
-CStaticMesh? Mesh = Asset.Load<CStaticMesh>("/Game/Content/Meshes/Crate");
+CStaticMesh? Mesh = LoadObject<CStaticMesh>("/Game/Content/Meshes/Crate");
 
 // Background load. The callback runs on the game thread, exactly once.
-Asset.LoadAsync<CStaticMesh>("/Game/Content/Meshes/Crate", Loaded =>
+AsyncLoadObject<CStaticMesh>("/Game/Content/Meshes/Crate", Loaded =>
 {
     // use Loaded here
 });
 
 // Registry probe. Does not load anything.
-if (Asset.Exists("/Game/Content/Meshes/Crate")) { }
+if (new FSoftObjectPath("/Game/Content/Meshes/Crate").TryResolve()) { }
 ```
 
 :::caution
@@ -68,7 +70,7 @@ A loaded asset stays alive because something references it. Assign it to a
 component property or another field that the engine tracks:
 
 ```csharp
-Mesh.StaticMesh = Asset.Load<CStaticMesh>(Path);
+Mesh.StaticMesh = LoadObject<CStaticMesh>(Path);
 ```
 
 An asset you load and then drop on the floor has nothing keeping it alive.

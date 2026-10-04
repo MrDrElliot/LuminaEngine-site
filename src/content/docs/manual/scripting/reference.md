@@ -11,7 +11,7 @@ collections) is also available. See the
 Two namespaces cover almost everything.
 
 ```csharp
-using LuminaSharp;   // EntityScript, Entity, Registry, attributes, Physics, Net, Asset, Task, Debug
+using LuminaSharp;   // EntityScript, Entity, Registry, attributes, Physics, Net, Task, Debug
 using Lumina;        // FVector3, FQuat, component types (S*), SInputEvent, SCollisionEvent
 ```
 
@@ -138,9 +138,9 @@ These static classes are usable from anywhere.
 | Class | Members |
 | --- | --- |
 | `Debug` | `Log(msg)`, `LogWarning(msg)`, `LogError(msg)` (writes to the engine log) |
-| `Asset` | `Load<T>(path)`, `LoadAsync<T>(path, callback)`, `Exists(path)` |
+| `ObjectCore` | `LoadObject<T>(path)`, `AsyncLoadObject<T>(path, callback)`, imported into every script so they need no qualifier |
 | `Task` | `ParallelFor`, `Run`, `WaitForAll`, `WorkerCount` (see [Parallel Work](/manual/scripting/tasks/)) |
-| `GameTask` | `DelaySeconds`, `NextFrame`, `LoadAsync<T>`, awaited on the game thread |
+| `GameTask` | `DelaySeconds`, `NextFrame`, `LoadObjectAsync<T>`, awaited on the game thread |
 | `Profiler` | `Sample(name)` (a `using` scope), `Begin`/`End`, `Enabled` |
 | `Time` | `Delta`, `DeltaTime`, `Now` |
 | `Trace` | `Ray`, `Sphere`, then `.Ignore` / `.IgnoreSelf` / `.WithMask` and `.Run()` / `.RunAll()` |
@@ -164,7 +164,7 @@ reason; in an older project either rename the namespace or write
 ```csharp
 Debug.Log($"spawned {E}");
 
-CStaticMesh? Mesh = Asset.Load<CStaticMesh>("/Game/Content/Meshes/Crate");
+CStaticMesh? Mesh = LoadObject<CStaticMesh>("/Game/Content/Meshes/Crate");
 
 using (Profiler.Sample("Perception"))
 {
@@ -189,8 +189,8 @@ that has no asset path at all. For when to choose which, see
 
 | Type | Use |
 | --- | --- |
-| `FSoftObjectPath` | An untyped **soft** reference by path; `Exists()`, `Load<T>()`, `LoadAsync<T>(cb)` |
-| `TSoftObjectPtr<T>` | A typed **soft** reference; `Get()`, `LoadAsync(cb)` |
+| `FSoftObjectPath` | An untyped **soft** reference by path; `TryResolve()`, `LoadSynchronous<T>()`, `LoadAsync<T>(cb)` |
+| `TSoftObjectPtr<T>` | A typed **soft** reference; `LoadSynchronous()`, `LoadAsync(cb)` |
 | `TObjectPtr<T>` | A typed **hard** reference to a live object, which keeps it alive; `Value` |
 
 ```csharp
@@ -199,9 +199,51 @@ public TSoftObjectPtr<CAudioStream> PickupSound;
 
 public override void OnReady()
 {
-    CAudioStream? Sound = PickupSound.Get();
+    CAudioStream? Sound = PickupSound.LoadSynchronous();
 }
 ```
+
+## Data table rows
+
+A row type is a class marked `[DataTableRow]` that derives from
+`SDataTableRowBase`, the same base a C++ row derives from. Its `[Property]`
+fields become the table's columns, and their initializers are the values a new
+row starts with. Strings, numbers, enums, object references and `TVector`s of
+any of those all work, including in CSV import, where an array cell is written
+as `(a,b,c)` and an element with a comma or a parenthesis in it is quoted.
+
+```csharp
+[DataTableRow]
+public sealed class EnemyRow : SDataTableRowBase
+{
+    [Property] public string Name = "";
+    [Property] public int Hitpoints = 10;
+    [Property] public TVector<FString> Drops;
+}
+```
+
+Pick the type as the table's row struct in the Data Table editor, then read
+rows with `FindRow<T>(name)` or `RowAt<T>(index)`. Each returns a live view
+over the table's own memory, or null when the row is missing or the table holds
+a different row type.
+
+```csharp
+CDataTable? Enemies = LoadObject<CDataTable>("/Game/Data/Enemies");
+if (Enemies?.FindRow<EnemyRow>("Goblin") is { } Goblin)
+{
+    foreach (FString Drop in Goblin.Drops)
+    {
+        SpawnDrop(Drop);
+    }
+}
+```
+
+A string `TVector` has no indexer, because its elements are not stored as
+managed strings; use `Get(i)` or `foreach`. A number `TVector` can be read in
+one go with `AsSpan()`.
+
+A blittable `struct` marked `[DataTableRow]` also works as a row type. Copy a
+row out of it with `TryGetRow<T>(name, out Row)`.
 
 ## The `World` API
 
@@ -237,4 +279,4 @@ Declared in `LuminaSharp`, applied to script members or classes.
 | `[UpdatePhase]` | class (on `EntityScript`) | Runs this script's `OnUpdate` in `EScriptPhase.PrePhysics` (default) or `PostPhysics`. See [Entity Systems](/manual/scripting/entity-systems/#pre-physics-and-post-physics). |
 | `[EntitySystem]` | class (on `EntitySystem`) | Declares a [world system](/manual/scripting/world-systems/)'s `Stage` and `Priority`. |
 | `[Reads]` / `[Writes]` | class (on `EntitySystem`) | Declares the components a system touches, so the scheduler can run non-conflicting systems at once. |
-| `[DataTableRow]` | struct/class | Publishes the type as a data table row shape; its `[Property]` members become the columns of any data table asset that picks it. |
+| `[DataTableRow]` | struct/class | Publishes the type as a data table row shape; its `[Property]` members become the columns of any data table asset that picks it. See [Data table rows](#data-table-rows). |

@@ -183,7 +183,7 @@ public override async void OnReady()
 
     await GameTask.NextFrame(DestroyToken);
 
-    CMesh mesh = await GameTask.LoadAsync<CMesh>("/Game/Content/Meshes/Boss", DestroyToken);
+    CMesh mesh = await GameTask.LoadObjectAsync<CMesh>("/Game/Content/Meshes/Boss", DestroyToken);
 }
 ```
 
@@ -191,7 +191,7 @@ public override async void OnReady()
 | --- | --- |
 | `GameTask.DelaySeconds(s)` | after `s` seconds of world time |
 | `GameTask.NextFrame()` | on the next tick |
-| `GameTask.LoadAsync<T>(path)` | when the asset finishes loading (returns it) |
+| `GameTask.LoadObjectAsync<T>(path)` | when the object finishes loading (returns it) |
 
 Pass `DestroyToken` (a `CancellationToken` on every `EntityScript`) so a pending
 await cancels cleanly when the entity is destroyed, otherwise the continuation

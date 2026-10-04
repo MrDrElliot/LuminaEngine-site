@@ -19,7 +19,7 @@ reports `IsFinished`, which is the clean way to react to "the punch landed"
 without polling time.
 
 ```csharp
-CAnimation Punch = Asset.Load<CAnimation>("/Game/Content/Anims/Punch");
+CAnimation Punch = LoadObject<CAnimation>("/Game/Content/Anims/Punch");
 
 World.Animation.Play(Entity, Punch);          // one-shot
 World.Animation.Play(Entity, Run, Loop: true, Speed: 1.2f);
