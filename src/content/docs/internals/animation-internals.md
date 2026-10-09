@@ -18,8 +18,7 @@ buffers are only touched for the branches that actually contribute.
 The model is adapted from [Esoterica](https://github.com/BobbyAnguelov/Esoterica).
 This page is the tour of the whole runtime;
 [Animation Task System](/internals/animation-task-system/) is the deep dive on the
-task model, the pose pool, and why it scales. For the authoring view see the
-[Animation](/manual/animation/) manual page.
+task model, the pose pool, and why it scales.
 
 ## Poses
 

@@ -7,9 +7,6 @@ Physics is **Jolt**, behind a facade that keeps Jolt types out of gameplay and
 engine code. `Runtime/Physics` declares the abstraction; `Physics/API/Jolt`
 implements it.
 
-For the authoring view (rigid bodies, colliders, characters) see the
-[Physics](/manual/physics/) section of the manual.
-
 ## The facade
 
 ```cpp

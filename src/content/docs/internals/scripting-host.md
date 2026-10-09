@@ -7,8 +7,7 @@ Gameplay scripting is C#. The runtime embeds **CoreCLR** through `hostfxr`,
 loads the `LuminaSharp` managed assembly, and compiles the project's `.cs` files
 in process with Roslyn.
 
-For the scripting API itself see the manual's [Scripting](/manual/scripting/)
-section. This page is the host and interop layer.
+This page is the host and interop layer.
 
 ## Boot
 

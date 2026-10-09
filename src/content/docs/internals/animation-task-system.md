@@ -12,7 +12,6 @@ That split is the whole performance story. Everything below is a consequence of 
 
 This page is the deep dive on the task model. For poses, root motion, notifies,
 and the rest of the runtime, see [Animation Internals](/internals/animation-internals/).
-For the authoring view, see the [Animation](/manual/animation/) manual page.
 
 ## Lineage
 

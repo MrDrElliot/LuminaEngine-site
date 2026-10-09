@@ -11,9 +11,6 @@ the engine's `IDevelopmentToolUI`.
 That is why the editor and the game share a runtime, and why an editor world
 behaves like a game world.
 
-For the user-facing view of panels and workflows see the
-[Editor](/manual/editor/) section of the manual.
-
 ## FEditorEngine
 
 `Engine/Editor/Source/LuminaEditor.h`. A thin `FEngine` subclass:

@@ -8,7 +8,7 @@ logger. It writes to three places at once:
 
 - the **console** attached to the process,
 - **`Lumina.log`**, next to the executable (rotated per run, five kept),
-- the editor's **[Output Log](/manual/editor/panels/)** panel (**Ctrl+J**).
+- the editor's **Output Log** panel (**Ctrl+J**).
 
 Logging is asynchronous: the calling thread formats the message and hands it off,
 and a background thread does the writing. It's cheap enough to call from gameplay

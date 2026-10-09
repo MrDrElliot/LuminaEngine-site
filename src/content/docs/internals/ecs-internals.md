@@ -7,9 +7,7 @@ Lumina's world model is an entity component system written for the engine.
 `CWorld` owns an `ECS::FRegistry` and everything gameplay-facing is a component
 on an entity.
 
-For the authoring view (what components exist, how to compose entities) see the
-manual's [Entities & Components](/manual/ecs/) page. This page covers how the
-storage and system layers actually work.
+This page covers how the storage and system layers actually work.
 
 ## Entity handles
 

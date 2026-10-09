@@ -11,8 +11,6 @@ operation is a command queued from the game thread and drained by a per-frame
 pump job on the task pool. Voices are addressed by generation-checked handles, and
 voice state is published back for the game thread to read.
 
-For the authoring view see the [Audio](/manual/audio/) section of the manual.
-
 ## Lifecycle
 
 ```cpp

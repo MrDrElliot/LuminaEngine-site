@@ -5,8 +5,9 @@ description: What Lumina is, what you need, and what to expect.
 
 Lumina is a modern C++ game engine built on Vulkan. It pairs a data-driven
 editor with C# scripting, a sparse-set entity component system, a reflection
-system, and a forward+ renderer. It is built for learning real engine
-architecture and for prototyping on a clean, modular codebase.
+system, and a bindless, GPU-driven renderer built on mesh shaders. It is built
+for learning real engine architecture and for prototyping on a clean, modular
+codebase.
 
 This section takes you from a fresh clone to the editor running with your first
 project loaded.

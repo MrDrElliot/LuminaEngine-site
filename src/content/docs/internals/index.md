@@ -3,8 +3,7 @@ title: Engine Internals
 description: How Lumina is put together, for people working on the engine itself.
 ---
 
-The [manual](/manual/overview/) describes the engine from a game developer's seat.
-This section describes it from the inside: the C++ subsystems, the threading
+This section describes the engine from the inside: the C++ subsystems, the threading
 model, the render pipeline, and the tooling that generates half of the code you
 will read.
 
@@ -26,10 +25,6 @@ If you are landing in the repository for the first time, read these in order.
    Clang-based Reflector that produces `.generated.h` files and C# bindings.
 5. **[RHI](/internals/rhi/)** and **[Frame Pipeline](/internals/frame-pipeline/)**,
    the rendering half.
-
-The [sample applications](/samples/) are the applied version of this section. Each
-one drives the RHI, the job system and the ECS directly, with no editor, no world and
-no scene renderer, so they are a good way to see the pieces used in isolation.
 
 ## Subsystem map
 

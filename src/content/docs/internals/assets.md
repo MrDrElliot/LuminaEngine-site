@@ -12,9 +12,6 @@ that:
 - **`FAssetManager`**, the loader: turns a GUID into a live object, deduplicating
   concurrent requests.
 
-For the authoring view (importing, texture settings, referencing) see the
-[Asset Pipeline](/manual/assets/) section of the manual.
-
 ## Virtual file system
 
 `Lumina::VFS` (`FileSystem/FileSystem.h`) maps aliases to backends:

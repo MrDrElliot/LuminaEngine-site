@@ -136,7 +136,7 @@ with it.
 | --- | --- |
 | `Editable` | Shown and editable in the Details panel; serialized. |
 | `ReadOnly` | Shown in the Details panel but not editable; serialized. |
-| `Replicated` | Participates in [network replication](/manual/scripting/networking/). |
+| `Replicated` | Participates in network replication. |
 | `EditorOnly` | Kept for editor tooling; stripped from cooked/packaged builds. |
 | `NoSerialize` | Not saved or loaded. |
 | `DuplicateTransient` | Reset to its default when the owning object is duplicated. |
@@ -279,8 +279,7 @@ numbered row per element; a map shows the same controls with one row per entry,
 the **key** edited inline on the left and the **value** on the right. A struct
 element or value expands to a nested table. **Map keys must be unique**, editing
 a key to one that already exists is rejected and reverts. The same containers are
-available to C# scripts as `List<T>` and `Dictionary<K, V>`; see
-[Collections](/manual/scripting/entities-components/#collections).
+available to C# scripts as `List<T>` and `Dictionary<K, V>`.
 
 ## Functions
 
@@ -570,6 +569,6 @@ special case, not a requirement. The quantized math types, for instance, define
 | --- | --- |
 | **Editor** | The Details panel builds itself from a type's `Editable`/`ReadOnly` properties and their metadata, with no hand-written UI per component. |
 | **Serialization** | Reflected properties are what gets written into worlds, prefabs, and assets; `EditorOnly` properties are stripped when cooking. |
-| **Networking** | `Replicated` properties are collected and sent server to client, see [Networking](/manual/scripting/networking/). |
-| **Scripting** | Every `Component` struct and every reflected property and function is exposed to C# by name, see [C# Scripting](/manual/scripting/). |
+| **Networking** | `Replicated` properties are collected and sent server to client. |
+| **Scripting** | Every `Component` struct and every reflected property and function is exposed to C# by name. |
 | **Object system** | `CClass`/`CStruct`, `StaticClass()`, type-safe casts, and object construction all run on the generated type info. |

@@ -11,8 +11,6 @@ Networking is server authoritative and split into three layers:
   machinery: identity, interest, and the extract.
 - **`SNetworkSystem`**, the per-world entity system that drives it.
 
-For the authoring view see the [Networking](/manual/networking/) manual page.
-
 ## The transport
 
 ```cpp
@@ -182,7 +180,6 @@ well as fewer packets.
 gather marks what it saw without clearing per-client state.
 
 All of the tuning lives on `SDefaultWorldSettings` under the Networking category.
-See the [Networking](/manual/networking/) manual page for the values.
 
 ## The network system
 

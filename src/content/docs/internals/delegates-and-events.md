@@ -13,8 +13,7 @@ interchangeable:
 | **Events** (`Runtime/Events`) | Input and window events, dispatched through a prioritized handler chain. |
 
 The gameplay message bus (tag-addressed messages between entities) is a fourth,
-separate thing; see [Gameplay Tags](/manual/gameplay-tags/) and
-[Events](/manual/scripting/events/) in the scripting section.
+separate thing.
 
 ## Single-cast delegates
 
