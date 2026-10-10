@@ -36,9 +36,14 @@ comments only. Everything in it either sizes a buffer or is packed into a field 
 is why drift corrupts memory instead of merely misbehaving. The C++ mirrors
 (`RHI::kMeshMaxOutputVertices` and friends) are tied to it with `static_assert`s in `MeshData.h`.
 
-Shadow casters cap at a lower LOD than the camera (`MESHLET_MAX_SHADOW_LOD` = 3), because sloppy LODs can
-hole and a hole in a caster reads as a light leak. Past `ShadowCoarseLODDistance` the cap relaxes to 5,
-where one cascade texel keeps the holes sub-texel.
+Every LOD stores the error meshoptimizer measured when it simplified the level, in mesh-local units.
+Each cull view carries `LODErrorScale`, the pixels one unit of error covers at unit distance divided by
+the error that view tolerates, and `SelectLODForView` in `Culling.slang` picks the coarsest LOD whose
+error, scaled by the instance's largest axis scale, fits within the distance to the nearest point of its
+bounds. Camera, capture and probe views tolerate one display pixel, scaled by `LODDistanceScale`. Shadow
+views tolerate one shadow-map texel, scaled by `ShadowLODScale`, and cascades are flagged orthographic so
+their error does not shrink with distance. Skinned instances are picked once on the CPU by the same rule
+against the camera view, and their shadows reuse that pick so both share one pre-skin slice.
 
 ## The retained scene
 
