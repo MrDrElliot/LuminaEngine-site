@@ -164,7 +164,7 @@ Notable includes:
 
 | Include | Provides |
 | --- | --- |
-| `GlobalRHI.slang` / `GlobalRHIStorage.slang` | The bindless access layer: heap indexing helpers, `SAMPLER_*` stock sampler constants, `SampleTexture2DGrad`. |
+| `RHI.slang` / `GlobalRHI.slang` | The bindless layer. `RHI` is a Slang module that keeps the heaps private and exposes typed texture and sampler handles, `Samplers::*` and `GPUSpan<T>`; `GlobalRHI` imports it and adds the index-based sampling helpers material code calls. |
 | `SceneGlobals.slang` | The per-view and per-scene constant layout. |
 | `Common.slang` | Math and utility helpers. |
 | `Culling.slang` | Frustum, cone, and Hi-Z occlusion tests. |

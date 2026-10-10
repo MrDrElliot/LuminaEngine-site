@@ -13,10 +13,16 @@ where this sits in the frame.
 
 ## The unit of work
 
-A **meshlet** is 64 vertices and 64 triangles. Positions are quantized (signed 24-bit anchor plus a shared
-power-of-two exponent and three 16-bit offsets), and the triangle list is one packed dword per triangle
-holding three 8-bit local indices. Anchor plus offset stays under 2^24, so the decode is bit-identical
-everywhere, which is load-bearing for early-Z.
+A **meshlet** is 64 vertices and 64 triangles. A static mesh stores each vertex once, as a 12-byte
+attribute record (octahedral normal, tangent and UV) plus an 8-byte position on one grid per mesh (a signed
+24-bit anchor, a shared power-of-two exponent and 21 bits per axis). A meshlet reaches its vertices through
+16-bit offsets from a base vertex, or 32-bit ones when its vertices span further, and the triangle list is
+one packed dword per triangle holding three 8-bit local indices. Anchor plus offset stays under 2^24, so the
+decode is bit-identical everywhere, which is load-bearing for early-Z. A second UV set and vertex colors are
+stored only when the source has them.
+
+Skinned meshes use the same position grid but keep a copy of each vertex per meshlet, because their joint
+indices are slots in that meshlet's own bone palette.
 
 64/64 is a deliberate compromise. meshoptimizer's own guidance favors more triangles than vertices, but an
 equal count means the mesh workgroup can process one vertex and one triangle per lane per iteration with a
