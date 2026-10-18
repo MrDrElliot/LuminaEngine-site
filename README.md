@@ -1,5 +1,5 @@
-# Lumina Engine, Website & Docs
+# Lumina Engine site
 
-The marketing site and documentation for [Lumina Engine](https://github.com/MrDrElliot/LuminaEngine),
-served at **luminagameengine.com**. Built with [Astro](https://astro.build) and
-[Starlight](https://starlight.astro.build).
+A temporary documentation landing page for [luminagameengine.com](https://luminagameengine.com).
+
+Run `npm install` and `npm run dev` to preview it locally. Run `npm run build` to generate the site in `dist`.

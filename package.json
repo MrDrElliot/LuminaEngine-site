@@ -7,14 +7,9 @@
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
-    "preview": "astro preview",
-    "astro": "astro"
+    "preview": "astro preview"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.39.3",
-    "astro": "^6.4.4",
-    "remark-gfm": "^4.0.1",
-    "sharp": "^0.34.5",
-    "starlight-theme-rapide": "^0.5.2"
+    "astro": "^6.4.4"
   }
 }
